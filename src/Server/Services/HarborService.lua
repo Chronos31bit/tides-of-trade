@@ -1,0 +1,397 @@
+--!strict
+-- HarborService.lua
+-- Owns plot allocation and building placement / upgrade / removal. All grid
+-- math is shared with the client (GridUtil) but only the server's answer is
+-- authoritative — clients can preview placement freely, but the server
+-- re-runs every check before mutating the profile.
+
+local Players          = game:GetService("Players")
+local Workspace        = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Knit             = require(ReplicatedStorage.Packages.Knit)
+local GameConfig       = require(ReplicatedStorage.Shared.Config.GameConfig)
+local BuildingCatalog  = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+local GridUtil         = require(ReplicatedStorage.Shared.Util.GridUtil)
+local UidUtil          = require(ReplicatedStorage.Shared.Util.UidUtil)
+local RateLimiter      = require(ReplicatedStorage.Shared.Util.RateLimiter)
+
+local HarborService = Knit.CreateService({
+	Name = "HarborService",
+	Client = {
+		PlotAssigned    = Knit.CreateSignal(),  -- (originCFrame, sizeStuds)
+		BuildingPlaced  = Knit.CreateSignal(),  -- (building)
+		BuildingRemoved = Knit.CreateSignal(),  -- (uid)
+		BuildingUpgraded = Knit.CreateSignal(), -- (uid, newTier)
+	},
+
+	-- internal state
+	_plotOrigins = {}, -- [Player] -> CFrame (top-left corner of their plot in world)
+	_plotFolders = {}, -- [Player] -> Instance (Folder for visualizing buildings server-side)
+	_buildLimiter = nil :: any,
+	_incomeAccumulator = {}, -- [Player] -> seconds since last income tick (debounced by lifecycle)
+})
+
+-- ====================================================================
+-- LIFECYCLE
+-- ====================================================================
+
+function HarborService:KnitInit()
+	self._buildLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxBuildOpsPerMinute, 60)
+end
+
+function HarborService:KnitStart()
+	-- We need PlayerDataService loaded before we can hand out plots.
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+
+	Players.PlayerAdded:Connect(function(player)
+		-- Wait for the profile so we know what buildings to spawn.
+		local data = PlayerDataService:WaitForProfile(player, 30)
+		if not data then return end
+		self:_assignPlot(player)
+		self:_spawnExistingBuildings(player)
+	end)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(function()
+			local data = PlayerDataService:WaitForProfile(player, 30)
+			if not data then return end
+			self:_assignPlot(player)
+			self:_spawnExistingBuildings(player)
+		end)
+	end
+
+	Players.PlayerRemoving:Connect(function(player)
+		self:_releasePlot(player)
+		self._buildLimiter:reset(player)
+	end)
+
+	-- Income tick: every IncomeTickSeconds, every player earns from their buildings.
+	task.spawn(function()
+		while true do
+			task.wait(GameConfig.Harbor.IncomeTickSeconds)
+			self:_payAllPassiveIncome()
+		end
+	end)
+end
+
+-- ====================================================================
+-- PLOT ALLOCATION
+-- ====================================================================
+-- Plots are arranged in a 4x4 grid in the world starting at world (0,0,0).
+-- For up to 16 concurrent players this trivially scales; beyond that, swap
+-- this for a free-list. StreamingEnabled keeps far-away plots cheap.
+local PLOT_GRID_DIM = 4
+local PLOT_SPACING_STUDS = GameConfig.Harbor.PlotSizeStuds + 40 -- 40 stud canal between plots
+
+local function indexToOrigin(index: number): CFrame
+	-- index 0..(PLOT_GRID_DIM^2 - 1) -> world position
+	local row = math.floor(index / PLOT_GRID_DIM)
+	local col = index % PLOT_GRID_DIM
+	-- Plot origin = top-left corner of the plot in world.
+	return CFrame.new(col * PLOT_SPACING_STUDS, 0, row * PLOT_SPACING_STUDS)
+end
+
+function HarborService:_assignPlot(player: Player)
+	-- Find a free slot. With at most a few dozen players we just linear-scan.
+	local taken: {[number]: boolean} = {}
+	for _, origin in pairs(self._plotOrigins) do
+		-- Convert origin back to index for the taken set.
+		local col = math.floor(origin.X / PLOT_SPACING_STUDS + 0.5)
+		local row = math.floor(origin.Z / PLOT_SPACING_STUDS + 0.5)
+		taken[row * PLOT_GRID_DIM + col] = true
+	end
+	local assigned = -1
+	for i = 0, PLOT_GRID_DIM * PLOT_GRID_DIM - 1 do
+		if not taken[i] then
+			assigned = i
+			break
+		end
+	end
+	if assigned < 0 then
+		-- Server is full of harbors. Fall back to overflow row beyond the grid.
+		assigned = #Players:GetPlayers() + 100
+	end
+	local origin = indexToOrigin(assigned)
+	self._plotOrigins[player] = origin
+
+	-- Build a server-side folder to hold visual building parts. Real games
+	-- would clone meshes from ReplicatedStorage.Assets.Buildings.<kind>; here
+	-- we placeholder with simple parts so the project boots in Studio without
+	-- art assets.
+	local folder = Instance.new("Folder")
+	folder.Name = ("Plot_%d_%s"):format(assigned, player.Name)
+	folder.Parent = Workspace
+	self._plotFolders[player] = folder
+
+	-- Plot footprint plate — sits *on* the water (water is at Y≈0, plate at
+	-- Y=0.5..1.5). Acts as the dock surface the player walks on.
+	local plate = Instance.new("Part")
+	plate.Anchored = true
+	plate.CanCollide = true
+	plate.Size = Vector3.new(GameConfig.Harbor.PlotSizeStuds, 1, GameConfig.Harbor.PlotSizeStuds)
+	plate.Position = origin.Position + Vector3.new(GameConfig.Harbor.PlotSizeStuds / 2, 1, GameConfig.Harbor.PlotSizeStuds / 2)
+	plate.Material = Enum.Material.WoodPlanks
+	plate.Color = Color3.fromRGB(120, 90, 60)
+	plate.Name = "PlotPlate"
+	plate.Parent = folder
+
+	-- Owner nameplate floating over the plot so visitors know whose harbor
+	-- they're on. BillboardGui scales by distance for free legibility.
+	local nameTag = Instance.new("Part")
+	nameTag.Anchored = true
+	nameTag.CanCollide = false
+	nameTag.Transparency = 1
+	nameTag.Size = Vector3.new(1, 1, 1)
+	nameTag.Position = origin.Position + Vector3.new(GameConfig.Harbor.PlotSizeStuds / 2, 14, GameConfig.Harbor.PlotSizeStuds / 2)
+	nameTag.Name = "NameTag"
+	nameTag.Parent = folder
+	local bb = Instance.new("BillboardGui")
+	bb.Adornee = nameTag
+	bb.Size = UDim2.fromOffset(220, 40)
+	bb.AlwaysOnTop = true
+	bb.Parent = nameTag
+	local lbl = Instance.new("TextLabel")
+	lbl.BackgroundTransparency = 1
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 22
+	lbl.TextColor3 = Color3.fromRGB(244, 230, 200)
+	lbl.TextStrokeTransparency = 0.5
+	lbl.Text = ("%s's Harbor"):format(player.DisplayName)
+	lbl.Parent = bb
+
+	self.Client.PlotAssigned:Fire(player, origin, GameConfig.Harbor.PlotSizeStuds)
+end
+
+function HarborService:_releasePlot(player: Player)
+	self._plotOrigins[player] = nil
+	local folder = self._plotFolders[player]
+	if folder then folder:Destroy() end
+	self._plotFolders[player] = nil
+end
+
+-- ====================================================================
+-- VISUAL SPAWN — placeholder parts. Replace with real models later.
+-- ====================================================================
+function HarborService:_spawnBuildingVisual(player: Player, building: any)
+	local folder = self._plotFolders[player]; if not folder then return end
+	local origin = self._plotOrigins[player]; if not origin then return end
+	local def = BuildingCatalog[building.kind]; if not def then return end
+
+	local w, d = def.footprint[1], def.footprint[2]
+	if building.rotation == 90 or building.rotation == 270 then
+		w, d = d, w
+	end
+	local sizeStuds = Vector3.new(w * GridUtil.CELL, 6 + (building.tier * 2), d * GridUtil.CELL)
+	local local_ = GridUtil.gridToLocal(building.gridX, building.gridZ)
+
+	local part = Instance.new("Part")
+	part.Anchored = true
+	part.CanCollide = true
+	part.Size = sizeStuds
+	-- Center the part within its footprint and rest its base on top of the
+	-- plot plate (plate top is at local Y=1.5).
+	local PLATE_TOP = 1.5
+	part.CFrame = origin * CFrame.new(local_.X + sizeStuds.X / 2, PLATE_TOP + sizeStuds.Y / 2, local_.Z + sizeStuds.Z / 2)
+	part.Material = Enum.Material.WoodPlanks
+	-- Tint per kind so debug screenshots are legible without real art.
+	part.Color = Color3.fromHSV((string.byte(building.kind, 1) % 12) / 12, 0.45, 0.7)
+	part.Name = building.uid
+	part:SetAttribute("kind", building.kind)
+	part:SetAttribute("tier", building.tier)
+	part.Parent = folder
+
+	-- Aquariums get a prompt so players can open the manage UI. Other
+	-- building kinds may add their own prompts later (e.g. smokehouse for
+	-- "preserve fish").
+	if building.kind == "Aquarium" then
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Open Aquarium"
+		prompt.ObjectText = "Aquarium"
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 12
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = part
+	end
+end
+
+function HarborService:_spawnExistingBuildings(player: Player)
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player); if not data then return end
+	for _, b in ipairs(data.buildings) do
+		self:_spawnBuildingVisual(player, b)
+	end
+end
+
+function HarborService:_destroyBuildingVisual(player: Player, uid: string)
+	local folder = self._plotFolders[player]; if not folder then return end
+	local part = folder:FindFirstChild(uid)
+	if part then part:Destroy() end
+end
+
+-- ====================================================================
+-- PASSIVE INCOME
+-- ====================================================================
+function HarborService:_payAllPassiveIncome()
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local AquariumService = Knit.GetService("AquariumService")
+	for _, player in ipairs(Players:GetPlayers()) do
+		local data = PlayerDataService:GetProfile(player); if not data then continue end
+		local total = 0
+		for _, b in ipairs(data.buildings) do
+			local def = BuildingCatalog[b.kind]; if not def then continue end
+			local tier = def.tiers[b.tier]
+			if tier and tier.incomePerTick then
+				total += tier.incomePerTick
+			end
+		end
+		if total > 0 then
+			PlayerDataService:AddCoins(player, total, "harbor_income")
+		end
+		-- Aquarium payouts handled in their own service since they're driven
+		-- by stock rather than a flat per-tick number on the building.
+		AquariumService:PayoutFor(player)
+	end
+end
+
+-- ====================================================================
+-- PLACEMENT VALIDATION (shared logic)
+-- ====================================================================
+-- Returns (ok, reason). Reasons let the client surface a useful tooltip
+-- without leaking placement strategy.
+function HarborService:_validatePlacement(player: Player, kind: string, gridX: number, gridZ: number, rotation: number): (boolean, string?)
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player); if not data then return false, "no_profile" end
+
+	local def = BuildingCatalog[kind]
+	if not def then return false, "unknown_building" end
+
+	if rotation ~= 0 and rotation ~= 90 and rotation ~= 180 and rotation ~= 270 then
+		return false, "bad_rotation"
+	end
+
+	if #data.buildings >= GameConfig.Harbor.MaxBuildingsPerPlot then
+		return false, "plot_full"
+	end
+
+	if not GridUtil.inBounds(gridX, gridZ, def.footprint, rotation) then
+		return false, "out_of_bounds"
+	end
+
+	local occ = GridUtil.buildOccupancy(data.buildings)
+	local ok, _conflictUid = GridUtil.checkPlacement(occ, gridX, gridZ, def.footprint, rotation)
+	if not ok then return false, "overlap" end
+
+	return true, nil
+end
+
+-- ====================================================================
+-- CLIENT API
+-- ====================================================================
+
+-- Returns the catalog so the client can build its placement menu.
+function HarborService.Client:GetBuildingCatalog(_player: Player): any
+	return BuildingCatalog
+end
+
+function HarborService.Client:Place(player: Player, kind: string, gridX: number, gridZ: number, rotation: number): {ok: boolean, reason: string?, building: any?}
+	local self = self.Server
+	if not self._buildLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+
+	local ok, reason = self:_validatePlacement(player, kind, gridX, gridZ, rotation)
+	if not ok then return { ok = false, reason = reason } end
+
+	local def = BuildingCatalog[kind] :: any
+	local tier1Cost = def.tiers[1].cost
+
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	if tier1Cost > 0 and not PlayerDataService:TrySpendCoins(player, tier1Cost) then
+		return { ok = false, reason = "not_enough_coins" }
+	end
+
+	local building = {
+		uid = UidUtil.new("bld"),
+		kind = kind,
+		tier = 1,
+		gridX = gridX,
+		gridZ = gridZ,
+		rotation = rotation,
+		placedAt = os.time(),
+	}
+	PlayerDataService:AddBuilding(player, building)
+	self:_spawnBuildingVisual(player, building)
+	self.Client.BuildingPlaced:Fire(player, building)
+	return { ok = true, building = building }
+end
+
+function HarborService.Client:Upgrade(player: Player, uid: string): {ok: boolean, reason: string?, newTier: number?}
+	local self = self.Server
+	if not self._buildLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
+
+	for _, b in ipairs(data.buildings) do
+		if b.uid == uid then
+			local def = BuildingCatalog[b.kind]
+			if not def then return { ok = false, reason = "unknown_building" } end
+			local nextTierIdx = b.tier + 1
+			local nextTier = def.tiers[nextTierIdx]
+			if not nextTier then return { ok = false, reason = "max_tier" } end
+			if not PlayerDataService:TrySpendCoins(player, nextTier.cost) then
+				return { ok = false, reason = "not_enough_coins" }
+			end
+			b.tier = nextTierIdx
+			-- Refresh visual so size/tint reflects new tier.
+			self:_destroyBuildingVisual(player, uid)
+			self:_spawnBuildingVisual(player, b)
+			-- Force a profile broadcast since we mutated in place.
+			PlayerDataService.Client.BuildingsChanged:Fire(player, data.buildings)
+			self.Client.BuildingUpgraded:Fire(player, uid, nextTierIdx)
+			return { ok = true, newTier = nextTierIdx }
+		end
+	end
+	return { ok = false, reason = "not_found" }
+end
+
+function HarborService.Client:Remove(player: Player, uid: string): {ok: boolean, reason: string?}
+	local self = self.Server
+	if not self._buildLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player)
+
+	-- If we're tearing down an aquarium, return its contents to inventory so
+	-- nothing is orphaned in data.aquariumStock.
+	if data then
+		for _, b in ipairs(data.buildings) do
+			if b.uid == uid and b.kind == "Aquarium" then
+				local stock = data.aquariumStock[uid]
+				if stock then
+					for _, item in ipairs(stock) do
+						PlayerDataService:AddItem(player, item)
+					end
+					data.aquariumStock[uid] = nil
+				end
+				break
+			end
+		end
+	end
+
+	local removed = PlayerDataService:RemoveBuildingByUid(player, uid)
+	if not removed then return { ok = false, reason = "not_found" } end
+
+	self:_destroyBuildingVisual(player, uid)
+	self.Client.BuildingRemoved:Fire(player, uid)
+	-- No refund — discourages churn-griefing and keeps building tier1 cost as
+	-- meaningful sink. Game design call; flip to 50% refund if telemetry shows
+	-- players hesitate to experiment with placement.
+	return { ok = true }
+end
+
+-- Server-callable for SocialService teleport flow.
+function HarborService:GetPlotOrigin(player: Player): CFrame?
+	return self._plotOrigins[player]
+end
+
+return HarborService

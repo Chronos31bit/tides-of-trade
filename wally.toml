@@ -1,0 +1,23 @@
+[package]
+name = "yourname/tides-of-trade"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+# Wally pulls these into Packages/ — Rojo then syncs Packages/ into ReplicatedStorage.Packages.
+# Run `wally install` after cloning.
+#
+# Version notes (verify against https://wally.run before committing):
+#   - Knit, Trove, Signal: latest stable from sleitnick — these tend to track
+#     recent Roblox API changes, so prefer the current latest.
+#   - Promise: evaera/promise has been stable at 4.x for a long time.
+# The pins below are sane starting points but the registry is the truth — if
+# `wally install` complains about a missing version, replace with the latest
+# shown on wally.run for that package.
+[dependencies]
+Knit       = "sleitnick/knit@^1.6.0"
+Promise    = "evaera/promise@^4.0.0"
+Signal     = "sleitnick/signal@^1.5.0"
+Trove      = "sleitnick/trove@^1.0.0"
+# ProfileService isn't on Wally — vendor it manually into src/Shared/Vendor/ProfileService.lua
+# (see README §2). Listed here as a reminder for anyone reading the manifest.

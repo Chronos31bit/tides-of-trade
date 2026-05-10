@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "_doc": {
+    "id": "stable string key — used in inventories and DataStore. NEVER rename once shipped.",
+    "rarity": "Common | Uncommon | Rare | Mythic",
+    "biomes": "array of biome ids the fish can spawn in (see GameConfig.Biomes)",
+    "timeOfDay": "array of: Morning, Day, Dusk, Night, Any",
+    "weather": "array of: Clear, Cloudy, Rain, Storm, Fog, Any",
+    "tide": "Low | High | Any — high tide unlocks deep-water species",
+    "basePrice": "default coins paid at NPC stall before market multipliers",
+    "xp": "XP granted on catch",
+    "weightRange": "[minKg, maxKg] — affects price multiplier (price = base * (1 + (weight-min)/(max-min) * 0.5))",
+    "rodMinTier": "1..5 — required rod tier to even hook this fish",
+    "greenZoneSize": "0..1 — fraction of timing meter that's the success zone. Smaller = harder."
+  },
+  "fish": [
+    {
+      "id": "harbor_mackerel",
+      "displayName": "Harbor Mackerel",
+      "rarity": "Common",
+      "biomes": ["Shoreline", "Pier"],
+      "timeOfDay": ["Any"],
+      "weather": ["Any"],
+      "tide": "Any",
+      "basePrice": 12,
+      "xp": 5,
+      "weightRange": [0.4, 1.6],
+      "rodMinTier": 1,
+      "greenZoneSize": 0.32
+    },
+    {
+      "id": "speckled_perch",
+      "displayName": "Speckled Perch",
+      "rarity": "Common",
+      "biomes": ["Shoreline", "Reef"],
+      "timeOfDay": ["Morning", "Day"],
+      "weather": ["Clear", "Cloudy"],
+      "tide": "Any",
+      "basePrice": 18,
+      "xp": 7,
+      "weightRange": [0.6, 2.0],
+      "rodMinTier": 1,
+      "greenZoneSize": 0.30
+    },
+    {
+      "id": "lantern_squid",
+      "displayName": "Lantern Squid",
+      "rarity": "Uncommon",
+      "biomes": ["Reef", "DeepWater"],
+      "timeOfDay": ["Dusk", "Night"],
+      "weather": ["Any"],
+      "tide": "Any",
+      "basePrice": 65,
+      "xp": 18,
+      "weightRange": [0.8, 3.5],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.22
+    },
+    {
+      "id": "stormcoat_tuna",
+      "displayName": "Stormcoat Tuna",
+      "rarity": "Rare",
+      "biomes": ["DeepWater"],
+      "timeOfDay": ["Any"],
+      "weather": ["Rain", "Storm"],
+      "tide": "High",
+      "basePrice": 220,
+      "xp": 60,
+      "weightRange": [4.0, 14.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.16
+    },
+    {
+      "id": "moonpearl_eel",
+      "displayName": "Moonpearl Eel",
+      "rarity": "Mythic",
+      "biomes": ["DeepWater", "Trench"],
+      "timeOfDay": ["Night"],
+      "weather": ["Clear", "Fog"],
+      "tide": "High",
+      "basePrice": 1400,
+      "xp": 280,
+      "weightRange": [2.0, 6.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.10
+    }
+  ]
+}
