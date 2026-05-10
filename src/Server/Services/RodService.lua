@@ -108,6 +108,30 @@ local function buildRodTool(): Tool
 	return tool
 end
 
+-- Try to clone a real rod model from ReplicatedStorage.Assets.Rod. Returns
+-- nil if the path doesn't exist, in which case _grantRod falls back to the
+-- in-code placeholder. This lets art and code coexist — drop a Tool into
+-- the Assets folder in Studio whenever you're ready, no code change needed.
+local function cloneAssetRod(): Tool?
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	if not assets then return nil end
+	local source = assets:FindFirstChild("Rod")
+	if not source or not source:IsA("Tool") then return nil end
+	-- The asset Tool MUST contain a child named "Handle" (any BasePart) for
+	-- Roblox's tool grip to attach. Validate before cloning so we don't ship
+	-- a broken rod to the player on equip.
+	if not source:FindFirstChild("Handle") then
+		warn("[RodService] ReplicatedStorage.Assets.Rod is missing a 'Handle' part — falling back to placeholder.")
+		return nil
+	end
+	local clone = source:Clone()
+	clone.Name = "Fishing Rod"
+	clone.RequiresHandle = true
+	clone.CanBeDropped = false
+	clone.ToolTip = "Tap or click to cast"
+	return clone
+end
+
 function RodService:_grantRod(player: Player)
 	-- Remove any stale rod (rejoin / respawn) before re-issuing.
 	local backpack = player:FindFirstChildOfClass("Backpack")
@@ -121,7 +145,9 @@ function RodService:_grantRod(player: Player)
 		if equipped then equipped:Destroy() end
 	end
 
-	local tool = buildRodTool()
+	-- Prefer a custom rod model from ReplicatedStorage.Assets.Rod; fall back
+	-- to the in-code placeholder if no asset is present.
+	local tool = cloneAssetRod() or buildRodTool()
 	-- Tool.Activated fires server-side when the player taps/clicks while the
 	-- tool is equipped. We forward that to the client controller via Knit
 	-- signal so the existing FishingController flow is preserved.
