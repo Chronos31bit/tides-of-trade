@@ -64,11 +64,16 @@ UIUtil.Palette = {
 -- ====================================================================
 -- SCREEN RIG
 -- ====================================================================
-function UIUtil.makeScreenGui(name: string, parent: Instance?): (ScreenGui, UIScale)
+-- Caller can pass options.respectTopbar=true to keep our coordinate space
+-- BELOW the Roblox topbar (chat / menu / mic). The HUD sets this — it has
+-- elements anchored top-left and top-right that would otherwise overlap
+-- the Roblox chrome icons. Modal UIs leave it at the default (false) so
+-- their full-screen dark backdrop covers behind the chrome.
+function UIUtil.makeScreenGui(name: string, parent: Instance?, options: {respectTopbar: boolean?}?): (ScreenGui, UIScale)
+	options = options or {}
 	-- Defensive: if a ScreenGui with this exact name already exists in
 	-- PlayerGui, destroy it. Prevents UI stacking when controllers run
-	-- twice (duplicate scripts, hot-reload, fast respawn race, etc.) and
-	-- means individual UIs can be safely re-shown without leaks.
+	-- twice (duplicate scripts, hot-reload, fast respawn race, etc.).
 	local pg = parent or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 	local existing = pg:FindFirstChild(name)
 	if existing then existing:Destroy() end
@@ -76,7 +81,10 @@ function UIUtil.makeScreenGui(name: string, parent: Instance?): (ScreenGui, UISc
 	local gui = Instance.new("ScreenGui")
 	gui.Name = name
 	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
+	-- IgnoreGuiInset=true means our Y=0 is the literal top of the screen
+	-- (under Roblox chrome). respectTopbar=true flips this so Y=0 is below
+	-- the chrome, leaving the topbar icons visible & untouched.
+	gui.IgnoreGuiInset = not options.respectTopbar
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = pg
 
@@ -158,18 +166,16 @@ function UIUtil.makePanel(props: {[string]: any}): Frame
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = f
 
-	-- Subtle vertical light: white at top, transparent in the middle, dark
-	-- tint at the bottom. Gives every panel a hand-painted, lit feel.
+	-- Very subtle top-light only — a thin sheen at the top edge. The
+	-- previous gradient feathered the entire panel and made everything
+	-- look hazy.
 	local grad = Instance.new("UIGradient")
 	grad.Rotation = 90
-	grad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
-	})
+	grad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.85),
-		NumberSequenceKeypoint.new(0.45, 1),
-		NumberSequenceKeypoint.new(1, 0.85),
+		NumberSequenceKeypoint.new(0, 0.92),
+		NumberSequenceKeypoint.new(0.15, 1),
+		NumberSequenceKeypoint.new(1, 1),
 	})
 	grad.Parent = f
 	return f
@@ -273,7 +279,8 @@ function UIUtil.makeButton(text: string, onClick: () -> (), props: {[string]: an
 	stroke.Transparency = 0.75
 	stroke.Parent = btn
 
-	-- Top-light gradient — same trick as panels but punchier.
+	-- A small top sheen + tiny bottom shadow, both barely visible. Anything
+	-- stronger washes the button color out.
 	local grad = Instance.new("UIGradient")
 	grad.Rotation = 90
 	grad.Color = ColorSequence.new({
@@ -281,9 +288,9 @@ function UIUtil.makeButton(text: string, onClick: () -> (), props: {[string]: an
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
 	})
 	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.7),
-		NumberSequenceKeypoint.new(0.5, 0.85),
-		NumberSequenceKeypoint.new(1, 0.65),
+		NumberSequenceKeypoint.new(0, 0.88),
+		NumberSequenceKeypoint.new(0.5, 1),
+		NumberSequenceKeypoint.new(1, 0.85),
 	})
 	grad.Parent = btn
 
@@ -327,11 +334,12 @@ function UIUtil.makeChip(opts: {iconGlyph: string, iconColor: Color3?, name: str
 	local s = Instance.new("UIStroke")
 	s.Color = UIUtil.Palette.TealDeeper; s.Thickness = 1.2; s.Transparency = 0.3; s.Parent = chip
 
-	-- Glossy top-light.
+	-- Subtle top sheen on the chip — just a hint of gloss.
 	local grad = Instance.new("UIGradient")
 	grad.Rotation = 90
+	grad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.78),
+		NumberSequenceKeypoint.new(0, 0.92),
 		NumberSequenceKeypoint.new(1, 1),
 	})
 	grad.Parent = chip
@@ -346,11 +354,14 @@ function UIUtil.makeChip(opts: {iconGlyph: string, iconColor: Color3?, name: str
 	iconBg.BackgroundColor3 = opts.iconColor or UIUtil.Palette.Gold
 	iconBg.BorderSizePixel = 0
 	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(1, 0); ic.Parent = iconBg
+	-- Glossy highlight on the icon disc — barely there, just enough to read
+	-- as 3D rather than flat.
 	local ig = Instance.new("UIGradient")
 	ig.Rotation = 90
+	ig.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 	ig.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.3),
-		NumberSequenceKeypoint.new(1, 0),
+		NumberSequenceKeypoint.new(0, 0.75),
+		NumberSequenceKeypoint.new(1, 1),
 	})
 	ig.Parent = iconBg
 	iconBg.Parent = chip

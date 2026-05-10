@@ -138,7 +138,7 @@ function HUDController:_renderQuests(quests: {any}, QuestService: any)
 		local row = Instance.new("Frame")
 		row.Name = q.id
 		row.BackgroundColor3 = UIUtil.Palette.Teal
-		row.BackgroundTransparency = 0.1
+		row.BackgroundTransparency = 0
 		row.BorderSizePixel = 0
 		row.Size = UDim2.new(1, 0, 0, 32)
 		row.LayoutOrder = i

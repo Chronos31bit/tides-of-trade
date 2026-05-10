@@ -80,7 +80,10 @@ local function makeActionTile(glyph: string, label: string, tint: Color3): TextB
 end
 
 function HUD.create(): HUDController
-	local gui = UIUtil.makeScreenGui("HUD")
+	-- respectTopbar=true so our top-left and top-right anchored elements
+	-- sit BELOW the Roblox chrome (chat / menu / mic icons). Without this
+	-- the currency chips collide with the chat icon on PC.
+	local gui = UIUtil.makeScreenGui("HUD", nil, { respectTopbar = true })
 
 	-- ====================================================================
 	-- TOP-LEFT — currency cluster
@@ -141,8 +144,9 @@ function HUD.create(): HUDController
 	local ls = Instance.new("UIStroke"); ls.Color = UIUtil.Palette.TealDeeper; ls.Thickness = 1.2; ls.Transparency = 0.3; ls.Parent = levelChip
 	local lgrad = Instance.new("UIGradient")
 	lgrad.Rotation = 90
+	lgrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 	lgrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.78),
+		NumberSequenceKeypoint.new(0, 0.92),
 		NumberSequenceKeypoint.new(1, 1),
 	})
 	lgrad.Parent = levelChip
@@ -183,7 +187,7 @@ function HUD.create(): HUDController
 	local questPanel = Instance.new("Frame")
 	questPanel.Name = "Quests"
 	questPanel.BackgroundColor3 = UIUtil.Palette.TealDark
-	questPanel.BackgroundTransparency = 0.1
+	questPanel.BackgroundTransparency = 0
 	questPanel.BorderSizePixel = 0
 	questPanel.Size = UDim2.fromOffset(260, 168)
 	questPanel.LayoutOrder = 2
@@ -225,15 +229,15 @@ function HUD.create(): HUDController
 	actionBar.Size = UDim2.fromOffset(0, 86)
 	actionBar.AutomaticSize = Enum.AutomaticSize.X
 	actionBar.BackgroundColor3 = UIUtil.Palette.TealDark
-	actionBar.BackgroundTransparency = 0.05
+	actionBar.BackgroundTransparency = 0
 	actionBar.BorderSizePixel = 0
 	local abc = Instance.new("UICorner"); abc.CornerRadius = UDim.new(0, 14); abc.Parent = actionBar
 	local abs = Instance.new("UIStroke"); abs.Color = UIUtil.Palette.TealDeeper; abs.Thickness = 1.5; abs.Transparency = 0.2; abs.Parent = actionBar
-	-- Subtle top-light.
 	local abgrad = Instance.new("UIGradient")
 	abgrad.Rotation = 90
+	abgrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 	abgrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.85),
+		NumberSequenceKeypoint.new(0, 0.92),
 		NumberSequenceKeypoint.new(1, 1),
 	})
 	abgrad.Parent = actionBar
