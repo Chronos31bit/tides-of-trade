@@ -114,16 +114,28 @@ end
 -- the Assets folder in Studio whenever you're ready, no code change needed.
 local function cloneAssetRod(): Tool?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	if not assets then return nil end
-	local source = assets:FindFirstChild("Rod")
-	if not source or not source:IsA("Tool") then return nil end
-	-- The asset Tool MUST contain a child named "Handle" (any BasePart) for
-	-- Roblox's tool grip to attach. Validate before cloning so we don't ship
-	-- a broken rod to the player on equip.
-	if not source:FindFirstChild("Handle") then
-		warn("[RodService] ReplicatedStorage.Assets.Rod is missing a 'Handle' part — falling back to placeholder.")
+	if not assets then
+		print("[RodService] No ReplicatedStorage.Assets folder — using placeholder.")
 		return nil
 	end
+	local source = assets:FindFirstChild("Rod")
+	if not source then
+		print("[RodService] No ReplicatedStorage.Assets.Rod — using placeholder.")
+		return nil
+	end
+	if not source:IsA("Tool") then
+		print(("[RodService] Assets.Rod is a %s, not a Tool — using placeholder."):format(source.ClassName))
+		return nil
+	end
+	if not source:FindFirstChild("Handle") then
+		warn("[RodService] Assets.Rod has no 'Handle' child — using placeholder. Children seen: " .. table.concat((function()
+			local names = {}
+			for _, c in ipairs(source:GetChildren()) do table.insert(names, c.Name .. "(" .. c.ClassName .. ")") end
+			return names
+		end)(), ", "))
+		return nil
+	end
+	print("[RodService] Cloning custom rod from ReplicatedStorage.Assets.Rod")
 	local clone = source:Clone()
 	clone.Name = "Fishing Rod"
 	clone.RequiresHandle = true
