@@ -141,9 +141,10 @@ function UIUtil.makeFrame(props: {[string]: any}): Frame
 	return f
 end
 
--- Standard panel: rounded corners, soft top-light gradient, 1.5px stroke,
--- and an automatic drop shadow underneath. Use for any modal / floating
--- group (HUD chips don't need this — see makeChip for those).
+-- Standard panel: rounded corners, soft top-light gradient, 1.5px stroke.
+-- NO automatic drop shadow — shadows must be opt-in (call addDropShadow
+-- manually) because parenting shadows as siblings of layout items breaks
+-- UIListLayout (it reserves slot space for the shadow Frame).
 function UIUtil.makePanel(props: {[string]: any}): Frame
 	local f = UIUtil.makeFrame(props)
 	if not props.BackgroundColor3 then f.BackgroundColor3 = UIUtil.Palette.TealDark end
@@ -171,11 +172,6 @@ function UIUtil.makePanel(props: {[string]: any}): Frame
 		NumberSequenceKeypoint.new(1, 0.85),
 	})
 	grad.Parent = f
-
-	-- Defer shadow creation by one frame so the panel has a parent set.
-	task.defer(function()
-		if f.Parent then UIUtil.addDropShadow(f, { offset = 6, transparency = 0.5, cornerRadius = 14 }) end
-	end)
 	return f
 end
 
@@ -313,13 +309,7 @@ function UIUtil.makeButton(text: string, onClick: () -> (), props: {[string]: an
 		TweenService:Create(btn, tween, { BackgroundColor3 = hoverColor }):Play()
 	end)
 	btn.Activated:Connect(onClick)
-
-	-- Drop shadow for primary/danger; ghosts and secondaries stay flat.
-	if variant == "primary" or variant == "danger" then
-		task.defer(function()
-			if btn.Parent then UIUtil.addDropShadow(btn, { offset = 3, transparency = 0.55, cornerRadius = 10 }) end
-		end)
-	end
+	-- No automatic drop shadow (was causing layout phantom slots).
 	return btn
 end
 

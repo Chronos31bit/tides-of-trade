@@ -1,8 +1,8 @@
 --!strict
 -- HUDController.lua
--- Owns the HUD ScreenGui and the QuestTracker. Subscribes to PlayerDataService
--- signals to keep numbers fresh, and forwards bottom-bar taps to the
--- corresponding feature controllers.
+-- Owns the single HUD ScreenGui. Subscribes to PlayerDataService signals
+-- to keep numbers fresh, builds quest rows in-place into HUD.questList,
+-- and forwards action-bar taps to feature controllers.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -10,13 +10,25 @@ local UserInputService = game:GetService("UserInputService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local HUD = require(script.Parent.Parent.UI.HUD)
-local QuestTrackerUI = require(script.Parent.Parent.UI.QuestTrackerUI)
+local UIUtil = require(script.Parent.Parent.UI.UIUtil)
 
 local HUDController = Knit.CreateController({
 	Name = "HUDController",
 	_hud = nil :: any,
-	_tracker = nil :: any,
 })
+
+-- Pretty-print a quest's kind into a player-readable description.
+local function questText(q: any): string
+	if q.kind == "CatchAnyFish" then return ("Catch %d fish"):format(q.target) end
+	if q.kind == "CatchSpecies" then
+		local species = (q.speciesId or "?"):gsub("_", " ")
+		return ("Catch %d %s"):format(q.target, species)
+	end
+	if q.kind == "SellAtMarket" then return ("Sell %d at market"):format(q.target) end
+	if q.kind == "EarnCoins" then return ("Earn %d coins"):format(q.target) end
+	if q.kind == "VisitHarbor" then return ("Visit %d harbors"):format(q.target) end
+	return q.kind
+end
 
 function HUDController:KnitInit() end
 
@@ -24,80 +36,63 @@ function HUDController:KnitStart()
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local QuestService      = Knit.GetService("QuestService")
 
-	-- Build HUD on session start.
 	self._hud = HUD.create()
 
-	-- Bottom action bar wiring — controllers expose Open* methods we call here.
-	if self._hud.bottomBar then
-		local FishingController = Knit.GetController("FishingController")
-		local InventoryController = Knit.GetController("InventoryController")
-		local MarketController = Knit.GetController("MarketController")
-		local HarborEditController = Knit.GetController("HarborEditController")
-		local AquariumController = Knit.GetController("AquariumController")
-		local SocialController = Knit.GetController("SocialController")
+	-- ----------------------------------------------------------------
+	-- Action bar wiring
+	-- ----------------------------------------------------------------
+	local FishingController    = Knit.GetController("FishingController")
+	local InventoryController  = Knit.GetController("InventoryController")
+	local MarketController     = Knit.GetController("MarketController")
+	local HarborEditController = Knit.GetController("HarborEditController")
+	local AquariumController   = Knit.GetController("AquariumController")
+	local SocialController     = Knit.GetController("SocialController")
 
-		if self._hud.rodButton then
-			-- Rod button auto-equips the tool if needed, then triggers cast.
-			-- Mobile players never have to think about Roblox's default
-			-- Backpack UI — one tap = "fish."
-			self._hud.rodButton.Activated:Connect(function()
-				local char = Players.LocalPlayer.Character
-				if not char then return end
-				local humanoid = char:FindFirstChildOfClass("Humanoid")
-				if not humanoid then return end
-				if not char:FindFirstChild("Fishing Rod") then
-					local bp = Players.LocalPlayer:FindFirstChildOfClass("Backpack")
-					local rod = bp and bp:FindFirstChild("Fishing Rod")
-					if rod and rod:IsA("Tool") then
-						humanoid:EquipTool(rod)
-						-- Wait a frame so the server sees the rod parented
-						-- to character before StartCast's gate runs.
-						task.wait(0.1)
-					else
-						return
-					end
-				end
-				FishingController:CastOrRelease()
-			end)
-		end
-		if self._hud.inventoryButton then
-			self._hud.inventoryButton.Activated:Connect(function() InventoryController:Open() end)
-		end
-		if self._hud.marketButton then
-			self._hud.marketButton.Activated:Connect(function() MarketController:Open() end)
-		end
-		if self._hud.harborButton then
-			self._hud.harborButton.Activated:Connect(function() HarborEditController:Toggle() end)
-		end
-		if self._hud.aquariumButton then
-			self._hud.aquariumButton.Activated:Connect(function() AquariumController:OpenFirstOwned() end)
-		end
-		if self._hud.socialButton then
-			self._hud.socialButton.Activated:Connect(function() SocialController:Open() end)
-		end
-
-		-- Keyboard shortcuts for PC players. Match the action bar order so
-		-- the muscle memory carries between devices.
-		UserInputService.InputBegan:Connect(function(input, gpe)
-			if gpe then return end
-			if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-			if input.KeyCode == Enum.KeyCode.I then InventoryController:Open()
-			elseif input.KeyCode == Enum.KeyCode.M then MarketController:Open()
-			elseif input.KeyCode == Enum.KeyCode.B then HarborEditController:Toggle()
-			elseif input.KeyCode == Enum.KeyCode.C then SocialController:Open()
-			-- R reserved — rod is already on left-mouse for PC.
+	-- Rod button auto-equips the tool if needed, then triggers cast.
+	-- Mobile players never have to think about the default Backpack UI.
+	self._hud.rodButton.Activated:Connect(function()
+		local char = Players.LocalPlayer.Character
+		if not char then return end
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if not humanoid then return end
+		if not char:FindFirstChild("Fishing Rod") then
+			local bp = Players.LocalPlayer:FindFirstChildOfClass("Backpack")
+			local rod = bp and bp:FindFirstChild("Fishing Rod")
+			if rod and rod:IsA("Tool") then
+				humanoid:EquipTool(rod)
+				task.wait(0.1)  -- let the server register the equip before StartCast
+			else
+				return
 			end
-		end)
-	end
+		end
+		FishingController:CastOrRelease()
+	end)
 
-	-- ====================================================================
-	-- DATA BINDINGS — keep HUD numbers fresh from server signals.
-	-- ====================================================================
-	-- We pull an initial snapshot in case ProfileLoaded fired before this
-	-- controller was ready (KnitStart on the client races with the server's
-	-- first signal).
-	local snap = PlayerDataService:GetSnapshot():expect()
-	if snap then self:_apply(snap) end
+	self._hud.inventoryButton.Activated:Connect(function() InventoryController:Open() end)
+	self._hud.marketButton.Activated:Connect(function() MarketController:Open() end)
+	self._hud.harborButton.Activated:Connect(function() HarborEditController:Toggle() end)
+	self._hud.aquariumButton.Activated:Connect(function() AquariumController:OpenFirstOwned() end)
+	self._hud.socialButton.Activated:Connect(function() SocialController:Open() end)
+
+	-- Keyboard shortcuts for PC players.
+	UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+		if input.KeyCode == Enum.KeyCode.I then InventoryController:Open()
+		elseif input.KeyCode == Enum.KeyCode.M then MarketController:Open()
+		elseif input.KeyCode == Enum.KeyCode.B then HarborEditController:Toggle()
+		elseif input.KeyCode == Enum.KeyCode.C then SocialController:Open()
+		end
+	end)
+
+	-- ----------------------------------------------------------------
+	-- Data bindings
+	-- ----------------------------------------------------------------
+	-- Initial snapshot — covers the case where ProfileLoaded already fired
+	-- before this controller's KnitStart ran.
+	PlayerDataService:GetSnapshot():andThen(function(snap)
+		if snap then self:_apply(snap) end
+	end)
 
 	PlayerDataService.ProfileLoaded:Connect(function(s) self:_apply(s) end)
 	PlayerDataService.CoinsChanged:Connect(function(coins, lure)
@@ -106,21 +101,12 @@ function HUDController:KnitStart()
 	end)
 	PlayerDataService.XPChanged:Connect(function(level, xp, xpForNext)
 		self._hud.levelLabel.Text = ("Lv %d"):format(level)
-		-- xpForCurrent: total XP needed to *be* at this level. Server's
-		-- threshold formula is 50*L^2 to *reach* level L, so the floor of
-		-- level L is 50*L^2 — except at level 1, where you start with 0 XP
-		-- without crossing any threshold.
 		local xpForCurrent = (level <= 1) and 0 or (50 * level * level)
 		local progress = math.clamp((xp - xpForCurrent) / math.max(xpForNext - xpForCurrent, 1), 0, 1)
 		self._hud.xpFill.Size = UDim2.new(progress, 0, 1, 0)
 	end)
 	PlayerDataService.QuestsChanged:Connect(function(quests)
-		self:_updateQuests(quests)
-	end)
-
-	-- Quest tracker overlay.
-	self._tracker = QuestTrackerUI.show({}, function(questId)
-		QuestService:ClaimReward(questId):andThen(function() end)
+		self:_renderQuests(quests, QuestService)
 	end)
 end
 
@@ -128,24 +114,65 @@ function HUDController:_apply(profile: any)
 	self._hud.coinsLabel.Text = tostring(profile.coins or 0)
 	self._hud.lureLabel.Text = tostring(profile.lureTokens or 0)
 	self._hud.levelLabel.Text = ("Lv %d"):format(profile.level or 1)
-	self:_updateQuests(profile.dailyQuests or {})
+	self:_renderQuests(profile.dailyQuests or {}, Knit.GetService("QuestService"))
 end
 
-function HUDController:_updateQuests(quests: {any})
-	-- Topbar shows the *first incomplete* quest as a one-liner.
-	local firstActive
-	for _, q in ipairs(quests) do
-		if not q.completed then firstActive = q; break end
+-- Rebuild the quest rows inside HUD.questList. Cheap (≤ 3 rows) so we just
+-- nuke and recreate.
+function HUDController:_renderQuests(quests: {any}, QuestService: any)
+	local list = self._hud.questList
+	for _, child in ipairs(list:GetChildren()) do
+		if child:IsA("Frame") then child:Destroy() end
 	end
-	if firstActive then
-		-- Pretty-print quest kinds: "VisitHarbor" -> "Visit harbor".
-		local pretty = firstActive.kind:gsub("(%u)", " %1"):gsub("^%s+", ""):lower()
-		pretty = pretty:sub(1, 1):upper() .. pretty:sub(2)
-		self._hud.questLabel.Text = ("%s (%d/%d)"):format(pretty, firstActive.progress, firstActive.target)
-	else
-		self._hud.questLabel.Text = "All quests done — come back tomorrow!"
+
+	if #quests == 0 then
+		local empty = UIUtil.makeLabel("Loading…", "caption", {
+			Size = UDim2.new(1, 0, 0, 32),
+			TextXAlignment = Enum.TextXAlignment.Center,
+		})
+		empty.Parent = list
+		return
 	end
-	if self._tracker then self._tracker.refresh(quests) end
+
+	for i, q in ipairs(quests) do
+		local row = Instance.new("Frame")
+		row.Name = q.id
+		row.BackgroundColor3 = UIUtil.Palette.Teal
+		row.BackgroundTransparency = 0.1
+		row.BorderSizePixel = 0
+		row.Size = UDim2.new(1, 0, 0, 32)
+		row.LayoutOrder = i
+		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, 8); rc.Parent = row
+		row.Parent = list
+
+		local txt = UIUtil.makeLabel(("%s (%d/%d)"):format(questText(q), q.progress, q.target), "body", {
+			Position = UDim2.new(0, 10, 0, 0),
+			Size = UDim2.new(1, -90, 1, 0),
+			TextSize = 12,
+		})
+		txt.Parent = row
+
+		if q.completed and not q.claimed then
+			local claim = UIUtil.makeButton("Claim", function()
+				QuestService:ClaimReward(q.id):andThen(function() end)
+			end, {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -6, 0.5, 0),
+				Size = UDim2.fromOffset(72, 24),
+				TextSize = 12,
+			})
+			claim.Parent = row
+		elseif q.claimed then
+			local done = UIUtil.makeLabel("Done", "caption", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -10, 0.5, 0),
+				Size = UDim2.fromOffset(60, 24),
+				TextXAlignment = Enum.TextXAlignment.Right,
+				TextColor3 = UIUtil.Palette.Uncommon,
+			})
+			done.Parent = row
+		end
+	end
 end
 
 return HUDController

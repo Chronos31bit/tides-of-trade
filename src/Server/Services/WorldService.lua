@@ -1,7 +1,7 @@
 --!strict
 -- WorldService.lua
--- Sets up the static world: a single big water plane spanning the plot grid,
--- plus tagged biome zones that update each player's CurrentBiome StringValue
+-- Sets up the static world: Terrain water + procedural biome geography +
+-- per-biome sensor zones that update each player's CurrentBiome StringValue
 -- as they roam. FishingService reads CurrentBiome to decide what can bite.
 --
 -- Why server-authoritative biomes: the client's location can be spoofed, so
@@ -10,7 +10,6 @@
 
 local Players          = game:GetService("Players")
 local Workspace        = game:GetService("Workspace")
-local RunService       = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
@@ -18,82 +17,162 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local WorldService = Knit.CreateService({
 	Name = "WorldService",
+	-- Each entry: { biome, cframe, size }. Used at runtime to resolve which
+	-- biome a player's HumanoidRootPart is inside.
 	_biomeZones = {} :: {{cframe: CFrame, size: Vector3, biome: string}},
 })
 
--- ====================================================================
--- WATER + WORLD GEOMETRY
--- ====================================================================
--- We span enough water to cover the 4x4 plot grid plus generous margins so
--- DeepWater can live "out at sea" past the last plot.
 local PLOT = GameConfig.Harbor.PlotSizeStuds
 local PLOT_SPACING = PLOT + 40
 local PLOT_GRID = 4
-local WORLD_RADIUS = PLOT_SPACING * (PLOT_GRID + 2)  -- enough for DeepWater + Trench rings
+local WORLD_RADIUS = PLOT_SPACING * (PLOT_GRID + 2)
 
 -- ====================================================================
--- TERRAIN GENERATION
--- Replaces the previous part-based water with proper Terrain water + a
--- procedural sandy island ring at the world's edge + scattered rocky
--- outcrops in the deep-water zone (atmospheric, walkable, fishable from).
+-- TERRAIN PRIMITIVES
+-- All Workspace.Terrain operations are voxelized at 4-stud resolution; we
+-- size things in multiples of 4 to avoid stairstepping artifacts.
 -- ====================================================================
+local TERRAIN = Workspace.Terrain
 
--- Bulk-fill water across the playable area. Single FillBlock call so this
--- is fast even at world scale.
-local function fillWater(seaCenter: Vector3)
-	Workspace.Terrain:FillBlock(
-		CFrame.new(seaCenter.X, -10, seaCenter.Z),
-		Vector3.new(WORLD_RADIUS * 2, 20, WORLD_RADIUS * 2),
-		Enum.Material.Water
-	)
+local function fillBox(centerX: number, y: number, centerZ: number, sx: number, sy: number, sz: number, mat: Enum.Material)
+	TERRAIN:FillBlock(CFrame.new(centerX, y, centerZ), Vector3.new(sx, sy, sz), mat)
 end
 
--- Generate one organic-shaped sandy island. We layer ~50 overlapping balls
--- of varying radii at jittered positions inside `baseRadius`; the result
--- looks far more natural than a single sphere because the silhouette is
--- noisy in 3D.
+local function fillBall(x: number, y: number, z: number, r: number, mat: Enum.Material)
+	TERRAIN:FillBall(Vector3.new(x, y, z), r, mat)
+end
+
+-- Sample a 2D Perlin noise field at world (x,z). Returned in [-1, 1].
+local function noise2(x: number, z: number, scale: number): number
+	return math.noise(x * scale, z * scale, 0)
+end
+
+-- ====================================================================
+-- BASE OCEAN
+-- A single volume of Terrain.Water across the playable area. Biome-specific
+-- features overwrite voxels inside this region.
+-- ====================================================================
+local function fillSeaBase(seaCenter: Vector3)
+	-- Default sea floor at Y = -10. Water from Y = -10 up to Y = 0.
+	-- We fill the volume in two passes: a sand floor then water above it.
+	local sx, sz = WORLD_RADIUS * 2, WORLD_RADIUS * 2
+	-- Sand floor (Y = -14..-10).
+	fillBox(seaCenter.X, -12, seaCenter.Z, sx, 4, sz, Enum.Material.Sand)
+	-- Water column above.
+	fillBox(seaCenter.X, -5, seaCenter.Z, sx, 10, sz, Enum.Material.Water)
+end
+
+-- ====================================================================
+-- ISLANDS — sandy main island + tall rocky island
+-- Built from many overlapping spheres at jittered positions for organic
+-- silhouettes without needing per-voxel writes.
+-- ====================================================================
 local function generateIsland(centerX: number, centerZ: number, baseRadius: number, peakHeight: number, material: Enum.Material)
-	local terrain = Workspace.Terrain
-	local sphereCount = math.floor(baseRadius / 6)  -- denser for bigger islands
-	for i = 1, sphereCount do
-		-- Sample points biased toward the center so the island has a clear
-		-- mass with feathered edges. r in [0, baseRadius * 0.85].
+	local sphereCount = math.floor(baseRadius / 5)
+	for _ = 1, sphereCount do
+		-- Bias points toward center: sqrt(uniform) gives a denser core.
 		local angle = math.random() * math.pi * 2
 		local r = math.sqrt(math.random()) * baseRadius * 0.85
 		local x = centerX + math.cos(angle) * r
 		local z = centerZ + math.sin(angle) * r
-		-- Sphere radius scales down toward the island edge, so the silhouette
-		-- tapers cleanly at the coast.
+		-- Sphere shrinks toward edges so the coast tapers cleanly.
 		local edgeFactor = 1 - (r / baseRadius)
 		local sphereR = math.random(8, 22) * (0.6 + edgeFactor * 0.7)
-		-- Height: tallest in the middle, lowest at edges (a beach slope).
-		local h = peakHeight * (0.3 + edgeFactor * 0.7) + math.noise(x * 0.05, z * 0.05) * 2
-		terrain:FillBall(Vector3.new(x, h - sphereR / 2, z), sphereR, material)
+		-- Peak in the middle, slope down to the edges.
+		local h = peakHeight * (0.3 + edgeFactor * 0.7) + noise2(x, z, 0.05) * 2
+		fillBall(x, h - sphereR / 2, z, sphereR, material)
 	end
 end
 
--- Scatter small rocky outcrops in the deep-water zone for atmosphere. Each
--- outcrop is just one or two rock spheres — not climbable land, more like
--- "stuff at the horizon".
+-- ====================================================================
+-- BIOME-SPECIFIC TERRAIN — what makes each fishing zone visually distinct
+-- ====================================================================
+
+-- Reef: shallow water with sandstone "coral" mounds and slate (blue-grey)
+-- outcrops. Reads as a colorful, busy sea floor when looking down through
+-- the water.
+local function generateReef(center: Vector3, sizeX: number, sizeZ: number)
+	-- Slightly raised sandstone bed — players will see lighter sand here.
+	for _ = 1, 60 do
+		local x = center.X + (math.random() - 0.5) * sizeX
+		local z = center.Z + (math.random() - 0.5) * sizeZ
+		local r = math.random(4, 9)
+		fillBall(x, -7, z, r, Enum.Material.Sandstone)
+	end
+	-- Slate rocks scattered between the coral.
+	for _ = 1, 30 do
+		local x = center.X + (math.random() - 0.5) * sizeX
+		local z = center.Z + (math.random() - 0.5) * sizeZ
+		local r = math.random(5, 10)
+		fillBall(x, -6, z, r, Enum.Material.Slate)
+	end
+	-- Occasional coral "tower" reaching toward the surface for visual interest.
+	for _ = 1, 6 do
+		local x = center.X + (math.random() - 0.5) * sizeX
+		local z = center.Z + (math.random() - 0.5) * sizeZ
+		fillBox(x, -2, z, 6, 10, 6, Enum.Material.Sandstone)
+	end
+end
+
+-- DeepWater: dig the floor down so the water is visibly darker (deeper),
+-- and scatter large basalt boulders. Floor goes from Y = -10 (default) down
+-- to Y = -28.
+local function generateDeepWater(center: Vector3, sizeX: number, sizeZ: number)
+	-- Carve out the basin: replace the existing sand floor with water down
+	-- to Y = -28, then refill the new bottom with a darker rock (basalt).
+	fillBox(center.X, -19, center.Z, sizeX, 18, sizeZ, Enum.Material.Water)
+	fillBox(center.X, -30, center.Z, sizeX, 4, sizeZ, Enum.Material.Basalt)
+
+	-- Half-submerged boulders for atmosphere.
+	for _ = 1, 18 do
+		local x = center.X + (math.random() - 0.5) * sizeX * 0.9
+		local z = center.Z + (math.random() - 0.5) * sizeZ * 0.9
+		local r = math.random(10, 22)
+		-- Place near the new floor so they read as boulders sitting on it.
+		fillBall(x, -28 + r * 0.5, z, r, Enum.Material.Basalt)
+	end
+end
+
+-- Trench: deepest zone. Vertical rock walls, very dark water. Floor at Y = -50.
+local function generateTrench(center: Vector3, sizeX: number, sizeZ: number)
+	fillBox(center.X, -30, center.Z, sizeX, 40, sizeZ, Enum.Material.Water)
+	fillBox(center.X, -52, center.Z, sizeX, 4, sizeZ, Enum.Material.Rock)
+
+	-- Tall vertical rock spires emerging from the trench floor. These are
+	-- the "you have arrived" landmark visible from the surface.
+	for _ = 1, 12 do
+		local x = center.X + (math.random() - 0.5) * sizeX * 0.85
+		local z = center.Z + (math.random() - 0.5) * sizeZ * 0.85
+		local h = math.random(30, 50)
+		local w = math.random(10, 18)
+		fillBox(x, -50 + h / 2, z, w, h, w, Enum.Material.Rock)
+	end
+end
+
+-- Scatter small rocks around the world edges for far-distance silhouette.
 local function scatterOutcrops(seaCenter: Vector3, count: number)
-	local terrain = Workspace.Terrain
 	for _ = 1, count do
-		-- Position somewhere in the outer ring, 280..420 studs from sea center.
 		local angle = math.random() * math.pi * 2
 		local dist = 280 + math.random() * 140
 		local x = seaCenter.X + math.cos(angle) * dist
 		local z = seaCenter.Z + math.sin(angle) * dist
 		local r = math.random(8, 18)
-		terrain:FillBall(Vector3.new(x, r * 0.4, z), r, Enum.Material.Rock)
+		fillBall(x, r * 0.4, z, r, Enum.Material.Rock)
 	end
 end
 
-local function buildBiomeZone(name: string, biome: string, cframe: CFrame, size: Vector3): Part
-	-- Invisible sensor part. Players inside get the corresponding biome.
+-- ====================================================================
+-- INVISIBLE BIOME SENSOR PARTS
+-- These don't produce visuals — they're just AABB volumes WorldService
+-- checks each tick to update player.Character.CurrentBiome.
+-- ====================================================================
+local function buildBiomeSensor(name: string, biome: string, cframe: CFrame, size: Vector3)
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Anchored = true
 	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
 	p.Transparency = 1
 	p.Size = size
 	p.CFrame = cframe
@@ -108,69 +187,55 @@ end
 function WorldService:KnitStart()
 	local seaCenter = Vector3.new(WORLD_RADIUS - PLOT_SPACING, 0, WORLD_RADIUS - PLOT_SPACING)
 
-	-- 1. Sea — a single bulk fill of Terrain water.
-	fillWater(seaCenter)
+	-- 1. Base ocean (sand floor + water column).
+	fillSeaBase(seaCenter)
 
-	-- 2. Main sandy island, off the "north" side of the plot grid. Players
-	--    can swim/walk there from any plot. ~150 stud radius is big enough
-	--    to be a real destination but doesn't dominate the skyline.
+	-- 2. Main sandy island visible north of the plot grid — somewhere players
+	--    can swim to and walk around on.
 	generateIsland(
 		seaCenter.X,
 		seaCenter.Z - PLOT_SPACING * 2.5,
-		150,    -- baseRadius
-		10,     -- peakHeight
+		150, 10,
 		Enum.Material.Sand
 	)
 
-	-- 3. A bigger, taller rocky island further out — gives the horizon shape
-	--    and serves as the visual anchor for the DeepWater fishing zone.
+	-- 3. Big rocky island in the deep-water corner — anchors the horizon.
 	generateIsland(
 		seaCenter.X + PLOT_SPACING * 3,
 		seaCenter.Z + PLOT_SPACING * 3,
-		90,
-		28,
+		90, 28,
 		Enum.Material.Rock
 	)
 
-	-- 4. Scattered small rocks in the deep-water ring.
+	-- 4. Reef zone — runs along the south edge of the plot grid in shallow water.
+	local reefCenter = Vector3.new(seaCenter.X, 0, seaCenter.Z + PLOT_SPACING * (PLOT_GRID - 1) + 60)
+	local reefSize = Vector3.new(WORLD_RADIUS * 1.6, 80, 120)
+	generateReef(reefCenter, reefSize.X, reefSize.Z)
+	buildBiomeSensor("Zone_Reef", "Reef", CFrame.new(reefCenter), reefSize)
+	table.insert(self._biomeZones, { biome = "Reef", cframe = CFrame.new(reefCenter), size = reefSize })
+
+	-- 5. DeepWater — further out, with darker, deeper terrain.
+	local deepCenter = Vector3.new(seaCenter.X, 0, seaCenter.Z + PLOT_SPACING * (PLOT_GRID - 1) + 200)
+	local deepSize = Vector3.new(WORLD_RADIUS * 1.6, 80, 200)
+	generateDeepWater(deepCenter, deepSize.X, deepSize.Z)
+	buildBiomeSensor("Zone_DeepWater", "DeepWater", CFrame.new(deepCenter), deepSize)
+	table.insert(self._biomeZones, { biome = "DeepWater", cframe = CFrame.new(deepCenter), size = deepSize })
+
+	-- 6. Trench — at world's edge.
+	local trenchCenter = Vector3.new(seaCenter.X, 0, seaCenter.Z + PLOT_SPACING * (PLOT_GRID - 1) + 440)
+	local trenchSize = Vector3.new(WORLD_RADIUS * 1.6, 100, 200)
+	generateTrench(trenchCenter, trenchSize.X, trenchSize.Z)
+	buildBiomeSensor("Zone_Trench", "Trench", CFrame.new(trenchCenter), trenchSize)
+	table.insert(self._biomeZones, { biome = "Trench", cframe = CFrame.new(trenchCenter), size = trenchSize })
+
+	-- 7. Distant rocks for far-horizon silhouette.
 	scatterOutcrops(seaCenter, 12)
 
-	-- Default biome is Shoreline — every player starts there. We then carve
-	-- out specific zones for Reef / DeepWater / Trench at the world edges.
-	-- The further from origin, the harder the biome.
-	local seaCenter = Vector3.new(WORLD_RADIUS - PLOT_SPACING, 0, WORLD_RADIUS - PLOT_SPACING)
-
-	-- Reef ring: out past the plot grid but not at the world edge.
-	table.insert(self._biomeZones, {
-		biome = "Reef",
-		cframe = CFrame.new(seaCenter + Vector3.new(0, 0, PLOT_SPACING * (PLOT_GRID - 1) + 60)),
-		size = Vector3.new(WORLD_RADIUS, 80, 120),
-	})
-	buildBiomeZone("Zone_Reef", "Reef",
-		CFrame.new(seaCenter + Vector3.new(0, 0, PLOT_SPACING * (PLOT_GRID - 1) + 60)),
-		Vector3.new(WORLD_RADIUS, 80, 120))
-
-	-- DeepWater: further still.
-	table.insert(self._biomeZones, {
-		biome = "DeepWater",
-		cframe = CFrame.new(seaCenter + Vector3.new(0, 0, PLOT_SPACING * (PLOT_GRID - 1) + 200)),
-		size = Vector3.new(WORLD_RADIUS, 80, 200),
-	})
-	buildBiomeZone("Zone_DeepWater", "DeepWater",
-		CFrame.new(seaCenter + Vector3.new(0, 0, PLOT_SPACING * (PLOT_GRID - 1) + 200)),
-		Vector3.new(WORLD_RADIUS, 80, 200))
-
-	-- Trench: world's edge.
-	table.insert(self._biomeZones, {
-		biome = "Trench",
-		cframe = CFrame.new(seaCenter + Vector3.new(0, 0, PLOT_SPACING * (PLOT_GRID - 1) + 440)),
-		size = Vector3.new(WORLD_RADIUS, 80, 200),
-	})
-	buildBiomeZone("Zone_Trench", "Trench",
-		CFrame.new(seaCenter + Vector3.new(0, 0, PLOT_SPACING * (PLOT_GRID - 1) + 440)),
-		Vector3.new(WORLD_RADIUS, 80, 200))
-
-	-- Per-character setup: stamp a CurrentBiome StringValue and start tracking.
+	-- ----------------------------------------------------------------
+	-- PLAYER BIOME TRACKING
+	-- ----------------------------------------------------------------
+	-- Stamp a CurrentBiome StringValue on each character; default Shoreline.
+	-- Also teleport new spawns onto their plot's dock plate.
 	Players.PlayerAdded:Connect(function(player)
 		player.CharacterAdded:Connect(function(char) self:_onCharacter(player, char) end)
 		if player.Character then self:_onCharacter(player, player.Character) end
@@ -180,7 +245,7 @@ function WorldService:KnitStart()
 		if p.Character then self:_onCharacter(p, p.Character) end
 	end
 
-	-- Tick: 1Hz biome resolution. Cheap; no need to run on Heartbeat.
+	-- 1Hz biome resolution. Cheap; no need for Heartbeat.
 	task.spawn(function()
 		while true do
 			task.wait(1)
@@ -190,7 +255,6 @@ function WorldService:KnitStart()
 end
 
 function WorldService:_onCharacter(player: Player, char: Model)
-	-- Ensure CurrentBiome StringValue exists on the character.
 	local existing = char:FindFirstChild("CurrentBiome")
 	if not existing then
 		local sv = Instance.new("StringValue")
@@ -198,11 +262,8 @@ function WorldService:_onCharacter(player: Player, char: Model)
 		sv.Value = "Shoreline"
 		sv.Parent = char
 	end
-
-	-- Teleport new characters to their plot's dock so they spawn on the
-	-- water's edge instead of the empty default origin.
+	-- Teleport to plot's dock plate.
 	task.defer(function()
-		-- Wait one frame so HumanoidRootPart is parented.
 		task.wait(0.1)
 		local HarborService = Knit.GetService("HarborService")
 		local origin = HarborService:GetPlotOrigin(player)
@@ -212,8 +273,6 @@ function WorldService:_onCharacter(player: Player, char: Model)
 	end)
 end
 
--- For each player, find which (if any) custom biome zone contains them and
--- update their CurrentBiome accordingly. Defaults to Shoreline.
 function WorldService:_resolveBiomes()
 	for _, player in ipairs(Players:GetPlayers()) do
 		local char = player.Character
@@ -226,7 +285,9 @@ function WorldService:_resolveBiomes()
 		local pos = hrp.Position
 		local resolved = "Shoreline"
 		for _, zone in ipairs(self._biomeZones) do
-			-- Cheap AABB check using inverse CFrame transform.
+			-- Inverse-CFrame AABB check — avoids square-root for distance and
+			-- handles arbitrary zone rotation (we don't currently rotate but
+			-- this future-proofs).
 			local local_ = zone.cframe:PointToObjectSpace(pos)
 			if math.abs(local_.X) <= zone.size.X / 2
 				and math.abs(local_.Y) <= zone.size.Y / 2
