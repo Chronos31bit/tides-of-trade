@@ -65,25 +65,42 @@ function HUDController:KnitStart()
 	local AquariumController   = Knit.GetController("AquariumController")
 	local SocialController     = Knit.GetController("SocialController")
 
-	-- Rod button auto-equips the tool if needed, then triggers cast.
-	-- Mobile players never have to think about the default Backpack UI.
+	-- Rod button TOGGLES equip state. Casting is triggered separately by
+	-- tapping the screen / clicking the world while the rod is equipped
+	-- (that fires Tool.Activated → RodService → FishingController). This
+	-- gives players a clear way to put the rod *away* — the previous
+	-- "tap to equip-and-cast" had no inverse.
+	local function refreshRodButton()
+		local char = Players.LocalPlayer.Character
+		local equipped = char and char:FindFirstChild("Fishing Rod") ~= nil
+		-- Visual cue: bright when equipped, muted when in backpack.
+		self._hud.rodButton.BackgroundColor3 = equipped
+			and UIUtil.Palette.Sunset
+			or UIUtil.Palette.SunsetDeep
+	end
+
 	self._hud.rodButton.Activated:Connect(function()
 		local char = Players.LocalPlayer.Character
 		if not char then return end
 		local humanoid = char:FindFirstChildOfClass("Humanoid")
 		if not humanoid then return end
-		if not char:FindFirstChild("Fishing Rod") then
+		local equippedRod = char:FindFirstChild("Fishing Rod")
+		if equippedRod then
+			-- Currently equipped — put it away.
+			humanoid:UnequipTools()
+		else
+			-- Pull rod from backpack and equip.
 			local bp = Players.LocalPlayer:FindFirstChildOfClass("Backpack")
 			local rod = bp and bp:FindFirstChild("Fishing Rod")
-			if rod and rod:IsA("Tool") then
-				humanoid:EquipTool(rod)
-				task.wait(0.1)  -- let the server register the equip before StartCast
-			else
-				return
-			end
+			if rod and rod:IsA("Tool") then humanoid:EquipTool(rod) end
 		end
-		FishingController:CastOrRelease()
+		-- Tools take a frame to reparent; defer the visual refresh.
+		task.defer(refreshRodButton)
 	end)
+
+	-- Also update the button when respawns / tool grants reshuffle things.
+	Players.LocalPlayer.CharacterAdded:Connect(function() task.wait(0.5); refreshRodButton() end)
+	refreshRodButton()
 
 	self._hud.inventoryButton.Activated:Connect(function() InventoryController:Open() end)
 	self._hud.marketButton.Activated:Connect(function() MarketController:Open() end)
