@@ -7,6 +7,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local HUD = require(script.Parent.Parent.UI.HUD)
@@ -32,11 +33,27 @@ end
 
 function HUDController:KnitInit() end
 
+-- Other controllers (HarborEditController in particular) call this to hide
+-- the HUD while their own panels occupy the screen, then re-show on close.
+function HUDController:SetVisible(visible: boolean)
+	if self._hud and self._hud.gui then
+		self._hud.gui.Enabled = visible
+	end
+end
+
 function HUDController:KnitStart()
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local QuestService      = Knit.GetService("QuestService")
 
 	self._hud = HUD.create()
+
+	-- Hide Roblox's default Backpack UI. We have our own Rod button that
+	-- auto-equips the tool, so the default hotbar at the bottom is redundant
+	-- and was overlapping our action bar. pcall because some non-place
+	-- contexts (e.g. Plugin) reject SetCoreGuiEnabled.
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	end)
 
 	-- ----------------------------------------------------------------
 	-- Action bar wiring

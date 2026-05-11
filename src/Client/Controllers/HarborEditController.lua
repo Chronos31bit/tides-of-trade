@@ -60,6 +60,9 @@ function HarborEditController:_open()
 	HarborService:GetBuildingCatalog():andThen(function(catalog)
 		self._catalog = catalog
 		self._active = true
+		-- Hide the HUD while editing — the build palette and action bar
+		-- both anchor to the bottom of the screen and were overlapping.
+		Knit.GetController("HUDController"):SetVisible(false)
 		self._ui = HarborEditUI.show(catalog,
 			function(kind) self:_selectKind(kind) end,
 			function() self._rotation = (self._rotation + 90) % 360 end,
@@ -76,6 +79,8 @@ function HarborEditController:_close()
 	if self._ghost then self._ghost:Destroy(); self._ghost = nil end
 	if self._heartbeatConn then self._heartbeatConn:Disconnect(); self._heartbeatConn = nil end
 	self._kind = nil
+	-- Restore the HUD that we hid in _open.
+	Knit.GetController("HUDController"):SetVisible(true)
 end
 
 function HarborEditController:_selectKind(kind: string)
