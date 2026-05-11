@@ -1,26 +1,24 @@
 --!strict
--- HUD.lua
--- Single self-contained ScreenGui that owns:
---   * Top-left:  Coins + Lure chips
---   * Top-right: Level chip with XP bar + daily quest tracker
---   * Bottom:    Action bar (6 tiles)
+-- HUD.lua  (rebuild #3 — minimal, opaque, legible)
 --
--- Designed to avoid the previous bugs:
---   * No second ScreenGui for the quest tracker (everything's here)
---   * No drop-shadow Frames as siblings of UIListLayout containers (those
---     were getting laid out as phantom slots)
---   * No magic offset math — top-left and top-right anchor naturally to
---     their corners, action bar is centered.
+-- Design principles after several iterations:
+--   * Every panel is fully opaque (no BackgroundTransparency, no fade
+--     gradients). Glassy effects hurt readability and we lost more time to
+--     them than they were worth.
+--   * No drop shadows. The previous shadow Frames kept getting laid out as
+--     UIListLayout slots, producing phantom tiles.
+--   * Strong typographic contrast: big bold currency numbers, small caps
+--     labels.
+--   * Anchored carefully around the Roblox topbar (IgnoreGuiInset = false)
+--     so the chat / menu icons never sit on top of our chips.
+--   * Single ScreenGui contains *all* HUD elements (no second GUI for the
+--     quest tracker). Self-cleans via UIUtil.makeScreenGui.
 
 local UIUtil = require(script.Parent.UIUtil)
 
 local HUD = {}
 
-export type QuestRow = {
-	frame: Frame,
-	label: TextLabel,
-	claimButton: TextButton?,
-}
+local P = UIUtil.Palette
 
 export type HUDController = {
 	gui: ScreenGui,
@@ -29,14 +27,12 @@ export type HUDController = {
 	coinsLabel: TextLabel,
 	lureLabel: TextLabel,
 
-	-- Level + XP
+	-- Level / XP
 	levelLabel: TextLabel,
 	xpFill: Frame,
 
-	-- Quest tracker — refresh helpers exposed here.
+	-- Quest list — container; HUDController rebuilds children on update.
 	questList: Frame,
-	-- Container parent of quest rows; HUDController rebuilds rows on update.
-	-- We expose just enough surface for the controller to manage children.
 
 	-- Action bar
 	actionBar: Frame,
@@ -48,218 +44,269 @@ export type HUDController = {
 	socialButton: TextButton,
 }
 
--- Internal: build a square action-bar tile (glyph above, label below).
-local function makeActionTile(glyph: string, label: string, tint: Color3): TextButton
-	local btn = UIUtil.makeButton("", function() end, {
-		Size = UDim2.fromOffset(64, 70),
-		BackgroundColor3 = tint,
-	})
+-- -------------------------------------------------------------------
+-- Tiny helpers — local to HUD so we don't pollute UIUtil with one-off
+-- shapes. Each returns a single Instance, parented by the caller.
+-- -------------------------------------------------------------------
+local function pill(size: Vector2, bg: Color3): Frame
+	local f = Instance.new("Frame")
+	f.BackgroundColor3 = bg
+	f.BorderSizePixel = 0
+	f.Size = UDim2.fromOffset(size.X, size.Y)
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = f
+	return f
+end
+
+local function iconDisc(diameter: number, color: Color3, glyph: string): Frame
+	local f = Instance.new("Frame")
+	f.BackgroundColor3 = color
+	f.BorderSizePixel = 0
+	f.Size = UDim2.fromOffset(diameter, diameter)
+	f.AnchorPoint = Vector2.new(0, 0.5)
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = f
+	local g = Instance.new("TextLabel")
+	g.BackgroundTransparency = 1
+	g.Size = UDim2.fromScale(1, 1)
+	g.Font = Enum.Font.GothamBlack
+	g.TextSize = math.floor(diameter * 0.62)
+	g.TextColor3 = P.Ink
+	g.Text = glyph
+	g.Parent = f
+	return f
+end
+
+local function valueLabel(initial: string, size: number?): TextLabel
+	local lbl = Instance.new("TextLabel")
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = size or 18
+	lbl.TextColor3 = P.Cream
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextYAlignment = Enum.TextYAlignment.Center
+	lbl.Text = initial
+	return lbl
+end
+
+local function smallCaps(text: string): TextLabel
+	local lbl = Instance.new("TextLabel")
+	lbl.BackgroundTransparency = 1
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 10
+	lbl.TextColor3 = P.CreamSoft
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Text = text:upper()
+	return lbl
+end
+
+-- Action-bar tile: vertical stack of glyph + label, fully opaque. Returns
+-- a TextButton so HUDController can hook .Activated on it.
+local function actionTile(glyph: string, label: string, tint: Color3): TextButton
+	local btn = Instance.new("TextButton")
+	btn.AutoButtonColor = false
+	btn.BackgroundColor3 = tint
+	btn.BorderSizePixel = 0
+	btn.Size = UDim2.fromOffset(68, 68)
 	btn.Text = ""
+	btn.Font = Enum.Font.GothamBold
+	btn.TextColor3 = P.Cream
 
-	local glyphLbl = Instance.new("TextLabel")
-	glyphLbl.BackgroundTransparency = 1
-	glyphLbl.Position = UDim2.new(0, 0, 0, 4)
-	glyphLbl.Size = UDim2.new(1, 0, 0.55, 0)
-	glyphLbl.Font = Enum.Font.GothamBlack
-	glyphLbl.TextSize = 22
-	glyphLbl.TextColor3 = UIUtil.Palette.Cream
-	glyphLbl.Text = glyph
-	glyphLbl.Parent = btn
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = btn
 
-	local nameLbl = Instance.new("TextLabel")
-	nameLbl.BackgroundTransparency = 1
-	nameLbl.Position = UDim2.new(0, 0, 0.55, 0)
-	nameLbl.Size = UDim2.new(1, 0, 0.4, 0)
-	nameLbl.Font = Enum.Font.GothamBold
-	nameLbl.TextSize = 11
-	nameLbl.TextColor3 = UIUtil.Palette.Cream
-	nameLbl.TextXAlignment = Enum.TextXAlignment.Center
-	nameLbl.Text = label
-	nameLbl.Parent = btn
+	-- Slight darker rim so each tile reads as a separate object.
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = P.TealDeeper
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.4
+	stroke.Parent = btn
+
+	local g = Instance.new("TextLabel")
+	g.BackgroundTransparency = 1
+	g.Position = UDim2.new(0, 0, 0, 6)
+	g.Size = UDim2.new(1, 0, 0.55, 0)
+	g.Font = Enum.Font.GothamBlack
+	g.TextSize = 24
+	g.TextColor3 = P.Cream
+	g.Text = glyph
+	g.Parent = btn
+
+	local n = Instance.new("TextLabel")
+	n.BackgroundTransparency = 1
+	n.Position = UDim2.new(0, 0, 0.6, 0)
+	n.Size = UDim2.new(1, 0, 0.35, 0)
+	n.Font = Enum.Font.GothamBold
+	n.TextSize = 10
+	n.TextColor3 = P.Cream
+	n.TextXAlignment = Enum.TextXAlignment.Center
+	n.Text = label
+	n.Parent = btn
+
+	-- Tactile click feedback derived from the tile's tint.
+	local TweenService = game:GetService("TweenService")
+	local rest = tint
+	local pressed = rest:Lerp(Color3.new(0, 0, 0), 0.22)
+	local hover = rest:Lerp(Color3.new(1, 1, 1), 0.08)
+	local tween = TweenInfo.new(0.08)
+	btn.MouseEnter:Connect(function() TweenService:Create(btn, tween, { BackgroundColor3 = hover }):Play() end)
+	btn.MouseLeave:Connect(function() btn.BackgroundColor3 = rest end)
+	btn.MouseButton1Down:Connect(function() TweenService:Create(btn, tween, { BackgroundColor3 = pressed }):Play() end)
+	btn.MouseButton1Up:Connect(function() TweenService:Create(btn, tween, { BackgroundColor3 = hover }):Play() end)
+
 	return btn
 end
 
+-- -------------------------------------------------------------------
+-- Main build
+-- -------------------------------------------------------------------
 function HUD.create(): HUDController
-	-- respectTopbar=true so our top-left and top-right anchored elements
-	-- sit BELOW the Roblox chrome (chat / menu / mic icons). Without this
-	-- the currency chips collide with the chat icon on PC.
+	-- respectTopbar=true means the ScreenGui's coordinate space starts
+	-- BELOW the Roblox chat/menu icons, so our top-anchored elements
+	-- don't collide with chrome.
 	local gui = UIUtil.makeScreenGui("HUD", nil, { respectTopbar = true })
 
-	-- ====================================================================
-	-- TOP-LEFT — currency cluster
-	-- A simple horizontal stack anchored to the top-left of the screen.
-	-- We use a *transparent* container Frame and let chips have their own
-	-- backgrounds; this avoids the look of a giant solid topbar.
-	-- ====================================================================
-	local currencyRow = Instance.new("Frame")
-	currencyRow.Name = "Currency"
-	currencyRow.BackgroundTransparency = 1
-	currencyRow.Position = UDim2.fromOffset(16, 16)
-	currencyRow.Size = UDim2.fromOffset(280, 40)
-	currencyRow.Parent = gui
+	-- ================================================================
+	-- TOP-LEFT — single horizontal currency strip
+	-- One opaque pill containing both coins and lure tokens side-by-side
+	-- with vertical separators. Reads like a wallet, not a chip cloud.
+	-- ================================================================
+	local wallet = pill(Vector2.new(260, 44), P.TealDark)
+	wallet.Position = UDim2.fromOffset(16, 16)
+	wallet.Parent = gui
 
-	local currencyLayout = Instance.new("UIListLayout")
-	currencyLayout.FillDirection = Enum.FillDirection.Horizontal
-	currencyLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	currencyLayout.Padding = UDim.new(0, 8)
-	currencyLayout.Parent = currencyRow
+	-- COINS section
+	local coinsIcon = iconDisc(28, P.Gold, "$")
+	coinsIcon.Position = UDim2.new(0, 10, 0.5, 0)
+	coinsIcon.Parent = wallet
 
-	local coinsChip, coinsLabel = UIUtil.makeChip({
-		name = "Coins", iconGlyph = "$", iconColor = UIUtil.Palette.Gold, value = "0",
-	})
-	coinsChip.LayoutOrder = 1
-	coinsChip.Parent = currencyRow
+	local coinsLabel = valueLabel("0", 18)
+	coinsLabel.Position = UDim2.new(0, 44, 0, 0)
+	coinsLabel.Size = UDim2.new(0, 80, 1, 0)
+	coinsLabel.TextColor3 = P.Cream
+	coinsLabel.Parent = wallet
 
-	local lureChip, lureLabel = UIUtil.makeChip({
-		name = "Lure", iconGlyph = "★", iconColor = UIUtil.Palette.Lure, value = "0",
-	})
-	lureChip.LayoutOrder = 2
-	lureChip.Parent = currencyRow
+	-- vertical divider
+	local divider = Instance.new("Frame")
+	divider.BackgroundColor3 = P.TealDeeper
+	divider.BorderSizePixel = 0
+	divider.Position = UDim2.new(0, 132, 0.2, 0)
+	divider.Size = UDim2.new(0, 2, 0.6, 0)
+	divider.Parent = wallet
 
-	-- ====================================================================
-	-- TOP-RIGHT — Level chip on top, quest tracker beneath it
-	-- ====================================================================
-	local statusColumn = Instance.new("Frame")
-	statusColumn.Name = "Status"
-	statusColumn.BackgroundTransparency = 1
-	statusColumn.AnchorPoint = Vector2.new(1, 0)
-	statusColumn.Position = UDim2.new(1, -16, 0, 16)
-	statusColumn.Size = UDim2.fromOffset(280, 220)
-	statusColumn.Parent = gui
+	-- LURE section
+	local lureIcon = iconDisc(28, P.Lure, "★")
+	lureIcon.Position = UDim2.new(0, 142, 0.5, 0)
+	lureIcon.Parent = wallet
+
+	local lureLabel = valueLabel("0", 18)
+	lureLabel.Position = UDim2.new(0, 176, 0, 0)
+	lureLabel.Size = UDim2.new(0, 80, 1, 0)
+	lureLabel.TextColor3 = P.Cream
+	lureLabel.Parent = wallet
+
+	-- ================================================================
+	-- TOP-RIGHT — level chip with XP bar + quest list under it
+	-- ================================================================
+	local statusCol = Instance.new("Frame")
+	statusCol.BackgroundTransparency = 1
+	statusCol.AnchorPoint = Vector2.new(1, 0)
+	statusCol.Position = UDim2.new(1, -16, 0, 16)
+	statusCol.Size = UDim2.fromOffset(260, 240)
+	statusCol.Parent = gui
 
 	local statusLayout = Instance.new("UIListLayout")
 	statusLayout.FillDirection = Enum.FillDirection.Vertical
 	statusLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	statusLayout.Padding = UDim.new(0, 8)
-	statusLayout.Parent = statusColumn
+	statusLayout.Parent = statusCol
 
-	-- Level chip with XP bar inside.
-	local levelChip = Instance.new("Frame")
-	levelChip.Name = "Level"
-	levelChip.Size = UDim2.fromOffset(220, 44)
-	levelChip.BackgroundColor3 = UIUtil.Palette.TealDark
-	levelChip.BorderSizePixel = 0
+	-- LEVEL CHIP
+	local levelChip = pill(Vector2.new(260, 52), P.TealDark)
 	levelChip.LayoutOrder = 1
-	local lc = Instance.new("UICorner"); lc.CornerRadius = UDim.new(0, 14); lc.Parent = levelChip
-	local ls = Instance.new("UIStroke"); ls.Color = UIUtil.Palette.TealDeeper; ls.Thickness = 1.2; ls.Transparency = 0.3; ls.Parent = levelChip
-	local lgrad = Instance.new("UIGradient")
-	lgrad.Rotation = 90
-	lgrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-	lgrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.92),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	lgrad.Parent = levelChip
-	levelChip.Parent = statusColumn
+	levelChip.Parent = statusCol
 
-	local levelLabel = UIUtil.makeLabel("Lv 1", "subtitle", {
-		Position = UDim2.new(0, 14, 0, 0),
-		Size = UDim2.new(1, -28, 0.55, 0),
-		TextSize = 14,
-	})
+	local levelHeader = smallCaps("level")
+	levelHeader.Position = UDim2.new(0, 14, 0, 6)
+	levelHeader.Size = UDim2.new(1, -28, 0, 12)
+	levelHeader.Parent = levelChip
+
+	local levelLabel = valueLabel("Lv 1", 18)
+	levelLabel.Position = UDim2.new(0, 14, 0, 18)
+	levelLabel.Size = UDim2.new(1, -28, 0, 18)
+	levelLabel.TextColor3 = P.Cream
 	levelLabel.Parent = levelChip
 
+	-- XP bar
 	local xpBg = Instance.new("Frame")
-	xpBg.Name = "XPBg"
-	xpBg.Position = UDim2.new(0, 14, 0.62, 0)
+	xpBg.Position = UDim2.new(0, 14, 1, -12)
 	xpBg.Size = UDim2.new(1, -28, 0, 6)
-	xpBg.BackgroundColor3 = UIUtil.Palette.TealDeeper
+	xpBg.BackgroundColor3 = P.TealDeeper
 	xpBg.BorderSizePixel = 0
 	local xpc = Instance.new("UICorner"); xpc.CornerRadius = UDim.new(1, 0); xpc.Parent = xpBg
 	xpBg.Parent = levelChip
 
 	local xpFill = Instance.new("Frame")
-	xpFill.Name = "Fill"
 	xpFill.Size = UDim2.new(0, 0, 1, 0)
-	xpFill.BackgroundColor3 = UIUtil.Palette.Sunset
+	xpFill.BackgroundColor3 = P.Sunset
 	xpFill.BorderSizePixel = 0
 	local xpfc = Instance.new("UICorner"); xpfc.CornerRadius = UDim.new(1, 0); xpfc.Parent = xpFill
-	local xpgrad = Instance.new("UIGradient")
-	xpgrad.Rotation = 90
-	xpgrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, UIUtil.Palette.SunsetSoft),
-		ColorSequenceKeypoint.new(1, UIUtil.Palette.SunsetDeep),
-	})
-	xpgrad.Parent = xpFill
 	xpFill.Parent = xpBg
 
-	-- Quest tracker panel underneath the level chip.
+	-- QUEST PANEL
 	local questPanel = Instance.new("Frame")
-	questPanel.Name = "Quests"
-	questPanel.BackgroundColor3 = UIUtil.Palette.TealDark
-	questPanel.BackgroundTransparency = 0
+	questPanel.Size = UDim2.fromOffset(260, 172)
+	questPanel.BackgroundColor3 = P.TealDark
 	questPanel.BorderSizePixel = 0
-	questPanel.Size = UDim2.fromOffset(260, 168)
 	questPanel.LayoutOrder = 2
-	local qpc = Instance.new("UICorner"); qpc.CornerRadius = UDim.new(0, 14); qpc.Parent = questPanel
-	local qps = Instance.new("UIStroke"); qps.Color = UIUtil.Palette.TealDeeper; qps.Thickness = 1.2; qps.Transparency = 0.3; qps.Parent = questPanel
-	questPanel.Parent = statusColumn
+	local qpc = Instance.new("UICorner"); qpc.CornerRadius = UDim.new(0, 10); qpc.Parent = questPanel
+	questPanel.Parent = statusCol
 
-	local questTitle = UIUtil.makeLabel("Daily Quests", "title", {
-		Position = UDim2.new(0, 12, 0, 8),
-		Size = UDim2.new(1, -24, 0, 22),
-		TextSize = 15,
-	})
+	local questTitle = smallCaps("daily quests")
+	questTitle.Position = UDim2.new(0, 12, 0, 10)
+	questTitle.Size = UDim2.new(1, -24, 0, 12)
 	questTitle.Parent = questPanel
 
-	-- Container for the quest rows — controller rebuilds children on update.
 	local questList = Instance.new("Frame")
-	questList.Name = "List"
 	questList.BackgroundTransparency = 1
-	questList.Position = UDim2.new(0, 8, 0, 34)
-	questList.Size = UDim2.new(1, -16, 1, -42)
+	questList.Position = UDim2.new(0, 8, 0, 28)
+	questList.Size = UDim2.new(1, -16, 1, -36)
 	questList.Parent = questPanel
 
-	local questListLayout = Instance.new("UIListLayout")
-	questListLayout.Padding = UDim.new(0, 4)
-	questListLayout.Parent = questList
+	local qll = Instance.new("UIListLayout")
+	qll.Padding = UDim.new(0, 4)
+	qll.Parent = questList
 
-	-- ====================================================================
+	-- ================================================================
 	-- BOTTOM ACTION BAR
-	-- Centered, fixed-width container with 6 tiles. UIListLayout drives
-	-- horizontal flow; tiles are the only children, so no shadow phantoms.
-	-- ====================================================================
+	-- AutomaticSize.X = bar shrinks to fit children, so the dark background
+	-- never extends past the buttons.
+	-- ================================================================
 	local actionBar = Instance.new("Frame")
-	actionBar.Name = "ActionBar"
 	actionBar.AnchorPoint = Vector2.new(0.5, 1)
-	actionBar.Position = UDim2.new(0.5, 0, 1, -16)
-	-- Width: 6 tiles * 64 + 5 paddings * 6 + 16 padding-edges = 446 px.
-	-- We use AutomaticSize so the parent shrinks to fit children without
-	-- the dark background extending beyond the tiles.
-	actionBar.Size = UDim2.fromOffset(0, 86)
+	actionBar.Position = UDim2.new(0.5, 0, 1, -20)
+	actionBar.Size = UDim2.fromOffset(0, 88)
 	actionBar.AutomaticSize = Enum.AutomaticSize.X
-	actionBar.BackgroundColor3 = UIUtil.Palette.TealDark
-	actionBar.BackgroundTransparency = 0
+	actionBar.BackgroundColor3 = P.TealDark
 	actionBar.BorderSizePixel = 0
 	local abc = Instance.new("UICorner"); abc.CornerRadius = UDim.new(0, 14); abc.Parent = actionBar
-	local abs = Instance.new("UIStroke"); abs.Color = UIUtil.Palette.TealDeeper; abs.Thickness = 1.5; abs.Transparency = 0.2; abs.Parent = actionBar
-	local abgrad = Instance.new("UIGradient")
-	abgrad.Rotation = 90
-	abgrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-	abgrad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.92),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	abgrad.Parent = actionBar
+	local abs = Instance.new("UIStroke"); abs.Color = P.TealDeeper; abs.Thickness = 1.5; abs.Transparency = 0.25; abs.Parent = actionBar
 	actionBar.Parent = gui
 
-	local barPad = Instance.new("UIPadding")
-	barPad.PaddingLeft = UDim.new(0, 8); barPad.PaddingRight = UDim.new(0, 8)
-	barPad.PaddingTop = UDim.new(0, 8);  barPad.PaddingBottom = UDim.new(0, 8)
-	barPad.Parent = actionBar
+	local abp = Instance.new("UIPadding")
+	abp.PaddingLeft = UDim.new(0, 10); abp.PaddingRight = UDim.new(0, 10)
+	abp.PaddingTop = UDim.new(0, 10); abp.PaddingBottom = UDim.new(0, 10)
+	abp.Parent = actionBar
 
-	local barLayout = Instance.new("UIListLayout")
-	barLayout.FillDirection = Enum.FillDirection.Horizontal
-	barLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	barLayout.Padding = UDim.new(0, 6)
-	barLayout.Parent = actionBar
+	local abl = Instance.new("UIListLayout")
+	abl.FillDirection = Enum.FillDirection.Horizontal
+	abl.VerticalAlignment = Enum.VerticalAlignment.Center
+	abl.Padding = UDim.new(0, 8)
+	abl.Parent = actionBar
 
-	local rodBtn  = makeActionTile("⌇",  "Rod",      UIUtil.Palette.Sunset)
-	local invBtn  = makeActionTile("▤",  "Bag",      UIUtil.Palette.Wood)
-	local mktBtn  = makeActionTile("$",  "Market",   UIUtil.Palette.TealLight)
-	local aquaBtn = makeActionTile("◉",  "Aquarium", UIUtil.Palette.Rare)
-	local hrbBtn  = makeActionTile("▣",  "Build",    UIUtil.Palette.SunsetDeep)
-	local socBtn  = makeActionTile("♥",  "Crew",     UIUtil.Palette.Lure)
+	local rodBtn  = actionTile("⌇",  "ROD",      P.Sunset)
+	local invBtn  = actionTile("▤",  "BAG",      P.Wood)
+	local mktBtn  = actionTile("$",  "MARKET",   P.TealLight)
+	local aquaBtn = actionTile("◉",  "AQUARIUM", P.Rare)
+	local hrbBtn  = actionTile("▣",  "BUILD",    P.SunsetDeep)
+	local socBtn  = actionTile("♥",  "CREW",     P.Lure)
 	rodBtn.LayoutOrder = 1; rodBtn.Parent = actionBar
 	invBtn.LayoutOrder = 2; invBtn.Parent = actionBar
 	mktBtn.LayoutOrder = 3; mktBtn.Parent = actionBar

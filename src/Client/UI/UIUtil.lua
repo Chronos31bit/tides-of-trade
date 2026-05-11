@@ -106,37 +106,11 @@ function UIUtil.makeScreenGui(name: string, parent: Instance?, options: {respect
 	return gui, scale
 end
 
--- ====================================================================
--- DROP SHADOW (no image asset required)
--- We add a same-shape sibling Frame behind the target, slightly offset and
--- darkened. Cheap and renders cleanly at any scale.
--- ====================================================================
-function UIUtil.addDropShadow(target: GuiObject, opts: {offset: number?, transparency: number?, cornerRadius: number?}?)
-	opts = opts or {}
-	local offset = opts.offset or 4
-	local transparency = opts.transparency or 0.55
-	local radius = opts.cornerRadius or 12
-
-	local shadow = Instance.new("Frame")
-	shadow.Name = "Shadow"
-	shadow.BackgroundColor3 = UIUtil.Palette.Shadow
-	shadow.BackgroundTransparency = transparency
-	shadow.BorderSizePixel = 0
-	shadow.AnchorPoint = target.AnchorPoint
-	shadow.Position = target.Position + UDim2.fromOffset(0, offset)
-	shadow.Size = target.Size
-	shadow.ZIndex = target.ZIndex - 1
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, radius); c.Parent = shadow
-	shadow.Parent = target.Parent
-	-- Keep shadow in sync if the target moves (used by some animations).
-	target:GetPropertyChangedSignal("Position"):Connect(function()
-		shadow.Position = target.Position + UDim2.fromOffset(0, offset)
-	end)
-	target:GetPropertyChangedSignal("Size"):Connect(function()
-		shadow.Size = target.Size
-	end)
-	return shadow
-end
+-- Drop-shadow helper was removed: it parented a sibling Frame as a layout
+-- item and broke UIListLayout containers. If you need shadows later, do
+-- it with a dedicated child Frame behind everything (negative LayoutOrder
+-- only works in specific cases; the cleanest fix is to wrap the target
+-- in a same-position container).
 
 -- ====================================================================
 -- BASIC FRAMES
@@ -320,73 +294,8 @@ function UIUtil.makeButton(text: string, onClick: () -> (), props: {[string]: an
 	return btn
 end
 
--- ====================================================================
--- CHIP — pill-shaped, used for currency/info clusters in the topbar.
--- Body uses an emoji icon glyph (free, no asset required).
--- ====================================================================
-function UIUtil.makeChip(opts: {iconGlyph: string, iconColor: Color3?, name: string, value: string?}): (Frame, TextLabel)
-	local chip = UIUtil.makeFrame({
-		Name = opts.name,
-		Size = UDim2.fromOffset(132, 38),
-		BackgroundColor3 = UIUtil.Palette.TealDark,
-	})
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1, 0); c.Parent = chip
-	local s = Instance.new("UIStroke")
-	s.Color = UIUtil.Palette.TealDeeper; s.Thickness = 1.2; s.Transparency = 0.3; s.Parent = chip
-
-	-- Subtle top sheen on the chip — just a hint of gloss.
-	local grad = Instance.new("UIGradient")
-	grad.Rotation = 90
-	grad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.92),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	grad.Parent = chip
-
-	-- Icon — emoji glyph in a TextLabel. Roblox's Gotham doesn't render
-	-- color emoji, so we use a colored glyph approximation: a Frame disc
-	-- behind the glyph, glyph drawn in dark for contrast.
-	local iconBg = Instance.new("Frame")
-	iconBg.AnchorPoint = Vector2.new(0, 0.5)
-	iconBg.Position = UDim2.new(0, 6, 0.5, 0)
-	iconBg.Size = UDim2.fromOffset(26, 26)
-	iconBg.BackgroundColor3 = opts.iconColor or UIUtil.Palette.Gold
-	iconBg.BorderSizePixel = 0
-	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(1, 0); ic.Parent = iconBg
-	-- Glossy highlight on the icon disc — barely there, just enough to read
-	-- as 3D rather than flat.
-	local ig = Instance.new("UIGradient")
-	ig.Rotation = 90
-	ig.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-	ig.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.75),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	ig.Parent = iconBg
-	iconBg.Parent = chip
-
-	local glyph = Instance.new("TextLabel")
-	glyph.BackgroundTransparency = 1
-	glyph.Size = UDim2.fromScale(1, 1)
-	glyph.Font = Enum.Font.GothamBlack
-	glyph.TextSize = 16
-	glyph.TextColor3 = UIUtil.Palette.Ink
-	glyph.Text = opts.iconGlyph
-	glyph.Parent = iconBg
-
-	local valueLbl = Instance.new("TextLabel")
-	valueLbl.BackgroundTransparency = 1
-	valueLbl.Position = UDim2.new(0, 38, 0, 0)
-	valueLbl.Size = UDim2.new(1, -42, 1, 0)
-	valueLbl.Font = Enum.Font.GothamSemibold
-	valueLbl.TextSize = 15
-	valueLbl.TextColor3 = UIUtil.Palette.Cream
-	valueLbl.TextXAlignment = Enum.TextXAlignment.Left
-	valueLbl.Text = opts.value or "0"
-	valueLbl.Parent = chip
-	return chip, valueLbl
-end
+-- makeChip helper removed; the new HUD builds its own purpose-fit currency
+-- pills inline.
 
 -- ====================================================================
 -- DEVICE HELPERS
