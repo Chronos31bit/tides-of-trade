@@ -16,18 +16,23 @@ local WorldFXController = Knit.CreateController({
 	_targetTideLevel = -1,
 })
 
+-- We used to instantiate a default Roblox sound as a placeholder ambient
+-- ocean loop — but rbxasset://sounds/uuhhh.mp3 is the "oof" sound, which
+-- looped to surprisingly unpleasant effect. Until you have a real ocean
+-- ambience asset id, we create the Sound but leave it silent.
+--
+-- To enable: replace SoundId with an asset id you own (Toolbox audio,
+-- uploaded WAV, etc.) and call ambient:Play() in KnitStart.
 local function findOrMakeAmbientSound(): Sound
-	-- TODO: replace SoundId with your audio asset for ocean ambience.
-	-- We create a single shared Sound that plays globally from SoundService.
 	local existing = SoundService:FindFirstChild("AmbientOcean") :: Sound?
 	if existing then return existing end
 	local s = Instance.new("Sound")
 	s.Name = "AmbientOcean"
-	s.SoundId = "rbxasset://sounds/uuhhh.mp3" -- placeholder; replace with real ID
+	s.SoundId = ""        -- TODO: drop a real ocean-loop asset id here
 	s.Looped = true
 	s.Volume = 0.4
 	s.Parent = SoundService
-	s:Play()
+	-- Intentionally NOT calling :Play() — see comment above.
 	return s
 end
 
