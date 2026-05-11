@@ -59,6 +59,15 @@ local AdminService = Knit.CreateService({
 local fishById: {[string]: any} = {}
 for _, f in ipairs(FishCatalog.fish) do fishById[f.id] = f end
 
+-- Forward-declared so handlers (further below) can call it. We assign the
+-- body right here, after AdminService exists so we can reference its
+-- Client signal directly. Doing this without a forward decl confuses Lua's
+-- parser on the leading parenthesis in `(AdminService :: any).Client...`.
+local announceTo: (Player, string) -> ()
+announceTo = function(player: Player, message: string)
+	AdminService.Client.Announcement:Fire(player, message, 3)
+end
+
 -- ====================================================================
 -- AUTH
 -- ====================================================================
@@ -87,13 +96,6 @@ local function parse(message: string): {name: string, args: {string}}?
 	end
 	if #parts == 0 then return nil end
 	return { name = parts[1]:lower(), args = { table.unpack(parts, 2) } }
-end
-
-local function announceTo(player: Player, message: string)
-	-- Local feedback to the issuer. Cheaper than building a chat-color
-	-- system; goes through the Announcement signal so it reuses the popup.
-	local AdminService = Knit.GetService("AdminService")
-	(AdminService :: any).Client.Announcement:Fire(player, message, 3)
 end
 
 -- ====================================================================
