@@ -1,11 +1,12 @@
 --!strict
--- InventoryUI.lua
--- Scrollable grid of inventory items. Each item card shows species/good name,
--- weight (for fish), and a "Sell on market" action that opens the listing
--- prompt. Built fresh on each open — inventory is small (≲ a few hundred
--- entries) so we don't need virtualized lists.
+-- InventoryUI.lua (rewrite)
+-- Modal grid of inventory cards. Each card has a rarity stripe down the
+-- left edge, name + weight, and two action buttons: Sell (instant dock NPC)
+-- and List (open market price prompt).
 
 local UIUtil = require(script.Parent.UIUtil)
+
+local P = UIUtil.Palette
 
 local InventoryUI = {}
 
@@ -15,150 +16,170 @@ export type InventoryHandle = {
 	refresh: (items: {any}) -> (),
 }
 
--- onSellRequest(itemUid, suggestedPrice) — called when the user taps "List".
--- onQuickSell(itemUid) — called when the user taps "Sell" (instant dock NPC sale).
--- We pass a *suggested* price for listings computed client-side; the server validates.
-function InventoryUI.show(items: {any}, onSellRequest: (string, number) -> (), onQuickSell: (string) -> (), suggestedPriceFor: (any) -> number): InventoryHandle
+-- Pseudo-rarity color based on the species id's first byte. We don't
+-- import the catalog here to keep the UI module decoupled from data;
+-- consistent-enough coloring for solo testing.
+local RARITY_TINTS = { P.Common, P.Uncommon, P.Rare, P.Mythic }
+local function rarityTint(speciesId: string?): Color3
+	if not speciesId then return P.Common end
+	local b = string.byte(speciesId, 1) or 0
+	return RARITY_TINTS[(b % 4) + 1]
+end
+
+function InventoryUI.show(
+	items: {any},
+	onListRequest: (string, number) -> (),
+	onQuickSell: (string) -> (),
+	suggestedPriceFor: (any) -> number
+): InventoryHandle
 	local gui = UIUtil.makeScreenGui("InventoryUI")
 
-	-- Modal backdrop — taps outside the panel close the UI on touch devices.
-	local backdrop = UIUtil.makeFrame({
-		Name = "Backdrop",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.5,
-	})
+	-- Full-screen darkening backdrop.
+	local backdrop = Instance.new("Frame")
+	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
+	backdrop.BackgroundTransparency = 0.5
+	backdrop.BorderSizePixel = 0
+	backdrop.Size = UDim2.fromScale(1, 1)
 	backdrop.Parent = gui
 
-	local panel = UIUtil.makePanel({
-		Name = "Panel",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0.9, 0, 0.85, 0),
-		BackgroundColor3 = UIUtil.Palette.TealDark,
-	})
-	local panelMax = Instance.new("UISizeConstraint"); panelMax.MaxSize = Vector2.new(720, 720); panelMax.Parent = panel
+	-- Solid panel.
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.new(0.9, 0, 0.85, 0)
+	panel.BackgroundColor3 = P.TealDark
+	panel.BorderSizePixel = 0
+	local pcorner = Instance.new("UICorner"); pcorner.CornerRadius = UDim.new(0, 14); pcorner.Parent = panel
+	local pstroke = Instance.new("UIStroke"); pstroke.Color = P.TealDeeper; pstroke.Thickness = 1.5; pstroke.Transparency = 0.25; pstroke.Parent = panel
+	local pcap = Instance.new("UISizeConstraint"); pcap.MaxSize = Vector2.new(820, 720); pcap.Parent = panel
 	panel.Parent = gui
 
-	local title = UIUtil.makeLabel("Inventory", "title", {
-		Position = UDim2.new(0, 16, 0, 12),
-		Size = UDim2.new(1, -64, 0, 30),
-	})
+	-- Title row.
+	local title = Instance.new("TextLabel")
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0, 20, 0, 14)
+	title.Size = UDim2.new(1, -120, 0, 30)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 22
+	title.TextColor3 = P.Cream
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Inventory"
 	title.Parent = panel
 
 	local closeBtn = UIUtil.makeButton("Close", function() gui:Destroy() end, {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 12),
-		Size = UDim2.fromOffset(80, 32),
-		BackgroundColor3 = UIUtil.Palette.Wood,
+		Position = UDim2.new(1, -16, 0, 14),
+		Size = UDim2.fromOffset(84, 36),
+		BackgroundColor3 = P.Wood,
 	})
 	closeBtn.Parent = panel
 
+	-- Scrolling grid.
 	local list = Instance.new("ScrollingFrame")
-	list.Name = "List"
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Position = UDim2.new(0, 12, 0, 56)
-	list.Size = UDim2.new(1, -24, 1, -68)
+	list.Position = UDim2.new(0, 14, 0, 60)
+	list.Size = UDim2.new(1, -28, 1, -74)
 	list.ScrollBarThickness = 6
+	list.ScrollBarImageColor3 = P.TealDeeper
 	list.CanvasSize = UDim2.new(0, 0, 0, 0)
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.Parent = panel
 
 	local grid = Instance.new("UIGridLayout")
-	-- Cards are 220x96 — fits 1 column on a 380px phone, 2 on tablet, 3 on desktop.
-	-- Padding/scaling propagates from the parent UIScale.
-	grid.CellSize = UDim2.fromOffset(220, 96)
-	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.CellSize = UDim2.fromOffset(240, 96)
+	grid.CellPadding = UDim2.fromOffset(10, 10)
 	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = list
-	local listPad = Instance.new("UIPadding"); listPad.PaddingTop = UDim.new(0, 4); listPad.PaddingBottom = UDim.new(0, 8); listPad.Parent = list
-
-	local function rarityColor(speciesId: string?): Color3
-		if not speciesId then return UIUtil.Palette.Cream end
-		-- We don't have FishCatalog wired into the UI to keep coupling minimal.
-		-- Tint by hashed first byte so duplicates are visually similar even
-		-- without a lookup. (For the real game, swap to catalog rarity color.)
-		local b = string.byte(speciesId, 1) or 0
-		local choices = { UIUtil.Palette.Common, UIUtil.Palette.Uncommon, UIUtil.Palette.Rare, UIUtil.Palette.Mythic }
-		return choices[(b % 4) + 1]
-	end
 
 	local function buildCard(item: any, idx: number)
-		local card = UIUtil.makePanel({
-			Name = item.uid,
-			BackgroundColor3 = UIUtil.Palette.Teal,
-			LayoutOrder = idx,
-		})
+		local card = Instance.new("Frame")
+		card.BackgroundColor3 = P.Teal
+		card.BorderSizePixel = 0
+		card.LayoutOrder = idx
+		local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0, 10); cc.Parent = card
+		local cs = Instance.new("UIStroke"); cs.Color = P.TealDeeper; cs.Thickness = 1; cs.Transparency = 0.5; cs.Parent = card
 		card.Parent = list
 
-		-- Color stripe on the left to telegraph rarity at a glance.
-		local stripe = UIUtil.makeFrame({
-			Name = "Stripe",
-			Size = UDim2.new(0, 6, 1, 0),
-			BackgroundColor3 = rarityColor(item.speciesId),
-		})
+		-- Rarity stripe on the left edge.
+		local stripe = Instance.new("Frame")
+		stripe.BackgroundColor3 = rarityTint(item.speciesId)
+		stripe.BorderSizePixel = 0
+		stripe.Size = UDim2.new(0, 6, 1, 0)
 		stripe.Parent = card
 
-		local nameText = item.kind == "Fish"
-			and ((item.speciesId :: string):gsub("_", " "))
-			or ((item.goodId or "Item"):gsub("_", " "))
-		local nameLbl = UIUtil.makeLabel(nameText, "title", {
-			Position = UDim2.new(0, 16, 0, 6),
-			Size = UDim2.new(1, -16, 0, 24),
-			TextSize = 16,
-		})
-		nameLbl.Parent = card
-
-		local subtext = ""
+		local nameText: string
 		if item.kind == "Fish" then
-			subtext = ("%.1f kg"):format(item.weightKg or 0)
+			-- Title-case the species id ("harbor_mackerel" -> "Harbor Mackerel").
+			nameText = (item.speciesId or "fish"):gsub("_", " "):gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b end)
 		else
-			subtext = ("x%d"):format(item.count or 1)
+			nameText = (item.goodId or "Item"):gsub("_", " "):gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b end)
 		end
-		local sub = UIUtil.makeLabel(subtext, "caption", {
-			Position = UDim2.new(0, 16, 0, 28),
-			Size = UDim2.new(1, -16, 0, 18),
-		})
+		local name = Instance.new("TextLabel")
+		name.BackgroundTransparency = 1
+		name.Position = UDim2.new(0, 16, 0, 6)
+		name.Size = UDim2.new(1, -32, 0, 22)
+		name.Font = Enum.Font.GothamBold
+		name.TextSize = 16
+		name.TextColor3 = P.Cream
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		name.Text = nameText
+		name.Parent = card
+
+		local sub = Instance.new("TextLabel")
+		sub.BackgroundTransparency = 1
+		sub.Position = UDim2.new(0, 16, 0, 28)
+		sub.Size = UDim2.new(1, -32, 0, 16)
+		sub.Font = Enum.Font.Gotham
+		sub.TextSize = 12
+		sub.TextColor3 = P.CreamSoft
+		sub.TextXAlignment = Enum.TextXAlignment.Left
+		if item.kind == "Fish" then
+			sub.Text = ("%.1f kg"):format(item.weightKg or 0)
+		else
+			sub.Text = ("× %d"):format(item.count or 1)
+		end
 		sub.Parent = card
 
-		-- Two actions per card. "Sell" is the instant dock NPC sale (faster,
-		-- less coin). "List" puts it on the global market (more coin, has
-		-- to wait for a buyer). Stacked vertically so they fit on a phone.
-		local quickBtn = UIUtil.makeButton("Sell", function()
-			onQuickSell(item.uid)
-		end, {
+		-- Two stacked action buttons in the bottom-right.
+		local sellBtn = UIUtil.makeButton("Sell", function() onQuickSell(item.uid) end, {
 			AnchorPoint = Vector2.new(1, 1),
-			Position = UDim2.new(1, -96, 1, -8),
-			Size = UDim2.fromOffset(80, 32),
-			BackgroundColor3 = UIUtil.Palette.Wood,
+			Position = UDim2.new(1, -94, 1, -8),
+			Size = UDim2.fromOffset(80, 30),
+			BackgroundColor3 = P.Wood,
 		})
-		quickBtn.Parent = card
+		sellBtn.Parent = card
 
 		local listBtn = UIUtil.makeButton("List", function()
-			onSellRequest(item.uid, suggestedPriceFor(item))
+			onListRequest(item.uid, suggestedPriceFor(item))
 		end, {
 			AnchorPoint = Vector2.new(1, 1),
 			Position = UDim2.new(1, -8, 1, -8),
-			Size = UDim2.fromOffset(80, 32),
+			Size = UDim2.fromOffset(80, 30),
+			BackgroundColor3 = P.Sunset,
 		})
 		listBtn.Parent = card
 	end
 
 	local function refresh(items_: {any})
-		for _, child in ipairs(list:GetChildren()) do
-			if child:IsA("Frame") then child:Destroy() end
+		for _, c in ipairs(list:GetChildren()) do
+			if c:IsA("Frame") then c:Destroy() end
 		end
 		if #items_ == 0 then
-			local empty = UIUtil.makeLabel("No catches yet — head to the dock!", "body", {
-				Size = UDim2.new(1, 0, 0, 40),
-				TextXAlignment = Enum.TextXAlignment.Center,
-			})
+			local empty = Instance.new("TextLabel")
+			empty.BackgroundTransparency = 1
+			empty.Size = UDim2.new(1, 0, 0, 60)
+			empty.Font = Enum.Font.GothamMedium
+			empty.TextSize = 16
+			empty.TextColor3 = P.CreamSoft
+			empty.TextXAlignment = Enum.TextXAlignment.Center
+			empty.Text = "No catches yet — head to the dock!"
 			empty.Parent = list
-		else
-			for i, item in ipairs(items_) do buildCard(item, i) end
+			return
 		end
+		for i, item in ipairs(items_) do buildCard(item, i) end
 	end
 	refresh(items)
 

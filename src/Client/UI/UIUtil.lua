@@ -123,35 +123,24 @@ function UIUtil.makeFrame(props: {[string]: any}): Frame
 	return f
 end
 
--- Standard panel: rounded corners, soft top-light gradient, 1.5px stroke.
--- NO automatic drop shadow — shadows must be opt-in (call addDropShadow
--- manually) because parenting shadows as siblings of layout items breaks
--- UIListLayout (it reserves slot space for the shadow Frame).
+-- Standard panel: solid rounded background with a thin border. No
+-- gradient, no shadow, no transparency. Everything that called makePanel
+-- on top of a player's view was reading hazy / faded.
 function UIUtil.makePanel(props: {[string]: any}): Frame
 	local f = UIUtil.makeFrame(props)
 	if not props.BackgroundColor3 then f.BackgroundColor3 = UIUtil.Palette.TealDark end
+	-- Force opaque — older callers leaked BackgroundTransparency from
+	-- props or relied on makeFrame defaults.
+	f.BackgroundTransparency = 0
 
-	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 14); corner.Parent = f
+	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 12); corner.Parent = f
 
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = UIUtil.Palette.TealDeeper
 	stroke.Thickness = 1.5
-	stroke.Transparency = 0.15
+	stroke.Transparency = 0.25
 	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	stroke.Parent = f
-
-	-- Very subtle top-light only — a thin sheen at the top edge. The
-	-- previous gradient feathered the entire panel and made everything
-	-- look hazy.
-	local grad = Instance.new("UIGradient")
-	grad.Rotation = 90
-	grad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.92),
-		NumberSequenceKeypoint.new(0.15, 1),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	grad.Parent = f
 	return f
 end
 
@@ -248,25 +237,12 @@ function UIUtil.makeButton(text: string, onClick: () -> (), props: {[string]: an
 
 	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 10); corner.Parent = btn
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = UIUtil.Palette.Shadow
-	stroke.Thickness = 1
-	stroke.Transparency = 0.75
+	stroke.Color = UIUtil.Palette.TealDeeper
+	stroke.Thickness = 1.2
+	stroke.Transparency = 0.4
 	stroke.Parent = btn
-
-	-- A small top sheen + tiny bottom shadow, both barely visible. Anything
-	-- stronger washes the button color out.
-	local grad = Instance.new("UIGradient")
-	grad.Rotation = 90
-	grad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
-	})
-	grad.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.88),
-		NumberSequenceKeypoint.new(0.5, 1),
-		NumberSequenceKeypoint.new(1, 0.85),
-	})
-	grad.Parent = btn
+	-- Buttons are solid color, no gradient. Tint variation comes from
+	-- explicit BackgroundColor3 per variant, not from overlay.
 
 	-- Apply caller props *before* derived states so background can be overridden.
 	for k, v in pairs(props) do (btn :: any)[k] = v end
