@@ -13,15 +13,27 @@ local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
 local FishCatalog     = require(ReplicatedStorage.Shared.Config.FishCatalog)
 local Types           = require(ReplicatedStorage.Shared.Types)
 
--- Per-rarity reward values applied each income tick, per fish in aquarium.
--- Tuning: Common fills the aquarium fast but pays nearly nothing; Mythic
--- gives a real reason to hunt rare species and *keep* one for display.
+-- Per-rarity base income per fish per income tick. Tuning: Common fills
+-- the aquarium fast but pays nearly nothing; Mythic gives a real reason
+-- to hunt rare species and *keep* one for display.
 local RARITY_INCOME = {
 	Common   = { coins = 1,  xp = 0 },
 	Uncommon = { coins = 3,  xp = 1 },
 	Rare     = { coins = 10, xp = 2 },
 	Mythic   = { coins = 30, xp = 6 },
 }
+
+-- Weight multiplier: a max-weight catch pays double its rarity base, a
+-- min-weight catch pays the base. Interpolates linearly within the
+-- species' weightRange. Round result to nearest integer at the end.
+-- Quality (rarity) is the dominant axis; size is a meaningful nudge.
+local function weightMultiplier(fish: any, weightKg: number): number
+	local minW = fish.weightRange[1]
+	local maxW = fish.weightRange[2]
+	local span = math.max(maxW - minW, 0.0001)
+	local frac = math.clamp((weightKg - minW) / span, 0, 1)
+	return 1 + frac  -- 1.0..2.0
+end
 
 local fishById: {[string]: any} = {}
 for _, f in ipairs(FishCatalog.fish) do fishById[f.id] = f end
@@ -77,8 +89,11 @@ function AquariumService:PayoutFor(player: Player): number
 			if not f then continue end
 			local r = RARITY_INCOME[f.rarity]
 			if r then
-				coins += r.coins
-				xp += r.xp
+				-- Quality × size: a heavy Rare pays roughly 1.5× a normal Rare,
+				-- a max-weight Mythic pays 60 coins/tick.
+				local mul = weightMultiplier(f, item.weightKg or f.weightRange[1])
+				coins += math.floor(r.coins * mul + 0.5)
+				xp += math.floor(r.xp * mul + 0.5)
 			end
 		end
 	end

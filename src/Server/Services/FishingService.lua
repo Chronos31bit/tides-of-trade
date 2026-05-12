@@ -81,7 +81,7 @@ local function fishMatches(fish: Fish, ctx: {biome: string, timeOfDay: string, w
 	return true
 end
 
-local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number}): Fish?
+local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number, rareMultiplier: number}): Fish?
 	-- Step 1: build the eligible pool, bucketed by rarity.
 	local buckets: {[string]: {Fish}} = { Common = {}, Uncommon = {}, Rare = {}, Mythic = {} }
 	for _, f in ipairs(FishCatalog.fish) do
@@ -90,12 +90,17 @@ local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string,
 		end
 	end
 
-	-- Step 2: pick a rarity using the weighted roll, but only from non-empty buckets.
-	-- This way the player isn't wasting casts on a rarity tier with no eligible fish.
+	-- Step 2: weighted rarity roll. If the player has an active bait buff,
+	-- multiply Uncommon/Rare/Mythic weights by ctx.rareMultiplier so the
+	-- premium catches actually become reachable. Common is left alone so
+	-- buffs aren't redundant with bigger rod tier.
 	local totalWeight = 0
+	local adjusted = {}
 	for rarity, weight in pairs(GameConfig.Fishing.RarityWeights) do
 		if #buckets[rarity] > 0 then
-			totalWeight += weight
+			local w = (rarity == "Common") and weight or (weight * ctx.rareMultiplier)
+			adjusted[rarity] = w
+			totalWeight += w
 		end
 	end
 	if totalWeight == 0 then
@@ -103,13 +108,11 @@ local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string,
 	end
 	local roll = math.random() * totalWeight
 	local chosenRarity: string? = nil
-	for rarity, weight in pairs(GameConfig.Fishing.RarityWeights) do
-		if #buckets[rarity] > 0 then
-			roll -= weight
-			if roll <= 0 then
-				chosenRarity = rarity
-				break
-			end
+	for rarity, weight in pairs(adjusted) do
+		roll -= weight
+		if roll <= 0 then
+			chosenRarity = rarity
+			break
 		end
 	end
 	if not chosenRarity then return nil end
@@ -140,7 +143,7 @@ end
 -- CONTEXT — pulled from companion services. We require these inside
 -- functions (lazily) to avoid circular requires at module load.
 -- ====================================================================
-function FishingService:_getContext(player: Player): {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number}?
+function FishingService:_getContext(player: Player): {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number, rareMultiplier: number}?
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local TideService       = Knit.GetService("TideService")
 	local WeatherService    = Knit.GetService("WeatherService")
@@ -149,8 +152,7 @@ function FishingService:_getContext(player: Player): {biome: string, timeOfDay: 
 	if not data then return nil end
 
 	-- Biome detection: simplest version reads a StringValue tagged on the
-	-- Humanoid by the world (the world author tags water volumes as biome
-	-- zones via CollectionService). Default to Shoreline if unknown.
+	-- character by WorldService. Default to Shoreline if unknown.
 	local biome = "Shoreline"
 	local char = player.Character
 	if char then
@@ -160,12 +162,24 @@ function FishingService:_getContext(player: Player): {biome: string, timeOfDay: 
 		end
 	end
 
+	-- Active bait buff multiplier. Decay on read so an expired buff doesn't
+	-- linger on the profile (matches ShopService behavior).
+	local rareMul = 1.0
+	if data.activeBuff then
+		if os.time() < data.activeBuff.expiresAt then
+			rareMul = data.activeBuff.rareWeightMultiplier or 1.0
+		else
+			data.activeBuff = nil
+		end
+	end
+
 	return {
 		biome = biome,
 		timeOfDay = WeatherService:GetTimeOfDay(),
 		weather = WeatherService:GetWeather(),
 		tide = TideService:GetTide(),
 		rodTier = data.rodTier,
+		rareMultiplier = rareMul,
 	}
 end
 

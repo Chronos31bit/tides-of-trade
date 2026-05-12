@@ -39,6 +39,7 @@ local PROFILE_TEMPLATE: Profile = {
 	dailyQuests = {},
 	questsRefreshedDay = nil,
 	crewId = nil,
+	activeBuff = nil,
 	stats = {
 		totalCatches = 0,
 		totalSold = 0,

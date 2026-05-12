@@ -42,6 +42,7 @@ export type HUDController = {
 	harborButton: TextButton,
 	aquariumButton: TextButton,
 	socialButton: TextButton,
+	homeButton: TextButton,
 }
 
 -- -------------------------------------------------------------------
@@ -301,18 +302,21 @@ function HUD.create(): HUDController
 	abl.Padding = UDim.new(0, 8)
 	abl.Parent = actionBar
 
+	-- 7 tiles total. Home goes last (rightmost) so it's a clear "go back" position.
 	local rodBtn  = actionTile("⌇",  "ROD",      P.Sunset)
 	local invBtn  = actionTile("▤",  "BAG",      P.Wood)
 	local mktBtn  = actionTile("$",  "MARKET",   P.TealLight)
 	local aquaBtn = actionTile("◉",  "AQUARIUM", P.Rare)
 	local hrbBtn  = actionTile("▣",  "BUILD",    P.SunsetDeep)
 	local socBtn  = actionTile("♥",  "CREW",     P.Lure)
+	local homeBtn = actionTile("⌂",  "HOME",     P.Uncommon)
 	rodBtn.LayoutOrder = 1; rodBtn.Parent = actionBar
 	invBtn.LayoutOrder = 2; invBtn.Parent = actionBar
 	mktBtn.LayoutOrder = 3; mktBtn.Parent = actionBar
 	aquaBtn.LayoutOrder = 4; aquaBtn.Parent = actionBar
 	hrbBtn.LayoutOrder = 5; hrbBtn.Parent = actionBar
 	socBtn.LayoutOrder = 6; socBtn.Parent = actionBar
+	homeBtn.LayoutOrder = 7; homeBtn.Parent = actionBar
 
 	return {
 		gui = gui,
@@ -328,6 +332,7 @@ function HUD.create(): HUDController
 		harborButton = hrbBtn,
 		aquariumButton = aquaBtn,
 		socialButton = socBtn,
+		homeButton = homeBtn,
 	}
 end
 

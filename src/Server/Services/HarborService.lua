@@ -201,17 +201,27 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	part:SetAttribute("tier", building.tier)
 	part.Parent = folder
 
-	-- Aquariums get a prompt so players can open the manage UI. Other
-	-- building kinds may add their own prompts later (e.g. smokehouse for
-	-- "preserve fish").
+	-- Some buildings get ProximityPrompts so players can interact via E
+	-- (PC) or the on-screen prompt (mobile). The client's ShopController
+	-- and AquariumController dispatch on the prompt's ActionText.
+	local function makePrompt(action: string, object: string)
+		local p = Instance.new("ProximityPrompt")
+		p.ActionText = action
+		p.ObjectText = object
+		p.HoldDuration = 0
+		p.MaxActivationDistance = 12
+		p.RequiresLineOfSight = false
+		p.Parent = part
+	end
+
 	if building.kind == "Aquarium" then
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = "Open Aquarium"
-		prompt.ObjectText = "Aquarium"
-		prompt.HoldDuration = 0
-		prompt.MaxActivationDistance = 12
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = part
+		makePrompt("Open Aquarium", "Aquarium")
+	elseif building.kind == "Dock" then
+		-- Every player has a starter dock, so this is their always-available
+		-- entry to the rod shop. Tier 1 dock works; higher tiers still work.
+		makePrompt("Buy Rod Upgrade", "Rod Shop")
+	elseif building.kind == "BaitShop" then
+		makePrompt("Open Bait Shop", "Bait Shop")
 	end
 end
 
@@ -392,6 +402,22 @@ end
 -- Server-callable for SocialService teleport flow.
 function HarborService:GetPlotOrigin(player: Player): CFrame?
 	return self._plotOrigins[player]
+end
+
+-- Client-callable: bring me back to my own plot. Used by the HUD Home
+-- button. Server-authoritative so an exploiter can't smuggle a CFrame
+-- and end up off-map.
+function HarborService.Client:GoHome(player: Player): {ok: boolean, reason: string?}
+	local self = self.Server
+	local origin = self._plotOrigins[player]
+	if not origin then return { ok = false, reason = "no_plot" } end
+	local char = player.Character
+	if not char then return { ok = false, reason = "no_character" } end
+	local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return { ok = false, reason = "no_rootpart" } end
+	-- Land just above the dock plate so the player doesn't intersect it.
+	hrp.CFrame = origin * CFrame.new(GameConfig.Harbor.PlotSizeStuds / 2, 6, GameConfig.Harbor.PlotSizeStuds / 2)
+	return { ok = true }
 end
 
 return HarborService

@@ -107,6 +107,12 @@ function HUDController:KnitStart()
 	self._hud.harborButton.Activated:Connect(function() HarborEditController:Toggle() end)
 	self._hud.aquariumButton.Activated:Connect(function() AquariumController:OpenFirstOwned() end)
 	self._hud.socialButton.Activated:Connect(function() SocialController:Open() end)
+	-- HOME button: server-authoritative teleport back to player's plot.
+	self._hud.homeButton.Activated:Connect(function()
+		Knit.GetService("HarborService"):GoHome():andThen(function(res)
+			if not res.ok then warn("[HUD] GoHome:", res.reason) end
+		end)
+	end)
 
 	-- Keyboard shortcuts for PC players.
 	UserInputService.InputBegan:Connect(function(input, gpe)
