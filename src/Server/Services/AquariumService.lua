@@ -42,6 +42,9 @@ local AquariumService = Knit.CreateService({
 	Name = "AquariumService",
 	Client = {
 		AquariumChanged = Knit.CreateSignal(),  -- (aquariumUid, contents)
+		-- (coins, xp, fishCount) — fired each income tick to the player.
+		-- Client shows a brief toast so passive income is *visible*.
+		IncomeEarned = Knit.CreateSignal(),
 	},
 })
 
@@ -78,8 +81,16 @@ function AquariumService:PayoutFor(player: Player): number
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return 0 end
 
+	-- Defensive: aquariumStock might be nil on legacy profiles that loaded
+	-- before the field existed in the template (Reconcile usually fills
+	-- this in, but guarding is cheap).
+	if not data.aquariumStock then
+		data.aquariumStock = {}
+	end
+
 	local coins = 0
 	local xp = 0
+	local fishCount = 0
 	for _, building in ipairs(data.buildings) do
 		if building.kind ~= "Aquarium" then continue end
 		local stock = data.aquariumStock[building.uid]
@@ -89,16 +100,30 @@ function AquariumService:PayoutFor(player: Player): number
 			if not f then continue end
 			local r = RARITY_INCOME[f.rarity]
 			if r then
-				-- Quality × size: a heavy Rare pays roughly 1.5× a normal Rare,
-				-- a max-weight Mythic pays 60 coins/tick.
+				-- Quality × size: a max-weight Mythic pays ~60 coins/tick.
 				local mul = weightMultiplier(f, item.weightKg or f.weightRange[1])
 				coins += math.floor(r.coins * mul + 0.5)
 				xp += math.floor(r.xp * mul + 0.5)
+				fishCount += 1
 			end
 		end
 	end
+
+	-- Log every tick where the player has fish — easy way to verify the
+	-- tick loop is alive and what's being credited.
+	if fishCount > 0 then
+		print(("[Aquarium] %s tick: %d fish -> +%d coins / +%d xp"):format(
+			player.Name, fishCount, coins, xp
+		))
+	end
+
 	if coins > 0 then PlayerDataService:AddCoins(player, coins, "aquarium") end
 	if xp > 0 then PlayerDataService:AddXP(player, xp) end
+	-- Tell the client so it can pop a toast. Only fire when something
+	-- actually happened — no point spamming empty payouts.
+	if coins > 0 or xp > 0 then
+		self.Client.IncomeEarned:Fire(player, coins, xp, fishCount)
+	end
 	return coins
 end
 

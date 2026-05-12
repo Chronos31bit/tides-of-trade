@@ -26,6 +26,7 @@ local HarborEditController = Knit.CreateController({
 	_plotSize = 80,
 	_catalog = nil :: any,
 	_heartbeatConn = nil :: RBXScriptConnection?,
+	_demolishing = false,   -- in demolish mode: world clicks remove buildings
 })
 
 function HarborEditController:KnitStart()
@@ -35,17 +36,21 @@ function HarborEditController:KnitStart()
 		self._plotSize = size
 	end)
 
-	-- World-click placement: left-click anywhere outside UI confirms the
-	-- current ghost. Much faster than reaching for the "Place" button on PC.
-	-- gameProcessedEvent is true when the click was over a UI element, so
-	-- this never steals clicks from buttons.
+	-- World-click handler. Branches by current mode:
+	--   * demolish on: raycast and remove the building hit.
+	--   * placement (kind selected): confirm the ghost.
+	-- gameProcessedEvent skip ensures clicks on UI panels don't fire either.
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end
 		if not self._active then return end
-		if not self._kind then return end  -- nothing selected
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch
 		then
+			return
+		end
+		if self._demolishing then
+			self:_doDemolish()
+		elseif self._kind then
 			self:_confirm()
 		end
 	end)
@@ -67,9 +72,55 @@ function HarborEditController:_open()
 			function(kind) self:_selectKind(kind) end,
 			function() self._rotation = (self._rotation + 90) % 360 end,
 			function() self:_confirm() end,
+			function() self:_toggleDemolish() end,
 			function() self:_close() end
 		)
 		self:_startGhostLoop()
+	end)
+end
+
+-- Demolish mode toggles a flag and clears the placement ghost. While on,
+-- world clicks raycast onto placed buildings and remove the one hit.
+function HarborEditController:_toggleDemolish()
+	self._demolishing = not self._demolishing
+	if self._demolishing then
+		-- Drop the placement ghost while demolishing — they're mutually
+		-- exclusive interactions.
+		if self._ghost then self._ghost:Destroy(); self._ghost = nil end
+		self._kind = nil
+	end
+	if self._ui then self._ui.setDemolishActive(self._demolishing) end
+end
+
+function HarborEditController:_doDemolish()
+	-- Raycast from camera through cursor into the world. Whatever building
+	-- part the ray hits is the candidate; the part's Name is the building
+	-- uid (set by HarborService when spawning the visual).
+	local camera = Workspace.CurrentCamera
+	if not camera then return end
+	local mouse = Players.LocalPlayer:GetMouse()
+	local rayOrigin = camera.CFrame.Position
+	local rayDir = (mouse.Hit.Position - rayOrigin).Unit * 500
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	-- Don't hit our own character (rod, body, etc.).
+	if Players.LocalPlayer.Character then
+		params.FilterDescendantsInstances = { Players.LocalPlayer.Character }
+	end
+	local result = Workspace:Raycast(rayOrigin, rayDir, params)
+	if not result then return end
+
+	local part = result.Instance
+	-- A building part has a 'kind' attribute set by HarborService. Use that
+	-- as our gate so we never try to delete the dock plate or terrain.
+	if not part:GetAttribute("kind") then return end
+	-- part.Name is the building uid.
+	local uid = part.Name
+	local HarborService = Knit.GetService("HarborService")
+	HarborService:Remove(uid):andThen(function(res)
+		if not res.ok then
+			warn("[HarborEdit] Remove failed:", res.reason)
+		end
 	end)
 end
 
@@ -79,11 +130,17 @@ function HarborEditController:_close()
 	if self._ghost then self._ghost:Destroy(); self._ghost = nil end
 	if self._heartbeatConn then self._heartbeatConn:Disconnect(); self._heartbeatConn = nil end
 	self._kind = nil
+	self._demolishing = false
 	-- Restore the HUD that we hid in _open.
 	Knit.GetController("HUDController"):SetVisible(true)
 end
 
 function HarborEditController:_selectKind(kind: string)
+	-- Picking a building cancels demolish mode (mutually exclusive).
+	if self._demolishing then
+		self._demolishing = false
+		if self._ui then self._ui.setDemolishActive(false) end
+	end
 	self._kind = kind
 	if self._ghost then self._ghost:Destroy() end
 	-- Build a translucent placeholder. Real game would clone a model from
