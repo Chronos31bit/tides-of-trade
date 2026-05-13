@@ -133,6 +133,35 @@ GameConfig.Fishing = {
 		Rare     = 12,
 		Mythic   = 3,
 	},
+
+	-- ----------------------------------------------------------------
+	-- FEEL TUNING — every magic number for the cast/reel/reveal UI.
+	-- Designer-friendly: tweak these without hunting through controllers.
+	--
+	-- Reel-related values (ReelHoldDuration / ReelZoneSpeed*) are
+	-- referenced by the future server-validated reel mini-game (Path A
+	-- of the polish plan). They're harmless to keep here today; the
+	-- current single-phase contract just ignores them.
+	-- ----------------------------------------------------------------
+	FeelTuning = {
+		CastShakeMagnitude        = 0.3,
+		CastShakeDuration         = 0.25,
+		RippleMaxRadius           = 4,
+		RippleDuration            = 0.8,
+		RippleCount               = 2,
+		HapticIntensity           = 0.4,
+		HapticDuration            = 0.08,
+		MeterTransitionDuration   = 0.3,
+		ReelHoldDuration          = 2.0,
+		ReelZoneSpeedBase         = 1.2,
+		ReelZoneSpeedPerKg        = 0.04,
+		PerfectZoneFraction       = 0.25,
+		PerfectBonusMultiplier    = 2.0,
+		PerfectThreshold          = 0.8,
+		RevealSlideInDuration     = 0.5,
+		RevealAutoDismissAfter    = 3.0,
+		MythicBorderCycleDuration = 1.5,
+	},
 }
 
 -- ====================================================================
