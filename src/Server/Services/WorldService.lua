@@ -149,6 +149,35 @@ local function generateTrench(center: Vector3, sizeX: number, sizeZ: number)
 	end
 end
 
+-- ====================================================================
+-- BIOME WATER TINT
+-- Roblox Terrain.WaterColor is global, so we fake per-biome water color
+-- with a thin translucent slab at the water surface. From above, the
+-- player sees the slab's color blended over the terrain water below it.
+-- The slab has CanCollide/CanQuery/CanTouch = false so it's purely visual.
+-- ====================================================================
+local function tintZone(centerX: number, centerZ: number, sizeX: number, sizeZ: number, color: Color3, transparency: number)
+	local part = Instance.new("Part")
+	part.Name = "BiomeTint"
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	-- Thin slab parked just above the Terrain water surface (Y≈0). The 0.05
+	-- offset prevents z-fighting with the Terrain water plane.
+	part.Size = Vector3.new(sizeX, 0.4, sizeZ)
+	part.CFrame = CFrame.new(centerX, 0.05, centerZ)
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.Transparency = transparency
+	-- Glow so the tint reads even when sunlight is direct. Material.Neon
+	-- would be too punchy; we just nudge it slightly so the color doesn't
+	-- get washed out at noon.
+	part.CastShadow = false
+	part.Parent = Workspace
+	return part
+end
+
 -- Scatter small rocks around the world edges for far-distance silhouette.
 local function scatterOutcrops(seaCenter: Vector3, count: number)
 	for _ = 1, count do
@@ -207,25 +236,28 @@ function WorldService:KnitStart()
 		Enum.Material.Rock
 	)
 
-	-- 4. Reef zone — runs along the south edge of the plot grid in shallow water.
+	-- 4. Reef zone — bright tropical cyan tint over shallow varied seabed.
 	local reefCenter = Vector3.new(seaCenter.X, 0, seaCenter.Z + PLOT_SPACING * (PLOT_GRID - 1) + 60)
 	local reefSize = Vector3.new(WORLD_RADIUS * 1.6, 80, 120)
 	generateReef(reefCenter, reefSize.X, reefSize.Z)
 	buildBiomeSensor("Zone_Reef", "Reef", CFrame.new(reefCenter), reefSize)
+	tintZone(reefCenter.X, reefCenter.Z, reefSize.X, reefSize.Z, Color3.fromRGB(70, 200, 200), 0.55)
 	table.insert(self._biomeZones, { biome = "Reef", cframe = CFrame.new(reefCenter), size = reefSize })
 
-	-- 5. DeepWater — further out, with darker, deeper terrain.
+	-- 5. DeepWater — deep indigo over the basalt basin.
 	local deepCenter = Vector3.new(seaCenter.X, 0, seaCenter.Z + PLOT_SPACING * (PLOT_GRID - 1) + 200)
 	local deepSize = Vector3.new(WORLD_RADIUS * 1.6, 80, 200)
 	generateDeepWater(deepCenter, deepSize.X, deepSize.Z)
 	buildBiomeSensor("Zone_DeepWater", "DeepWater", CFrame.new(deepCenter), deepSize)
+	tintZone(deepCenter.X, deepCenter.Z, deepSize.X, deepSize.Z, Color3.fromRGB(20, 60, 130), 0.45)
 	table.insert(self._biomeZones, { biome = "DeepWater", cframe = CFrame.new(deepCenter), size = deepSize })
 
-	-- 6. Trench — at world's edge.
+	-- 6. Trench — near-black abyssal tint at the world's edge.
 	local trenchCenter = Vector3.new(seaCenter.X, 0, seaCenter.Z + PLOT_SPACING * (PLOT_GRID - 1) + 440)
 	local trenchSize = Vector3.new(WORLD_RADIUS * 1.6, 100, 200)
 	generateTrench(trenchCenter, trenchSize.X, trenchSize.Z)
 	buildBiomeSensor("Zone_Trench", "Trench", CFrame.new(trenchCenter), trenchSize)
+	tintZone(trenchCenter.X, trenchCenter.Z, trenchSize.X, trenchSize.Z, Color3.fromRGB(10, 20, 50), 0.35)
 	table.insert(self._biomeZones, { biome = "Trench", cframe = CFrame.new(trenchCenter), size = trenchSize })
 
 	-- 7. Distant rocks for far-horizon silhouette.
