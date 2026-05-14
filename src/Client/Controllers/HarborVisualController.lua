@@ -140,11 +140,33 @@ function HarborVisualController:_instantiate(payload: any): Model
 	local template = getVisualTemplate(payload.kind, payload.newTier) or makeFallbackModel(payload.kind, payload.newTier)
 	local model = template:Clone()
 	model.Name = ("%s_%s_t%d"):format(payload.kind, payload.buildingId, payload.newTier)
+	-- Client visuals are pure decoration. Mouse picking (demolish, placement
+	-- preview) must pass through them to reach the invisible server anchor
+	-- (which carries the `kind` attribute the demolish raycast looks for).
+	-- CanQuery=false skips the part for Workspace:Raycast and mouse.Hit.
+	for _, desc in ipairs(model:GetDescendants()) do
+		if desc:IsA("BasePart") then
+			desc.CanQuery = false
+		end
+	end
 	model.Parent = self._root
 	local cf = pivotForBuilding(payload.plotOriginCFrame, payload.kind, payload.gridX, payload.gridZ, payload.rotation)
-	-- PivotTo handles welded sub-parts correctly; SetPrimaryPartCFrame is
-	-- deprecated and would break models that include constraint-anchored parts.
+	-- PivotTo positions the model's pivot (PrimaryPart.CFrame) at `cf`.
+	-- For our placeholders the PrimaryPart is at the model's center; for
+	-- future real art it could be anywhere. Either way, we want the model's
+	-- BOTTOM to sit at the plate-top. Apply a one-shot vertical lift using
+	-- the model's bounding box so any author's PrimaryPart placement is
+	-- handled the same way.
 	model:PivotTo(cf)
+	-- Lift the model so its bounding-box BOTTOM sits at cf.Y (= plate top).
+	-- Without this, PivotTo plants the PrimaryPart's center at plate top
+	-- which buries half the building. Bounding-box math works regardless
+	-- of where the author placed the PrimaryPart.
+	local boundCF, sz = model:GetBoundingBox()
+	local lift = cf.Position.Y - (boundCF.Position.Y - sz.Y / 2)
+	if math.abs(lift) > 0.001 then
+		model:PivotTo(model:GetPivot() + Vector3.new(0, lift, 0))
+	end
 	return model
 end
 
@@ -196,6 +218,7 @@ function HarborVisualController:_spawnDebris(payload: any): { Part }
 		part.Name = "Debris_" .. kindDef.name
 		part.Anchored = true
 		part.CanCollide = false
+		part.CanQuery = false  -- decoration; mouse picking ignores it
 		part.Size = kindDef.size
 		part.Color = kindDef.color
 		part.Material = Enum.Material.Wood

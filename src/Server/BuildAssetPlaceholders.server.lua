@@ -106,45 +106,32 @@ local function buildVisual(kind: string, tier: number): Model
 	local baseColor = Color3.fromHSV(hue, sat, val)
 	local accentColor = Color3.fromHSV((hue + 0.08) % 1, math.min(1, sat + 0.2), math.min(1, val + 0.1))
 
-	-- The PrimaryPart anchors at base center. We make it a thin walkable
-	-- platform so the building visually "has a foundation" the player can
-	-- stand on for Dock-style kinds. Decorative parts stack on top.
-	local baseHeight = 0.5
+	-- The PrimaryPart is a single full-footprint Body part that anchors at
+	-- base center. Decorative parts stack flush on top — no floating gaps,
+	-- no thin rim around a smaller block (avoids the "hollow base" look
+	-- where you can see through a halo of base into open air).
+	--
+	-- Heights: tier 1 = solid block. Tier 2 = block + smaller second
+	-- layer. Tier 3 = block + roof + flush spire and corner ornaments.
+	local bodyHeight = 4 + tier * 1.5
 	local primary = makePart(
 		model,
-		"Base",
-		Vector3.new(studW, baseHeight, studD),
-		CFrame.new(0, baseHeight / 2, 0),
+		"Body",
+		Vector3.new(studW, bodyHeight, studD),
+		CFrame.new(0, bodyHeight / 2, 0),
 		baseColor,
 		Enum.Material.WoodPlanks,
-		true
+		true   -- collidable so the player can walk on flat-top buildings
 	)
 	model.PrimaryPart = primary
 
-	-- Tier 1: single low block on the base. Suggests a starter structure.
-	-- Tier 2: same block + a smaller upper block. Suggests "expanded".
-	-- Tier 3: full block + upper block + spire/chimney. Suggests "fancy".
-	local bodyHeight = 4 + tier * 1.5
-	local bodyW = studW * 0.7
-	local bodyD = studD * 0.7
-	local bodyY = baseHeight + bodyHeight / 2
-	makePart(
-		model,
-		"Body",
-		Vector3.new(bodyW, bodyHeight, bodyD),
-		CFrame.new(0, bodyY, 0),
-		baseColor,
-		Enum.Material.WoodPlanks,
-		false
-	)
-
 	if tier >= 2 then
 		local roofHeight = 2 + (tier - 1) * 0.8
-		local roofY = baseHeight + bodyHeight + roofHeight / 2
+		local roofY = bodyHeight + roofHeight / 2
 		makePart(
 			model,
 			"Upper",
-			Vector3.new(bodyW * 0.85, roofHeight, bodyD * 0.85),
+			Vector3.new(studW * 0.7, roofHeight, studD * 0.7),
 			CFrame.new(0, roofY, 0),
 			accentColor,
 			Enum.Material.Slate,
@@ -152,8 +139,9 @@ local function buildVisual(kind: string, tier: number): Model
 		)
 	end
 	if tier >= 3 then
+		-- Spire sits flush on top of the body (no air gap).
 		local spireH = 3
-		local spireY = baseHeight + bodyHeight + 2 + spireH / 2
+		local spireY = bodyHeight + spireH / 2
 		makePart(
 			model,
 			"Spire",
@@ -163,14 +151,18 @@ local function buildVisual(kind: string, tier: number): Model
 			Enum.Material.Metal,
 			false
 		)
-		-- Two small ornament cubes on opposite corners — gives tier 3 a
-		-- silhouette change so it reads as "decorated" from a distance.
-		local orna = bodyW * 0.4
+		-- Two ornament cubes flush on the body top, near opposite corners.
+		-- The corner offset stays inside the footprint so they don't poke
+		-- past the building's edge.
+		local ornaSize = 1.2
+		local ornaX = studW * 0.4
+		local ornaZ = studD * 0.4
+		local ornaY = bodyHeight + ornaSize / 2
 		makePart(
 			model,
 			"OrnamentA",
-			Vector3.new(1.2, 1.2, 1.2),
-			CFrame.new(orna, baseHeight + bodyHeight + 0.6, orna),
+			Vector3.new(ornaSize, ornaSize, ornaSize),
+			CFrame.new(ornaX, ornaY, ornaZ),
 			accentColor,
 			Enum.Material.Metal,
 			false
@@ -178,8 +170,8 @@ local function buildVisual(kind: string, tier: number): Model
 		makePart(
 			model,
 			"OrnamentB",
-			Vector3.new(1.2, 1.2, 1.2),
-			CFrame.new(-orna, baseHeight + bodyHeight + 0.6, -orna),
+			Vector3.new(ornaSize, ornaSize, ornaSize),
+			CFrame.new(-ornaX, ornaY, -ornaZ),
 			accentColor,
 			Enum.Material.Metal,
 			false
