@@ -38,7 +38,22 @@ local TutorialController = Knit.CreateController({
 	_activeHighlight = nil :: any,
 	_waypoint = nil :: any,
 	_autoDismissToken = 0,           -- bumped per render; running task checks it to bail
+	_objectiveGui = nil :: any,
+	_objectiveLabel = nil :: any,
 })
+
+-- Per-beat objective text shown in the persistent pill at the top of
+-- the screen. Distinct from the dialogue body (which is Mira's voice)
+-- — this is the player-facing "what do I do next" cue and stays on
+-- screen the entire time the beat is active.
+local OBJECTIVE_TEXT: {[string]: string} = {
+	greet            = "Talk to Captain Mira",
+	cast_intro       = "Catch your first fish",
+	first_catch      = "Bring the fish to Mira's stall",
+	first_sale       = "Sell the fish at the stall",
+	first_repair     = "Repair the dock (40 coins)",
+	daily_quest_hook = "Accept your first daily quest",
+}
 
 -- ====================================================================
 -- HIGHLIGHTS — visual cues over world objects or HUD elements
@@ -174,6 +189,51 @@ function TutorialController:_setWaypoint(worldPos: Vector3)
 end
 
 -- ====================================================================
+-- OBJECTIVE PILL — persistent "what to do next" indicator
+-- ====================================================================
+function TutorialController:_showObjective(text: string?)
+	if not text or text == "" then
+		self:_hideObjective()
+		return
+	end
+	if not self._objectiveGui then
+		local gui, _ = UIUtil.makeScreenGui("TutorialObjective", nil, { respectTopbar = true })
+		gui.DisplayOrder = TUNE.DialogueZIndex
+		local pill = UIUtil.makePanel({
+			Name = "Pill",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 12),
+			Size = UDim2.fromOffset(360, 44),
+			BackgroundColor3 = UIUtil.Palette.TealDeeper,
+		})
+		pill.Parent = gui
+
+		local arrow = UIUtil.makeLabel("▸", "title", {
+			Position = UDim2.new(0, 12, 0, 0),
+			Size = UDim2.fromOffset(20, 44),
+			TextColor3 = UIUtil.Palette.Sunset,
+		})
+		arrow.Parent = pill
+
+		local lbl = UIUtil.makeLabel("", "subtitle", {
+			Position = UDim2.new(0, 36, 0, 0),
+			Size = UDim2.new(1, -48, 1, 0),
+			TextColor3 = UIUtil.Palette.Cream,
+			TextSize = 14,
+		})
+		lbl.Parent = pill
+		self._objectiveGui = gui
+		self._objectiveLabel = lbl
+	end
+	self._objectiveLabel.Text = text
+	self._objectiveGui.Enabled = true
+end
+
+function TutorialController:_hideObjective()
+	if self._objectiveGui then self._objectiveGui.Enabled = false end
+end
+
+-- ====================================================================
 -- "TALK TO MIRA" prompt — appears when dialogue is dismissed
 -- ====================================================================
 function TutorialController:_showTalkPrompt()
@@ -181,14 +241,14 @@ function TutorialController:_showTalkPrompt()
 	local gui, _ = UIUtil.makeScreenGui("TutorialTalkPrompt", nil, { respectTopbar = true })
 	gui.DisplayOrder = TUNE.DialogueZIndex
 
-	-- Top-center so it never overlaps the bottom action bar. Smaller
-	-- than the default makeButton so it reads as a transient hint, not
-	-- a primary CTA.
+	-- Top-center, below the objective pill (pill is at y=12, h=44, so
+	-- this sits at y=64 with a small gap). Smaller than the default
+	-- makeButton so it reads as a transient hint, not a primary CTA.
 	local btn = UIUtil.makeButton("Talk to Captain Mira", function()
 		self:_reopenDialogue()
 	end, {
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 12),
+		Position = UDim2.new(0.5, 0, 0, 64),
 		Size = UDim2.fromOffset(200, 36),
 	})
 	btn.Parent = gui
@@ -214,7 +274,16 @@ function TutorialController:_renderState(state: any)
 		self:_clearHighlight()
 		self:_clearWaypoint()
 		self:_hideTalkPrompt()
+		self:_hideObjective()
 		return
+	end
+
+	-- Persistent objective pill at the top of the screen. Updates on
+	-- every state change so the player always knows what to do next
+	-- even after the dialogue auto-hides. Transient overlays don't
+	-- update it.
+	if state.advanceOn ~= "transient" then
+		self:_showObjective(OBJECTIVE_TEXT[state.state])
 	end
 
 	-- Refresh highlight based on the beat's hint.
