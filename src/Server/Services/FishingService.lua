@@ -1,9 +1,24 @@
 --!strict
 -- FishingService.lua
 -- Server-authoritative fishing. Client never decides what was caught — it
--- only sends "I started a cast" and "I released the meter at marker=X". The
--- server picks the eligible fish pool, rolls the species, and grants the
--- catch only if the timing release is within the green zone.
+-- only sends timing decisions. The server runs a small state machine per
+-- pending cast:
+--
+--   preCast        -- StartCast: fish secretly chosen, timing window sent
+--     │
+--     │  ClaimCast hits green
+--     ▼
+--   reeling        -- BiteStarted signal fired (weight + tier + difficulty)
+--     │
+--     ├── ReleaseReel(perfectFraction)  → catch granted (2x XP if perfect)
+--     └── ReportEscape                  → consolation XP, no fish
+--
+-- Path-A contract additions (over the original single-shot ClaimCast):
+--   * BiteStarted client signal: { castId, weightKg, tier, difficulty }
+--   * ReleaseReel(castId, perfectFraction) client RPC
+--   * ReportEscape(castId) client RPC
+-- Replay-attack defense extended: a separate ReelClaimWindow gives the
+-- reel phase a longer window than the pre-cast claim, but still bounded.
 
 local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -37,19 +52,42 @@ type Fish = {
 local FishingService = Knit.CreateService({
 	Name = "FishingService",
 	Client = {
-		-- Server -> client: "you have a bite, here's the timing window".
-		-- We send the green zone center+size so the client can render it,
-		-- but the *result* is computed server-side from the release marker.
+		-- Fired when ClaimCast lands in the green zone. Tells the client to
+		-- transition from cast meter to reel mini-game.
+		--   payload: { castId, weightKg, tier ("light"|"medium"|"heavy"|"legendary"), difficulty (0..1) }
 		BiteStarted = Knit.CreateSignal(),
-		-- Final result of a cast: { success, fish?, weightKg?, coinsEarned?, xpGained? }
+		-- Final result of a cast: { success, reason?, fish?, weightKg?, coinsEarned?, xpGained?, perfectFraction? }
 		CastResolved = Knit.CreateSignal(),
 	},
 
-	-- internal state
-	_pendingCasts = {},  -- [Player] -> {castId, fishId, greenCenter, greenSize, startedAt}
+	-- internal state. Stage transitions: preCast -> reeling -> (success/escape).
+	-- Each cast entry: {
+	--   castId, fishId, greenCenter, greenSize, startedAt,
+	--   stage, weightKg?, tier?, biteStartedAt?,
+	-- }
+	_pendingCasts = {},
 	_castLimiter = nil :: any,
 	_lastCastAt = {},    -- [Player] -> os.clock() of last cast; for cooldown
 })
+
+-- ====================================================================
+-- WEIGHT -> TIER mapping. The client uses this to scale reel difficulty
+-- visuals (zone speed, zone width, indicator drift). Server is the
+-- source of truth so a hacked client can't lie about a fish being easy.
+-- ====================================================================
+local function weightToTier(weightKg: number): string
+	if weightKg < 2 then return "light" end
+	if weightKg < 10 then return "medium" end
+	if weightKg < 40 then return "heavy" end
+	return "legendary"
+end
+
+-- 0..1 difficulty number. Lets the client lerp between tier-driven
+-- parameters smoothly even when weight is close to a tier boundary.
+local function weightToDifficulty(weightKg: number): number
+	-- Asymptotic: a 100 kg fish is ~0.95. Tuneable curve.
+	return math.clamp(1 - 1 / (1 + weightKg / 20), 0, 1)
+end
 
 -- ====================================================================
 -- INDEX FISH BY ID for O(1) lookup
@@ -226,6 +264,7 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 		greenCenter = center,
 		greenSize = size,
 		startedAt = os.clock(),
+		stage = "preCast",
 	}
 
 	-- Auto-expire the pending cast if the client never claims.
@@ -246,49 +285,18 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 	}
 end
 
--- Client says "I released the meter at marker=X (0..1)". Server validates
--- the timing and either grants the catch or fails it.
-function FishingService.Client:ClaimCast(player: Player, castId: string, marker: number): {success: boolean, reason: string?, fish: any?, weightKg: number?, coinsEarned: number?, xpGained: number?}
-	local self = self.Server
-	local pending = self._pendingCasts[player]
-	if not pending or pending.castId ~= castId then
-		return { success = false, reason = "no_pending_cast" }
-	end
-
-	-- Window check: discard claims outside the legitimate cast window. Stops
-	-- replay attacks where an exploiter records a winning marker and re-sends.
-	if os.clock() - pending.startedAt > GameConfig.AntiExploit.CatchClaimWindowSeconds then
-		self._pendingCasts[player] = nil
-		return { success = false, reason = "claim_too_late" }
-	end
-
-	-- Sanitize marker — clients are untrusted.
-	if typeof(marker) ~= "number" or marker ~= marker then -- NaN guard
-		self._pendingCasts[player] = nil
-		return { success = false, reason = "bad_marker" }
-	end
-	marker = math.clamp(marker, 0, 1)
-
+-- Internal: grant the catch. Called by ReleaseReel after the player has
+-- successfully completed the reel phase. perfectFraction is the server-
+-- validated ratio in [0, 1]; if it clears PerfectThreshold, XP doubles.
+function FishingService:_grantCatch(player: Player, pending: any, perfectFraction: number)
 	local fish = fishById[pending.fishId]
-	self._pendingCasts[player] = nil
 	if not fish then
-		return { success = false, reason = "internal_no_fish" }
+		self.Client.CastResolved:Fire(player, { success = false, reason = "internal_no_fish" })
+		return
 	end
 
-	local greenLow  = pending.greenCenter - pending.greenSize / 2
-	local greenHigh = pending.greenCenter + pending.greenSize / 2
-	if marker < greenLow or marker > greenHigh then
-		self.Client.CastResolved:Fire(player, { success = false, reason = "missed" })
-		return { success = false, reason = "missed" }
-	end
+	local weight = pending.weightKg or fish.weightRange[1]
 
-	-- Success! Roll weight uniformly within the species' range.
-	local minW, maxW = fish.weightRange[1], fish.weightRange[2]
-	local weight = minW + math.random() * (maxW - minW)
-	-- Round to one decimal for nicer UI.
-	weight = math.floor(weight * 10 + 0.5) / 10
-
-	-- Build inventory item.
 	local item: Types.FishItem = {
 		uid = UidUtil.new("fish"),
 		kind = "Fish",
@@ -297,38 +305,186 @@ function FishingService.Client:ClaimCast(player: Player, castId: string, marker:
 		caughtAt = os.time(),
 	}
 
-	-- Apply rewards via PlayerDataService — this fires client signals for us.
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	PlayerDataService:AddItem(player, item)
-	PlayerDataService:AddXP(player, fish.xp)
 
-	-- Update stats so quests can read them.
+	local FT = GameConfig.Fishing.FeelTuning
+	local isPerfect = perfectFraction >= FT.PerfectThreshold
+	local xpToGrant = fish.xp
+	if isPerfect then
+		xpToGrant = math.floor(fish.xp * FT.PerfectBonusMultiplier + 0.5)
+	end
+	PlayerDataService:AddXP(player, xpToGrant)
+
 	local data = PlayerDataService:GetProfile(player)
 	if data then
 		data.stats.totalCatches += 1
 		data.stats.caughtSpecies[fish.id] = (data.stats.caughtSpecies[fish.id] or 0) + 1
 	end
 
-	-- Lure token drop (premium currency).
 	if math.random() < GameConfig.Fishing.LureTokenDropChance then
 		PlayerDataService:AddLureTokens(player, 1)
 	end
 
-	-- Notify the QuestService so any active "CatchSpecies"/"CatchAnyFish"/"EarnCoins"
-	-- quests can advance. Done via a service call, not an event, so the order
-	-- of completion and reward grants is deterministic.
 	local QuestService = Knit.GetService("QuestService")
 	QuestService:OnFishCaught(player, fish.id)
 
-	local result = {
+	self.Client.CastResolved:Fire(player, {
 		success = true,
 		fish = fish,
 		weightKg = weight,
-		coinsEarned = 0,         -- coins come from selling, not catching, intentionally
-		xpGained = fish.xp,
-	}
-	self.Client.CastResolved:Fire(player, result)
-	return result
+		coinsEarned = 0,
+		xpGained = xpToGrant,
+		perfectFraction = perfectFraction,
+		perfect = isPerfect,
+	})
+end
+
+-- Client released the cast meter. If marker is inside the green zone, we
+-- transition into the reel mini-game (stage = "reeling") and fire
+-- BiteStarted. Outside the zone, the cast is resolved as a miss and the
+-- pending entry is dropped.
+function FishingService.Client:ClaimCast(player: Player, castId: string, marker: number): {stage: string, reason: string?, weightKg: number?, tier: string?, difficulty: number?}
+	local self = self.Server
+	local pending = self._pendingCasts[player]
+	if not pending or pending.castId ~= castId then
+		return { stage = "error", reason = "no_pending_cast" }
+	end
+	if pending.stage ~= "preCast" then
+		-- Defensive: a double-claim while already reeling. Don't mutate.
+		return { stage = "error", reason = "wrong_stage" }
+	end
+
+	if os.clock() - pending.startedAt > GameConfig.AntiExploit.CatchClaimWindowSeconds then
+		self._pendingCasts[player] = nil
+		self.Client.CastResolved:Fire(player, { success = false, reason = "claim_too_late" })
+		return { stage = "error", reason = "claim_too_late" }
+	end
+
+	if typeof(marker) ~= "number" or marker ~= marker then -- NaN guard
+		self._pendingCasts[player] = nil
+		return { stage = "error", reason = "bad_marker" }
+	end
+	marker = math.clamp(marker, 0, 1)
+
+	local fish = fishById[pending.fishId]
+	if not fish then
+		self._pendingCasts[player] = nil
+		return { stage = "error", reason = "internal_no_fish" }
+	end
+
+	local greenLow  = pending.greenCenter - pending.greenSize / 2
+	local greenHigh = pending.greenCenter + pending.greenSize / 2
+	if marker < greenLow or marker > greenHigh then
+		self._pendingCasts[player] = nil
+		self.Client.CastResolved:Fire(player, { success = false, reason = "missed" })
+		return { stage = "missed" }
+	end
+
+	-- Green zone hit. Roll the catch weight now so the client gets accurate
+	-- difficulty for the reel phase, and so ReleaseReel doesn't need to
+	-- re-roll (which would let exploiters time their ReleaseReel calls to
+	-- get lucky weight rolls).
+	local minW, maxW = fish.weightRange[1], fish.weightRange[2]
+	local weight = minW + math.random() * (maxW - minW)
+	weight = math.floor(weight * 10 + 0.5) / 10
+
+	local tier = weightToTier(weight)
+	local difficulty = weightToDifficulty(weight)
+
+	pending.stage = "reeling"
+	pending.weightKg = weight
+	pending.tier = tier
+	pending.biteStartedAt = os.clock()
+
+	-- Schedule a reel-phase timeout in case the client never sends
+	-- ReleaseReel / ReportEscape (network drop, app suspend on mobile).
+	-- ReelTimeoutSeconds is wider than CastTimeoutSeconds because the player
+	-- actively engages this phase.
+	local reelDeadlineId = pending.castId
+	task.delay(GameConfig.Fishing.ReelTimeoutSeconds, function()
+		local p = self._pendingCasts[player]
+		if p and p.castId == reelDeadlineId and p.stage == "reeling" then
+			self._pendingCasts[player] = nil
+			self.Client.CastResolved:Fire(player, { success = false, reason = "reel_timeout" })
+		end
+	end)
+
+	self.Client.BiteStarted:Fire(player, {
+		castId = castId,
+		weightKg = weight,
+		tier = tier,
+		difficulty = difficulty,
+	})
+
+	return { stage = "biting", weightKg = weight, tier = tier, difficulty = difficulty }
+end
+
+-- Client completed the reel mini-game. perfectFraction is the player's
+-- claimed ratio of perfect-zone time to total successful-tracking time.
+-- Server validates timing + range; bonus XP is granted only if the
+-- fraction clears PerfectThreshold.
+function FishingService.Client:ReleaseReel(player: Player, castId: string, perfectFraction: number): {success: boolean, reason: string?}
+	local self = self.Server
+	local pending = self._pendingCasts[player]
+	if not pending or pending.castId ~= castId then
+		return { success = false, reason = "no_pending_cast" }
+	end
+	if pending.stage ~= "reeling" then
+		return { success = false, reason = "wrong_stage" }
+	end
+
+	-- Validate perfectFraction shape. NaN, negative, > 1 → reject (treat as
+	-- 0 rather than fail the whole catch; the player still pulled the fish).
+	if typeof(perfectFraction) ~= "number" or perfectFraction ~= perfectFraction then
+		perfectFraction = 0
+	else
+		perfectFraction = math.clamp(perfectFraction, 0, 1)
+	end
+
+	local FT = GameConfig.Fishing.FeelTuning
+	-- Minimum plausible reel time: the perfect-zone double-counts toward
+	-- ReelHoldDuration, so the absolute fastest legitimate completion is
+	-- ReelHoldDuration / PerfectBonusMultiplier. Below that and the client
+	-- is lying. Allow a small grace for network jitter.
+	local elapsed = os.clock() - (pending.biteStartedAt or 0)
+	local minLegitTime = (FT.ReelHoldDuration / FT.PerfectBonusMultiplier) - 0.25
+	if elapsed < minLegitTime then
+		-- Treat as a successful catch but zero out the perfect bonus —
+		-- don't punish lag, but don't reward speedhacks either.
+		perfectFraction = 0
+	end
+
+	self._pendingCasts[player] = nil
+	self:_grantCatch(player, pending, perfectFraction)
+	return { success = true }
+end
+
+-- Client lost the reel mini-game (indicator hit the edge). Server confirms
+-- and grants a tiny consolation XP drop — the player still engaged with the
+-- minigame and we don't want a punishing dead-end.
+function FishingService.Client:ReportEscape(player: Player, castId: string): {success: boolean, reason: string?}
+	local self = self.Server
+	local pending = self._pendingCasts[player]
+	if not pending or pending.castId ~= castId then
+		return { success = false, reason = "no_pending_cast" }
+	end
+	if pending.stage ~= "reeling" then
+		return { success = false, reason = "wrong_stage" }
+	end
+
+	-- Tiny consolation XP — clamped low so escaping isn't a farm.
+	local consolation = math.max(1, math.floor((pending.weightKg or 1) / 4))
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	PlayerDataService:AddXP(player, consolation)
+
+	self._pendingCasts[player] = nil
+	self.Client.CastResolved:Fire(player, {
+		success = false,
+		reason = "escaped",
+		xpGained = consolation,
+	})
+	return { success = true }
 end
 
 return FishingService

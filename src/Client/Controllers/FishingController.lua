@@ -1,20 +1,35 @@
 --!strict
 -- FishingController.lua
--- Owns the cast lifecycle on the client. The 30-second loop:
+-- Owns the cast lifecycle on the client. The 30-second loop, post-Path-A:
 --   1. Player taps Rod (Tool.Activated → RodService.RodActivated).
---   2. Server picks a fish secretly, returns a timing window.
+--   2. Server picks a fish secretly, returns a timing window. Phase: casting.
 --   3. Cast feedback fires: camera shake, ripples at the cast point,
 --      a Beam from rod tip to water, haptic pulse, splash audio (TODO).
---   4. CastMeter shows; player tracks the perfect inner zone for cosmetic
+--   4. CastMeter shows; player tracks the inner perfect zone for cosmetic
 --      "PERFECT!" flashes. Release triggers ClaimCast.
---   5. Server returns success/fail via CastResolved.
---   6. CatchRevealUI slides up with the fish data + perfect flag.
+--   5. If marker missed the green zone, CastResolved fires with reason="missed".
+--      If marker hit the green zone, server fires BiteStarted with weight +
+--      tier + difficulty and the client transitions into the reel phase.
+--   6. Reel phase: a moving good zone oscillates, the player holds a button
+--      (LMB / touch / gamepad R2/A) to drive an indicator into the zone.
+--      Time inside the zone counts toward ReelHoldDuration; perfect-zone
+--      time double-counts. Indicator hitting the left edge while drifting
+--      back fires ReportEscape; cumulative time reaching the threshold fires
+--      ReleaseReel(perfectFraction).
+--   7. Server validates and fires CastResolved (success or escaped).
+--   8. CatchRevealUI slides up with the fish data + server-authoritative
+--      perfect flag.
 --
 -- Architecture:
---   * Server-authoritative. Client never decides what was caught.
+--   * Server-authoritative. Client never decides what was caught or what
+--     XP bonus is granted — perfectFraction is validated server-side.
 --   * All decoration motion goes through MotionUtil (reduced-motion aware).
 --   * Trove owns all per-cast disposables (Beams, attachments, ripples,
 --     tweens). Cleared on cast resolve so back-to-back casts don't leak.
+--   * Tension tiers (light/medium/heavy/legendary) scale haptic intensity,
+--     fight rumble, and zone-loss feedback. Gameplay parameters (zone speed,
+--     width, drift speed) are driven server-side from weight so client and
+--     server agree on difficulty without round-trip negotiation.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
@@ -35,12 +50,47 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local FT = GameConfig.Fishing.FeelTuning
 
+-- Tier-driven feel parameters. Server picks the tier from the catch weight
+-- (light <2kg, medium <10kg, heavy <40kg, legendary >=40kg) and sends it
+-- in BiteStarted; the client uses these to scale haptic intensity, camera
+-- shake magnitude on zone loss, and the continuous fight rumble.
+-- (Server *also* uses weight to scale the gameplay parameters — zone speed,
+-- zone width, drift-back speed — so client and server stay in sync on
+-- difficulty without the client having to derive them.)
+local TENSION_TIERS = {
+	light = {
+		fightRumbleIntensity   = 0.10,
+		zoneLossShakeMagnitude = 0.0,
+		zoneLossHaptic         = 0.15,
+	},
+	medium = {
+		fightRumbleIntensity   = 0.20,
+		zoneLossShakeMagnitude = 0.15,
+		zoneLossHaptic         = 0.30,
+	},
+	heavy = {
+		fightRumbleIntensity   = 0.35,
+		zoneLossShakeMagnitude = 0.30,
+		zoneLossHaptic         = 0.50,
+	},
+	legendary = {
+		fightRumbleIntensity   = 0.55,
+		zoneLossShakeMagnitude = 0.45,
+		zoneLossHaptic         = 0.70,
+	},
+}
+
 local FishingController = Knit.CreateController({
 	Name = "FishingController",
+	-- Phase: "idle" | "casting" | "reeling".
+	_phase = "idle",
 	_pendingCastId = nil :: string?,
-	_meter = nil :: any,
-	_castTrove = nil :: any,     -- disposables for the *current* cast
-	_lastPerfectFraction = 0,    -- captured from the meter on release
+	_meter = nil :: any,          -- the cast meter handle (phase = "casting")
+	_reelMeter = nil :: any,      -- the reel meter handle (phase = "reeling")
+	_reelTier = nil :: string?,
+	_castTrove = nil :: any,      -- disposables for the *current* cast
+	_reelInputConns = nil :: any, -- table of RBXScriptConnections for reel hold input
+	_lastPerfectFraction = 0,
 })
 
 -- ====================================================================
@@ -274,30 +324,43 @@ function FishingController:KnitStart()
 	local FishingService = Knit.GetService("FishingService")
 	local RodService = Knit.GetService("RodService")
 
-	-- Server-resolved cast result. Either claim's response or a timeout.
+	-- Server-resolved cast result. Either ReleaseReel/ReportEscape's
+	-- response, or a server timeout. CastResolved is now the SOLE terminus
+	-- for the cast lifecycle — ClaimCast's success no longer fires it.
 	FishingService.CastResolved:Connect(function(result)
-		self:_disposeCast()
+		self:_endCast()
 		if result.success then
 			self:_celebrate(result)
 		else
-			self:_fail(result.reason)
+			self:_fail(result.reason, result)
 		end
 	end)
 
-	-- The cast trigger gated by holding the rod tool. Server fires
-	-- RodActivated on Tool.Activated. Same handler for first tap (cast) and
-	-- second tap (release).
+	-- Bite signal: server tells us we hit the green zone and a fish is on.
+	-- Carries weight + tier + difficulty for the reel phase visuals.
+	FishingService.BiteStarted:Connect(function(payload)
+		self:_onBiteStarted(payload)
+	end)
+
+	-- The cast trigger. Rod's Tool.Activated → CastOrRelease.
+	-- In reel phase the rod tap is IGNORED — input switches to hold-and-
+	-- release on the reel button (left mouse / touch / gamepad ButtonR2),
+	-- bound directly via UserInputService while the reel meter is up.
 	RodService.RodActivated:Connect(function()
 		self:CastOrRelease()
 	end)
 end
 
--- The unified entry point. First call → cast; second call → release.
+-- Tap-driven entry point. Behaviour by phase:
+--   idle    → start the cast (server picks a fish, returns timing window)
+--   casting → release the meter (claim the cast)
+--   reeling → ignored (the reel phase uses hold input, not tap)
 function FishingController:CastOrRelease()
-	if self._pendingCastId then
+	if self._phase == "casting" then
 		self:_releaseClaim()
 		return
 	end
+	if self._phase == "reeling" then return end
 	self:_startCast()
 end
 
@@ -308,7 +371,17 @@ function FishingController:_ensureCastTrove()
 	return self._castTrove
 end
 
-function FishingController:_disposeCast()
+-- Tears down everything tied to the current cast: trove, both meters,
+-- reel input bindings, gamepad rumble. Called when CastResolved fires
+-- (success or fail) and also from defensive paths (StartCast error).
+function FishingController:_endCast()
+	self._phase = "idle"
+	self._pendingCastId = nil
+	if self._meter then self._meter.stop(); self._meter = nil end
+	if self._reelMeter then self._reelMeter.stop(); self._reelMeter = nil end
+	self._reelTier = nil
+	self:_stopReelInput()
+	self:_stopFightRumble()
 	if self._castTrove then
 		self._castTrove:Destroy()
 		self._castTrove = nil
@@ -317,11 +390,16 @@ end
 
 function FishingController:_startCast()
 	local FishingService = Knit.GetService("FishingService")
+	self._phase = "casting"
 	FishingService:StartCast():andThen(function(window)
 		if not window then
 			self:_fail("no_bite")
 			return
 		end
+		-- Race: if a previous cast just resolved on the server and we got an
+		-- old StartCast response back late, the phase may have been reset.
+		-- Only set up the meter if we're still in casting phase.
+		if self._phase ~= "casting" then return end
 		self._pendingCastId = window.castId
 		local trove = self:_ensureCastTrove()
 
@@ -337,26 +415,197 @@ function FishingController:_startCast()
 		self._meter = CastMeter.show(window.greenCenter, window.greenSize, window.period)
 	end):catch(function(err)
 		warn("[FishingController] StartCast failed:", err)
+		self._phase = "idle"
 	end)
 end
 
+-- Player tapped to release the cast meter. Send marker to server; either:
+--   * server says "missed" → CastResolved fires with reason="missed"
+--   * server says "biting" + fires BiteStarted → transition to reel phase
 function FishingController:_releaseClaim()
 	if not self._pendingCastId or not self._meter then return end
 	local castId = self._pendingCastId
-	self._pendingCastId = nil
-	local marker, perfectFraction = self._meter.stop()
+	-- The cast meter slides out; the reel meter (if we get one) slides in.
+	local marker, _perfectFraction = self._meter.stop()
 	self._meter = nil
-	-- Stash for the reveal card. Server result will arrive via CastResolved.
-	self._lastPerfectFraction = perfectFraction or 0
 
 	local FishingService = Knit.GetService("FishingService")
 	FishingService:ClaimCast(castId, marker):andThen(function(_result)
-		-- Authoritative result also arrives via CastResolved — let that
-		-- path drive UI so server timeouts and direct claims behave
-		-- identically. Nothing to do here.
+		-- Both branches drive UI from server signals (CastResolved /
+		-- BiteStarted) so timeouts and direct claims behave identically.
+		-- Nothing to do here besides letting those handlers run.
 	end):catch(function(err)
 		warn("[FishingController] ClaimCast failed:", err)
 	end)
+end
+
+-- ====================================================================
+-- REEL PHASE — Path A mini-game
+-- ====================================================================
+
+-- Track held buttons across all input types. Reel meter's "is the player
+-- holding the reel button right now?" comes from this set.
+local REEL_INPUT_TYPES = {
+	[Enum.UserInputType.MouseButton1] = true,
+	[Enum.UserInputType.Touch] = true,
+}
+local REEL_GAMEPAD_BUTTONS = {
+	[Enum.KeyCode.ButtonR2] = true,
+	[Enum.KeyCode.ButtonA] = true,
+}
+
+function FishingController:_startReelInput()
+	if self._reelInputConns then return end
+	local conns = {}
+	local heldInputs: {[any]: boolean} = {}
+	-- Pre-populate from current input state. Handles the race where the user
+	-- is still holding the same button they used to release the cast meter
+	-- when BiteStarted arrives — without this, InputBegan never re-fires
+	-- and the meter would think they're not holding.
+	if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+		heldInputs[Enum.UserInputType.MouseButton1] = true
+	end
+	for keyCode in pairs(REEL_GAMEPAD_BUTTONS) do
+		if UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, keyCode) then
+			heldInputs[keyCode] = true
+		end
+	end
+	local function refresh()
+		local anyHeld = false
+		for _, v in pairs(heldInputs) do
+			if v then anyHeld = true; break end
+		end
+		if self._reelMeter then self._reelMeter.setHolding(anyHeld) end
+	end
+	refresh()
+	conns[#conns+1] = UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if REEL_INPUT_TYPES[input.UserInputType] then
+			heldInputs[input.UserInputType] = true
+			refresh()
+		elseif input.UserInputType == Enum.UserInputType.Gamepad1 and REEL_GAMEPAD_BUTTONS[input.KeyCode] then
+			heldInputs[input.KeyCode] = true
+			refresh()
+		end
+	end)
+	conns[#conns+1] = UserInputService.InputEnded:Connect(function(input)
+		if REEL_INPUT_TYPES[input.UserInputType] then
+			heldInputs[input.UserInputType] = nil
+			refresh()
+		elseif input.UserInputType == Enum.UserInputType.Gamepad1 and REEL_GAMEPAD_BUTTONS[input.KeyCode] then
+			heldInputs[input.KeyCode] = nil
+			refresh()
+		end
+	end)
+	self._reelInputConns = conns
+end
+
+function FishingController:_stopReelInput()
+	if not self._reelInputConns then return end
+	for _, c in ipairs(self._reelInputConns) do c:Disconnect() end
+	self._reelInputConns = nil
+end
+
+-- Continuous low-frequency rumble during the fight. Intensity scales with
+-- tension tier. Server stops the rumble by closing the cast (haptic cleared
+-- in _stopFightRumble). pcall-wrapped in case the device has no motors.
+function FishingController:_startFightRumble(tier: string)
+	if not UserInputService.GamepadEnabled then return end
+	local def = TENSION_TIERS[tier] or TENSION_TIERS.medium
+	pcall(function()
+		HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Large, def.fightRumbleIntensity)
+	end)
+end
+
+function FishingController:_stopFightRumble()
+	if not UserInputService.GamepadEnabled then return end
+	pcall(function()
+		HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+		HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Large, 0)
+	end)
+end
+
+-- Small camera shake + haptic pulse when the indicator drops out of the
+-- good zone during the fight. Scaled by tier — a 50kg fish jolts the
+-- camera and the controller; a 0.5kg fish does nothing.
+function FishingController:_zoneLossFeedback(tier: string)
+	local def = TENSION_TIERS[tier] or TENSION_TIERS.medium
+	if def.zoneLossShakeMagnitude > 0 and not MotionUtil.reducedMotionEnabled() then
+		local cam = Workspace.CurrentCamera
+		if cam then
+			local startT = os.clock()
+			local DUR = 0.18
+			local bindName = "TidesFishingZoneLossShake"
+			pcall(function() RunService:UnbindFromRenderStep(bindName) end)
+			RunService:BindToRenderStep(bindName, Enum.RenderPriority.Camera.Value + 1, function()
+				local t = (os.clock() - startT) / DUR
+				if t >= 1 then RunService:UnbindFromRenderStep(bindName); return end
+				local m = def.zoneLossShakeMagnitude * (1 - t) * (1 - t)
+				cam.CFrame = cam.CFrame * CFrame.new(
+					(math.random() - 0.5) * 2 * m,
+					(math.random() - 0.5) * 2 * m,
+					(math.random() - 0.5) * 2 * m
+				)
+			end)
+		end
+	end
+	if UserInputService.GamepadEnabled and def.zoneLossHaptic > 0 then
+		pcall(function()
+			HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, def.zoneLossHaptic)
+			task.delay(0.1, function()
+				pcall(function()
+					-- Restore the continuous fight rumble (don't zero the motor —
+					-- there might be background rumble for the current tier).
+					HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+				end)
+			end)
+		end)
+	end
+end
+
+function FishingController:_onBiteStarted(payload: any)
+	if not payload or not payload.castId then return end
+	-- Defensive: ignore stale BiteStarted (server already advanced past it).
+	if self._pendingCastId and payload.castId ~= self._pendingCastId then
+		-- Server reused our castId — accept.
+	end
+	self._pendingCastId = payload.castId
+	self._phase = "reeling"
+	self._reelTier = payload.tier or "medium"
+
+	-- Spin up the reel meter. The cast meter has already slid out (see
+	-- _releaseClaim → self._meter.stop). The reel meter slides in over
+	-- FT.MeterTransitionDuration to deliver the prompt's smooth transition.
+	local reel = CastMeter.reel(payload.weightKg or 0, self._reelTier, payload.difficulty or 0.3)
+	self._reelMeter = reel
+
+	-- Fire zone-loss feedback (camera shake + haptic) exactly when the
+	-- meter transitions tracking → losing. The reel meter handles its own
+	-- in-bar visuals; this layers the worldspace impact on top.
+	reel.onStateChanged = function(state)
+		if state == "losing" then
+			self:_zoneLossFeedback(self._reelTier or "medium")
+		end
+	end
+
+	-- Hook the meter's resolution callbacks. These fire AT MOST once.
+	reel.onSuccess = function(perfectFraction)
+		self._lastPerfectFraction = perfectFraction
+		local FishingService = Knit.GetService("FishingService")
+		FishingService:ReleaseReel(payload.castId, perfectFraction):andThen(function() end):catch(function(err)
+			warn("[FishingController] ReleaseReel failed:", err)
+		end)
+		-- CastResolved will arrive shortly; _endCast runs there.
+	end
+	reel.onEscape = function()
+		local FishingService = Knit.GetService("FishingService")
+		FishingService:ReportEscape(payload.castId):andThen(function() end):catch(function(err)
+			warn("[FishingController] ReportEscape failed:", err)
+		end)
+	end
+
+	self:_startReelInput()
+	self:_startFightRumble(self._reelTier)
 end
 
 -- ====================================================================
@@ -364,11 +613,13 @@ end
 -- ====================================================================
 function FishingController:_celebrate(result: any)
 	playSound(AssetIds.Sounds.CatchSuccess, 0.6)
-	-- "Perfect" client-side check: did the meter's perfectFraction clear
-	-- the threshold? Today this is cosmetic only — the server can't
-	-- validate it under the current contract. Once Path A lands, this
-	-- becomes a server-confirmed flag in the result payload instead.
-	local perfect = self._lastPerfectFraction >= FT.PerfectThreshold
+	-- Server-authoritative perfect flag (Path A). Falls back to the client's
+	-- last-known perfect fraction only if the server omits the field — should
+	-- never happen with the current FishingService, but defensive.
+	local perfect = result.perfect
+	if perfect == nil then
+		perfect = (result.perfectFraction or self._lastPerfectFraction) >= FT.PerfectThreshold
+	end
 	CatchRevealUI.show({
 		fish = result.fish,
 		weightKg = result.weightKg or 0,
@@ -378,13 +629,18 @@ function FishingController:_celebrate(result: any)
 	})
 end
 
-function FishingController:_fail(reason: any)
+function FishingController:_fail(reason: any, result: any?)
 	playSound(AssetIds.Sounds.CatchFail, 0.4)
 	-- TODO: replace print with a small ephemeral toast (reuse Aquarium toast pattern?).
 	if reason == "missed" then
 		print("[Fishing] Slipped off the line!")
 	elseif reason == "no_bite" then
 		print("[Fishing] Nothing's biting here right now.")
+	elseif reason == "escaped" then
+		local xp = (result and result.xpGained) or 0
+		print(("[Fishing] The fish escaped! Consolation XP: %d"):format(xp))
+	elseif reason == "reel_timeout" then
+		print("[Fishing] The line went slack — fish swam away.")
 	else
 		print("[Fishing] Cast failed:", reason)
 	end

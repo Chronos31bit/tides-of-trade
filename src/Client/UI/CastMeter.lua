@@ -208,4 +208,317 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 	return handle
 end
 
+-- ====================================================================
+-- REEL MINI-GAME (Path A)
+-- ====================================================================
+-- A second, distinct meter spawned after the bite. The cast meter has
+-- already been :stop()'d by the controller; this one slides in from the
+-- same anchor (same look-and-feel; the prompt's "smooth transition" is
+-- realized by the two meters' tween-out / tween-in overlap).
+--
+-- Mechanics:
+--   * An "indicator" lives somewhere in [0, 1] on the bar.
+--   * The "good zone" — width set by tier — slides left/right as a sine
+--     wave whose period is faster for heavier fish.
+--   * The player holds a button → indicator moves right at hold speed.
+--     Release → indicator drifts left at release speed.
+--   * Time the indicator spends in the good zone counts toward
+--     ReelHoldDuration; time in the inner perfect zone counts double.
+--   * If the indicator reaches 0 while drifting → escape (fish lost).
+--   * Once cumulative tracking time reaches ReelHoldDuration, the meter
+--     fires onSuccess(perfectFraction) and stops itself.
+--
+-- The controller wires real input (mouse / touch / gamepad) into the
+-- handle's setHolding(bool). The meter exposes onSuccess and onEscape
+-- as plain function fields the controller assigns.
+
+export type ReelMeterHandle = {
+	gui: ScreenGui,
+	setHolding: (boolean) -> (),
+	-- Assigned by the controller before the meter starts firing. onSuccess
+	-- and onEscape fire at most once; onStateChanged may fire repeatedly as
+	-- the indicator weaves in and out of the zone ("neutral" / "tracking" /
+	-- "losing"). The controller layers zone-loss camera shake on top.
+	onSuccess: ((perfectFraction: number) -> ())?,
+	onEscape: (() -> ())?,
+	onStateChanged: ((state: string) -> ())?,
+	stop: () -> (),
+}
+
+function CastMeter.reel(weightKg: number, tier: string, difficulty: number): ReelMeterHandle
+	local gui = UIUtil.makeScreenGui("ReelMeter")
+
+	-- Bar reuses the cast-meter palette so the visual transition reads
+	-- as "same meter, new mode" rather than a context-switch.
+	local restPos = UDim2.new(0.5, 0, 0.66, 0)
+	local offPos  = UDim2.new(0.5, 0, 0.66, 80)
+
+	local bar = UIUtil.makePanel({
+		Name = "ReelBar",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = offPos,
+		Size = UDim2.new(0.6, 0, 0, 28),
+		BackgroundColor3 = P.WoodDark,
+	})
+	local barMax = Instance.new("UISizeConstraint"); barMax.MaxSize = Vector2.new(540, 28); barMax.Parent = bar
+	bar.Parent = gui
+
+	-- Slide / fade in.
+	MotionUtil.tweenOrSnap(bar, TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Position = restPos,
+	})
+
+	-- Tier label (small, above the bar) so the player understands why this
+	-- fish is fighting harder. Cosmetic only; tier comes from the server.
+	local tierLabel = Instance.new("TextLabel")
+	tierLabel.Name = "TierLabel"
+	tierLabel.BackgroundTransparency = 1
+	tierLabel.AnchorPoint = Vector2.new(0.5, 1)
+	tierLabel.Position = UDim2.new(0.5, 0, 0, -6)
+	tierLabel.Size = UDim2.fromOffset(220, 18)
+	tierLabel.Font = Enum.Font.GothamBold
+	tierLabel.TextSize = 14
+	tierLabel.TextColor3 = P.CreamSoft
+	tierLabel.Text = ("%s — %.1f kg"):format(tier:upper(), weightKg)
+	tierLabel.Parent = bar
+
+	-- ----------------------------------------------------------------
+	-- DIFFICULTY-DRIVEN PARAMETERS
+	-- ----------------------------------------------------------------
+	local zoneWidth = math.max(0.08, FT.ReelZoneBaseWidth + FT.ReelZoneWidthPerDifficulty * difficulty)
+	local zoneOmega = FT.ReelZoneSpeedBase + FT.ReelZoneSpeedPerKg * weightKg
+	local holdSpeed = FT.ReelIndicatorHoldSpeed
+	local releaseSpeed = FT.ReelIndicatorReleaseSpeed
+	-- Heavier fish drift back faster too — adds the "wrestling" feel.
+	releaseSpeed = releaseSpeed * (1 + 0.5 * difficulty)
+
+	-- ----------------------------------------------------------------
+	-- ZONE — green strip with a gold inner perfect strip.
+	-- Both move together via UDim2 position update each Heartbeat.
+	-- ----------------------------------------------------------------
+	local zone = Instance.new("Frame")
+	zone.Name = "Zone"
+	zone.BackgroundColor3 = P.Uncommon
+	zone.BackgroundTransparency = 0.15
+	zone.BorderSizePixel = 0
+	zone.Size = UDim2.new(zoneWidth, 0, 1, 0)
+	zone.Position = UDim2.new(0.5 - zoneWidth / 2, 0, 0, 0)
+	local zc = Instance.new("UICorner"); zc.CornerRadius = UDim.new(0, 4); zc.Parent = zone
+	zone.Parent = bar
+
+	-- Stroke used to show "tracking" state via Color tween.
+	local zoneStroke = Instance.new("UIStroke")
+	zoneStroke.Color = P.WoodDark
+	zoneStroke.Thickness = 1
+	zoneStroke.Transparency = 0.6
+	zoneStroke.Parent = zone
+
+	local perfectWidth = zoneWidth * FT.PerfectZoneFraction
+	local perfect = Instance.new("Frame")
+	perfect.Name = "Perfect"
+	perfect.BackgroundColor3 = P.Gold
+	perfect.BackgroundTransparency = 0.15
+	perfect.BorderSizePixel = 0
+	perfect.Size = UDim2.new(perfectWidth, 0, 1, 0)
+	perfect.Position = UDim2.new(zoneWidth / 2 - perfectWidth / 2, 0, 0, 0)
+	local pc2 = Instance.new("UICorner"); pc2.CornerRadius = UDim.new(0, 3); pc2.Parent = perfect
+	perfect.Parent = zone
+
+	-- ----------------------------------------------------------------
+	-- INDICATOR — the player's cursor on the bar.
+	-- ----------------------------------------------------------------
+	local indicator = Instance.new("Frame")
+	indicator.Name = "Indicator"
+	indicator.AnchorPoint = Vector2.new(0.5, 0.5)
+	indicator.Position = UDim2.new(0, 0, 0.5, 0)
+	indicator.Size = UDim2.new(0, 8, 1.5, 0)
+	indicator.BackgroundColor3 = P.Cream
+	indicator.BorderSizePixel = 0
+	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(0, 2); ic.Parent = indicator
+	indicator.Parent = bar
+
+	-- ----------------------------------------------------------------
+	-- PROGRESS BAR — thin sliver below the meter, fills as the player
+	-- tracks the zone. Diagetic feedback: "how close to landing the fish".
+	-- ----------------------------------------------------------------
+	local progressTrack = Instance.new("Frame")
+	progressTrack.Name = "ProgressTrack"
+	progressTrack.BackgroundColor3 = P.TealDeeper
+	progressTrack.BorderSizePixel = 0
+	progressTrack.AnchorPoint = Vector2.new(0.5, 0)
+	progressTrack.Position = UDim2.new(0.5, 0, 1, 4)
+	progressTrack.Size = UDim2.new(1, 0, 0, 4)
+	progressTrack.Parent = bar
+	local progressFill = Instance.new("Frame")
+	progressFill.Name = "Fill"
+	progressFill.BackgroundColor3 = P.Gold
+	progressFill.BorderSizePixel = 0
+	progressFill.Size = UDim2.new(0, 0, 1, 0)
+	progressFill.Parent = progressTrack
+
+	-- ----------------------------------------------------------------
+	-- STATE MACHINE: neutral / tracking / losing.
+	-- Tween between visual states cleanly.
+	-- ----------------------------------------------------------------
+	local function setState(state: string)
+		if state == "tracking" then
+			MotionUtil.tweenOrSnap(zoneStroke, TweenInfo.new(0.15), { Color = P.Success, Thickness = 2, Transparency = 0 })
+			MotionUtil.tweenOrSnap(indicator, TweenInfo.new(0.15), { BackgroundColor3 = P.Cream })
+		elseif state == "losing" then
+			MotionUtil.tweenOrSnap(indicator, TweenInfo.new(0.12), { BackgroundColor3 = P.Danger })
+			MotionUtil.tweenOrSnap(zoneStroke, TweenInfo.new(0.15), { Color = P.WoodDark, Thickness = 1, Transparency = 0.6 })
+			-- Tiny 0.2s UI shake on the bar — purely cosmetic.
+			if not MotionUtil.reducedMotionEnabled() then
+				local origPos = bar.Position
+				local startT = os.clock()
+				local SHAKE_DUR = 0.2
+				local shakeConn: RBXScriptConnection?
+				shakeConn = RunService.Heartbeat:Connect(function()
+					local t = (os.clock() - startT) / SHAKE_DUR
+					if t >= 1 then
+						bar.Position = origPos
+						if shakeConn then shakeConn:Disconnect() end
+						return
+					end
+					local m = 4 * (1 - t)
+					bar.Position = origPos + UDim2.fromOffset(
+						(math.random() - 0.5) * 2 * m,
+						(math.random() - 0.5) * 2 * m
+					)
+				end)
+			end
+		else  -- neutral
+			MotionUtil.tweenOrSnap(zoneStroke, TweenInfo.new(0.2), { Color = P.WoodDark, Thickness = 1, Transparency = 0.6 })
+			MotionUtil.tweenOrSnap(indicator, TweenInfo.new(0.2), { BackgroundColor3 = P.CreamSoft })
+		end
+	end
+
+	-- ----------------------------------------------------------------
+	-- RUNTIME
+	-- ----------------------------------------------------------------
+	local handle: ReelMeterHandle = nil :: any  -- forward declare for closures
+	local holding = false
+	local indicatorPos = 0.5  -- starts at center to give the player a fair shot
+	local startT = os.clock()
+	local lastFrameAt = startT
+	local progress = 0       -- toward ReelHoldDuration (perfect time counts double)
+	local greenT = 0
+	local perfectT = 0
+	local lastState = "neutral"
+	local resolved = false
+	local conn: RBXScriptConnection? = nil
+
+	local function finish(success: boolean)
+		if resolved then return end
+		resolved = true
+		if conn then conn:Disconnect(); conn = nil end
+		-- Slide out, destroy after fade.
+		local outTween = MotionUtil.tweenOrSnap(bar, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = offPos,
+		})
+		if outTween then
+			outTween.Completed:Connect(function() outTween:Destroy(); gui:Destroy() end)
+		else
+			task.delay(0.1, function() if gui then gui:Destroy() end end)
+		end
+		if success then
+			local total = greenT + perfectT
+			local frac = (total > 0) and (perfectT / total) or 0
+			frac = math.clamp(frac, 0, 1)
+			if handle.onSuccess then handle.onSuccess(frac) end
+		else
+			if handle.onEscape then handle.onEscape() end
+		end
+	end
+
+	conn = RunService.Heartbeat:Connect(function()
+		if resolved then return end
+		local now = os.clock()
+		local dt = now - lastFrameAt
+		lastFrameAt = now
+
+		-- Indicator velocity.
+		if holding then
+			indicatorPos = math.min(1, indicatorPos + holdSpeed * dt)
+		else
+			indicatorPos = math.max(0, indicatorPos - releaseSpeed * dt)
+		end
+
+		-- Zone center: sine wave around 0.5, amplitude ReelZoneSwingAmplitude.
+		-- Clamp so the zone never clips off the bar edges.
+		local t = now - startT
+		local zoneCenter = 0.5 + FT.ReelZoneSwingAmplitude * math.sin(t * zoneOmega)
+		local minZoneCenter = zoneWidth / 2
+		local maxZoneCenter = 1 - zoneWidth / 2
+		zoneCenter = math.clamp(zoneCenter, minZoneCenter, maxZoneCenter)
+
+		zone.Position = UDim2.new(zoneCenter - zoneWidth / 2, 0, 0, 0)
+		indicator.Position = UDim2.new(indicatorPos, 0, 0.5, 0)
+
+		-- Zone hit-test.
+		local zoneLow = zoneCenter - zoneWidth / 2
+		local zoneHigh = zoneCenter + zoneWidth / 2
+		local perfectLow = zoneCenter - perfectWidth / 2
+		local perfectHigh = zoneCenter + perfectWidth / 2
+		local inZone = indicatorPos >= zoneLow and indicatorPos <= zoneHigh
+		local inPerfect = indicatorPos >= perfectLow and indicatorPos <= perfectHigh
+
+		-- Progress accounting. Perfect zone double-counts.
+		if inPerfect then
+			progress += dt * FT.PerfectBonusMultiplier
+			perfectT += dt
+		elseif inZone then
+			progress += dt
+			greenT += dt
+		end
+		progressFill.Size = UDim2.new(math.min(1, progress / FT.ReelHoldDuration), 0, 1, 0)
+
+		-- State transitions.
+		local nextState
+		if inZone then
+			nextState = "tracking"
+		elseif lastState == "tracking" then
+			nextState = "losing"
+		else
+			nextState = "neutral"
+		end
+		if nextState ~= lastState then
+			setState(nextState)
+			lastState = nextState
+			if handle and handle.onStateChanged then handle.onStateChanged(nextState) end
+		end
+
+		-- Win.
+		if progress >= FT.ReelHoldDuration then
+			finish(true)
+			return
+		end
+
+		-- Lose: indicator hit the left edge while drifting (player isn't holding).
+		if indicatorPos <= 0 and not holding then
+			finish(false)
+			return
+		end
+	end)
+
+	handle = {
+		gui = gui,
+		setHolding = function(b)
+			holding = b and true or false
+		end,
+		onSuccess = nil,
+		onEscape = nil,
+		onStateChanged = nil,
+		stop = function()
+			-- External cancel (e.g. cast resolved by timeout from server).
+			-- Don't fire onSuccess / onEscape — caller decided how to handle.
+			if resolved then return end
+			resolved = true
+			if conn then conn:Disconnect(); conn = nil end
+			if gui then gui:Destroy() end
+		end,
+	}
+	return handle
+end
+
 return CastMeter
