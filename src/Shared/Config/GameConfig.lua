@@ -248,6 +248,13 @@ GameConfig.Tutorial = {
 	DialogueSlideInDuration         = 0.4,
 	DialogueReducedMotionFadeIn     = 0.2,
 	DialogueZIndex                  = 5,
+
+	-- How long a dialogue line stays on screen before auto-hiding (no
+	-- gameplay impact — state is preserved, player can re-open via the
+	-- "Talk" ProximityPrompt on Mira). Keeps the dialogue panel out of
+	-- the way during fishing / interacting with HUD.
+	DialogueAutoDismissSeconds         = 8,
+	DialogueAutoDismissTransientSeconds = 4,
 }
 
 -- ====================================================================
