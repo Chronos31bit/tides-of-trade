@@ -397,17 +397,13 @@ function TutorialService:_tick()
 			end
 		end
 
-		-- Wander recall — works in every active beat.
-		local origin = HarborService:GetPlotOrigin(player)
-		local char = player.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if origin and hrp then
-			local plotCenter = (origin * CFrame.new(GameConfig.Harbor.PlotSizeStuds / 2, 0, GameConfig.Harbor.PlotSizeStuds / 2)).Position
-			local dist = (hrp.Position - plotCenter).Magnitude
-			if dist > TUNE.WanderRecallDistanceStuds then
-				self:_recallMira(player)
-			end
-		end
+		-- Wander recall — disabled by default. The previous behavior
+		-- respawned Mira next to the player every tick once they
+		-- stepped outside the 80-stud radius, which read as "Mira is
+		-- chasing me." Reinstate behind a config flag only after we
+		-- have a proper one-shot debounce + walk-toward-player anim.
+		-- For now Mira stays put on the dock and the player walks
+		-- back to her, which is the cozy-game-correct behavior anyway.
 	end
 end
 
