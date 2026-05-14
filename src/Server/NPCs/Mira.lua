@@ -147,12 +147,30 @@ function Mira.Spawn(player: Player, position: Vector3, facing: Vector3?): MiraIn
 		container.Name = "TutorialNPCs"
 		container.Parent = Workspace
 	end
+	-- Tag the owner on the model BEFORE parenting so the attribute
+	-- replicates atomically with the ChildAdded event. If set after,
+	-- the client-side visibility filter races and may apply
+	-- LocalTransparencyModifier=1 to the owner's own Mira (the body
+	-- parts go invisible while the name tag stays visible — a clear
+	-- symptom of this race).
 	model.Name = ("Mira_%d"):format(player.UserId)
+	model:SetAttribute("ownerUserId", player.UserId)
 	model.Parent = container
 
-	-- Tag the owner on the model so the client-side visibility filter
-	-- can read it without a separate index lookup.
-	model:SetAttribute("ownerUserId", player.UserId)
+	-- Add an interaction prompt so the player can re-trigger Mira's
+	-- current dialogue line from anywhere (E on PC, on-screen prompt on
+	-- mobile). Dialogue logic still lives in TutorialController — this
+	-- prompt just fires a BindableEvent the controller subscribes to.
+	local hostPart = model:FindFirstChild("Head") :: BasePart?
+	if hostPart then
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Talk"
+		prompt.ObjectText = "Captain Mira"
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = 10
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = hostPart
+	end
 
 	local instance: MiraInstance = setmetatable({
 		owner = player,

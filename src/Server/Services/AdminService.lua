@@ -213,6 +213,11 @@ Handlers.tutorialreset = function(_self, issuer)
 		data.stats.totalCatches = 0
 		data.stats.totalSold = 0
 	end
+	-- Wipe any rolled daily quests so the HUD reflects the gated state
+	-- (no quests until AcceptFirstQuest fires at beat 6).
+	data.dailyQuests = {}
+	data.questsRefreshedDay = nil
+	PlayerDataService:NudgeQuestsChanged(issuer)
 	FishingService:SetAssistMultiplier(issuer, 1.8)
 	TutorialService:_bootstrapPlayer(issuer)
 	announceTo(issuer, "tutorial reset")
