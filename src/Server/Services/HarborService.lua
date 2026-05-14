@@ -15,6 +15,7 @@ local BuildingCatalog  = require(ReplicatedStorage.Shared.Config.BuildingCatalog
 local GridUtil         = require(ReplicatedStorage.Shared.Util.GridUtil)
 local UidUtil          = require(ReplicatedStorage.Shared.Util.UidUtil)
 local RateLimiter      = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local Signal           = require(ReplicatedStorage.Packages.Signal)
 
 local HarborService = Knit.CreateService({
 	Name = "HarborService",
@@ -24,6 +25,13 @@ local HarborService = Knit.CreateService({
 		BuildingRemoved = Knit.CreateSignal(),  -- (uid)
 		BuildingUpgraded = Knit.CreateSignal(), -- (uid, newTier)
 	},
+
+	-- Server-internal Signal. Fired AFTER the existing client RemoteSignal
+	-- so any listener (TutorialService is the first consumer) reads the
+	-- already-mutated profile. Convention TODO: client signals should adopt
+	-- a "Remote" prefix; server signals shouldn't need a "Server" suffix.
+	-- Don't refactor now — flag for a later sweep.
+	BuildingUpgradedServer = Signal.new(),  -- (player, uid, kind, oldTier, newTier)
 
 	-- internal state
 	_plotOrigins = {}, -- [Player] -> CFrame (top-left corner of their plot in world)
@@ -379,6 +387,8 @@ function HarborService.Client:Upgrade(player: Player, uid: string): {ok: boolean
 			self.Client.BuildingUpgraded:Fire(player, uid, nextTierIdx)
 			-- Drives the upgrade tween on every client.
 			Knit.GetService("HarborVisualService"):OnBuildingUpgraded(player, b, oldTier)
+			-- Server-side fan-out for tutorial / future quest hooks.
+			self.BuildingUpgradedServer:Fire(player, uid, b.kind, oldTier, nextTierIdx)
 			return { ok = true, newTier = nextTierIdx }
 		end
 	end

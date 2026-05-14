@@ -29,6 +29,7 @@ local GameConfig   = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Types        = require(ReplicatedStorage.Shared.Types)
 local UidUtil      = require(ReplicatedStorage.Shared.Util.UidUtil)
 local RateLimiter  = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local Signal       = require(ReplicatedStorage.Packages.Signal)
 
 -- Load the fish catalog. Rojo syncs .json as ModuleScripts whose return value
 -- is the parsed table.
@@ -68,6 +69,20 @@ local FishingService = Knit.CreateService({
 	_pendingCasts = {},
 	_castLimiter = nil :: any,
 	_lastCastAt = {},    -- [Player] -> os.clock() of last cast; for cooldown
+	-- Server-internal Signals for cross-service hooks. Convention TODO
+	-- (tracked in CLAUDE.md follow-up): client RemoteSignals should adopt
+	-- a "Remote" prefix; server Signals shouldn't need a "Server" suffix.
+	-- Don't rename today — additive only.
+	CaughtServer    = Signal.new(),  -- (player, fishId)
+	CastStartedServer = Signal.new(), -- (player) — fires every successful StartCast (any green-zone, before claim)
+	-- TUTORIAL ASSIST: per-player multiplier applied to the *validation*
+	-- green zone width. Client never sees this number — the display width
+	-- sent in StartCast stays at the raw fish value, so the player sees a
+	-- "lucky near-miss" become a real catch. Default 1.0 (no assist).
+	-- TutorialService is the only writer; it sets this on profile load if
+	-- tutorial.beginnerAssistsRemaining > 0, and clears it back to 1.0 on
+	-- tutorial completion or when the counter exhausts.
+	_assistMultiplier = {},  -- [Player] -> number (default 1.0)
 })
 
 -- ====================================================================
@@ -173,8 +188,30 @@ function FishingService:KnitStart()
 	Players.PlayerRemoving:Connect(function(player)
 		self._pendingCasts[player] = nil
 		self._lastCastAt[player] = nil
+		self._assistMultiplier[player] = nil
 		self._castLimiter:reset(player)
 	end)
+end
+
+-- ====================================================================
+-- TUTORIAL-FACING API
+-- ====================================================================
+-- TutorialService calls these. Kept here (not in TutorialService) so the
+-- assist state lives next to the cast validation it influences. Defensive
+-- against tutorial-replay exploits: TutorialService is responsible for
+-- never re-enabling assist on a profile whose tutorial.state == "complete";
+-- this service just trusts the caller.
+
+function FishingService:SetAssistMultiplier(player: Player, multiplier: number)
+	self._assistMultiplier[player] = math.max(1.0, multiplier or 1.0)
+end
+
+function FishingService:ClearAssist(player: Player)
+	self._assistMultiplier[player] = nil
+end
+
+function FishingService:GetAssistMultiplier(player: Player): number
+	return self._assistMultiplier[player] or 1.0
 end
 
 -- ====================================================================
@@ -254,15 +291,31 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 
 	-- Generate a one-shot castId so the claim can't be replayed.
 	local castId = UidUtil.new("cast")
-	-- Green zone center is randomized in [greenSize/2, 1 - greenSize/2] so it
-	-- never clips off the edges of the meter.
-	local size = fish.greenZoneSize
-	local center = size / 2 + math.random() * (1 - size)
+	-- DISPLAY width — what the client renders on its cast meter. Center is
+	-- chosen using the display width so the visible green band never clips
+	-- off the edges of the bar.
+	local displaySize = fish.greenZoneSize
+	local center = displaySize / 2 + math.random() * (1 - displaySize)
+	-- VALIDATION width — what the server actually checks against in
+	-- ClaimCast. Wider than display when the tutorial's beginner assist is
+	-- active; identical otherwise. Center is clamped so the (wider) zone
+	-- still fits 0..1 (never let assist push the validation zone off-bar,
+	-- since that would let players catch by clicking outside the meter).
+	local assistMul = self._assistMultiplier[player] or 1.0
+	local validationSize = math.min(1.0, displaySize * assistMul)
+	-- Re-clamp center so the *validation* zone is on-bar [0, 1].
+	local half = validationSize / 2
+	local validationCenter = math.clamp(center, half, 1 - half)
 	self._pendingCasts[player] = {
 		castId = castId,
 		fishId = fish.id,
-		greenCenter = center,
-		greenSize = size,
+		-- Validation values used inside ClaimCast. Never sent to client.
+		greenCenter = validationCenter,
+		greenSize = validationSize,
+		-- Display values, only kept for debug / future telemetry.
+		displayCenter = center,
+		displaySize = displaySize,
+		assistApplied = assistMul > 1.0,
 		startedAt = os.clock(),
 		stage = "preCast",
 	}
@@ -277,10 +330,18 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 		end
 	end)
 
+	-- Notify any server-side listeners (e.g. TutorialService's stuck-timer)
+	-- that the player has at least *attempted* a cast. Fires once per
+	-- successful StartCast regardless of whether the claim later lands.
+	self.CastStartedServer:Fire(player)
+
 	return {
 		castId = castId,
+		-- Always send the DISPLAY values to the client. Tutorial's beginner
+		-- assist widens validation only — the client meter stays narrow so
+		-- the assist is invisible.
 		greenCenter = center,
-		greenSize = size,
+		greenSize = displaySize,
 		period = GameConfig.Fishing.CastMeterPeriod,
 	}
 end
@@ -328,6 +389,11 @@ function FishingService:_grantCatch(player: Player, pending: any, perfectFractio
 
 	local QuestService = Knit.GetService("QuestService")
 	QuestService:OnFishCaught(player, fish.id)
+
+	-- Server-side hook for TutorialService (decrements assist counter, drives
+	-- beat 3 entry). Fired AFTER profile mutation so listeners see the new
+	-- catch count. No tutorial-coupling lives in FishingService itself.
+	self.CaughtServer:Fire(player, fish.id)
 
 	self.Client.CastResolved:Fire(player, {
 		success = true,

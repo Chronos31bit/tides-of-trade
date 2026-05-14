@@ -203,6 +203,54 @@ GameConfig.Fishing = {
 }
 
 -- ====================================================================
+-- TUTORIAL — first-session onboarding tunables
+-- ====================================================================
+-- Every magic number for the 0–25 minute flow lives here. Dialogue lines
+-- themselves are in src/Shared/Config/TutorialConfig.lua (kept separate
+-- so writers can edit voice without touching numeric tuning).
+GameConfig.Tutorial = {
+	-- Multiplier applied to the *validation* green zone width for the first
+	-- N successful casts. The visual width stays normal — players see what
+	-- looks like a near-miss become a catch. Server-only knob.
+	BeginnerAssistMultiplier        = 1.8,
+	BeginnerAssistCount             = 3,
+
+	-- Beat 2: cast-stuck nudges. First nudge after 90s of no cast attempt,
+	-- repeats every 60s. Analytics-only stuck event at 4 minutes.
+	Beat2StuckTimeoutSeconds        = 90,
+	Beat2StuckRepeatSeconds         = 60,
+	Beat2AnalyticsStuckSeconds      = 240,
+
+	-- Beat 3: if the player catches but doesn't head to the stall, drop a
+	-- HUD waypoint pointing at the market stall after this many seconds.
+	Beat3WaypointDelaySeconds       = 60,
+	Beat3StallProximityStuds        = 8,
+
+	-- Beat 5: re-encouragement cadence while the player waits to afford
+	-- the dock repair. Re-checks on every coin gain via PlayerData hooks.
+	Beat5EncouragementRepeatSeconds = 30,
+	RepairCostCoins                 = 40,
+
+	-- Beat 6: the seeded daily quest's reward.
+	FirstQuestRewardCoins           = 100,
+	FirstQuestTarget                = 5,        -- catch 5 fish
+
+	-- Mira spawn anchor (along dock-edge offset from dock-building corner).
+	MiraSpawnOffsetStuds            = 6,
+
+	-- If the player roams more than this many studs from their plot
+	-- origin, Mira despawns and respawns near them with a recall line.
+	WanderRecallDistanceStuds       = 80,
+	WanderRecallCheckSeconds        = 2,
+
+	-- DialogueUI feel.
+	TypewriterCharsPerSecond        = 40,
+	DialogueSlideInDuration         = 0.4,
+	DialogueReducedMotionFadeIn     = 0.2,
+	DialogueZIndex                  = 5,
+}
+
+-- ====================================================================
 -- QUESTS — daily refresh at midnight UTC
 -- ====================================================================
 GameConfig.Quests = {

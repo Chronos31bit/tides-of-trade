@@ -188,6 +188,36 @@ Handlers.fly = function(self, issuer, _args)
 	announceTo(issuer, self._flyState[issuer] and "fly: on" or "fly: off")
 end
 
+Handlers.tutorialreset = function(_self, issuer)
+	-- Wipe tutorial state so the flow re-bootstraps on next character
+	-- spawn. Useful for dev testing the onboarding — every dev profile
+	-- has stats from prior playtests, which auto-completes the
+	-- returning-vet check in TutorialService:_bootstrapPlayer.
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local TutorialService   = Knit.GetService("TutorialService")
+	local FishingService    = Knit.GetService("FishingService")
+	local data = PlayerDataService:GetProfile(issuer); if not data then return end
+	data.tutorial = {
+		state = "not_started",
+		lineIndex = 1,
+		startedAt = nil,
+		completedAt = nil,
+		beginnerAssistsRemaining = 3,
+		seededQuestId = nil,
+		flags = { seenGlobalMarketHint = false },
+	}
+	-- Also zero out stats so the returning-vet auto-complete in
+	-- TutorialService:_bootstrapPlayer doesn't immediately flip us back
+	-- to "complete" on rejoin/load.
+	if data.stats then
+		data.stats.totalCatches = 0
+		data.stats.totalSold = 0
+	end
+	FishingService:SetAssistMultiplier(issuer, 1.8)
+	TutorialService:_bootstrapPlayer(issuer)
+	announceTo(issuer, "tutorial reset")
+end
+
 Handlers.announce = function(self, _issuer, args)
 	local text = table.concat(args, " ")
 	if text == "" then return end

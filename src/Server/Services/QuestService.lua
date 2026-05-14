@@ -60,6 +60,16 @@ function QuestService:_refreshIfNeeded(player: Player)
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return end
 
+	-- Tutorial gate: no daily quests are rolled until the player completes
+	-- the onboarding flow. AcceptFirstQuest is the explicit handoff. Pre-
+	-- tutorial players still get an empty dailyQuests table; HUD shows
+	-- "Loading…" until the handoff fires (acceptable since the tutorial UI
+	-- is the only thing on screen during this period).
+	local tutorial = data.tutorial
+	if tutorial and tutorial.state ~= "complete" then
+		return
+	end
+
 	local today = TimeUtil.currentUTCDay()
 	if data.questsRefreshedDay == today and #data.dailyQuests > 0 then
 		return -- already current
@@ -71,6 +81,66 @@ function QuestService:_refreshIfNeeded(player: Player)
 	end
 	PlayerDataService:SetQuests(player, quests)
 	self.Client.QuestsRefreshed:Fire(player, quests)
+end
+
+-- ====================================================================
+-- TUTORIAL HANDOFF
+-- ====================================================================
+-- Called by TutorialController when the player presses Accept on the
+-- seeded beat-6 quest. Server completes the tutorial state AND rolls the
+-- normal daily set (3 quests). The seeded "catch 5 fish, 100 coins"
+-- quest becomes one of those 3 — we replace one of the rolled
+-- CatchAnyFish-style quests with the seeded one if any rolled, otherwise
+-- append the seeded quest (still respecting DailyCount: we drop the last
+-- rolled quest to keep the count fixed at 3).
+function QuestService:_seedFirstQuest(): Types.Quest
+	return {
+		id = ("daily_seed_%s_%s"):format(TimeUtil.currentUTCDay(), UidUtil.new()),
+		kind = "CatchAnyFish",
+		target = GameConfig.Tutorial.FirstQuestTarget,
+		progress = 0,
+		speciesId = nil,
+		rewardCoins = GameConfig.Tutorial.FirstQuestRewardCoins,
+		rewardXp = 40,
+		completed = false,
+		claimed = false,
+		expiresAt = os.time() + TimeUtil.secondsUntilUTCMidnight(),
+	}
+end
+
+function QuestService.Client:AcceptFirstQuest(player: Player): {ok: boolean, reason: string?, quests: any?}
+	local self = self.Server
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
+
+	local tutorial = data.tutorial
+	-- Defensive: only accept the handoff from the correct beat. Idempotent
+	-- on double-fire (race between client retry and server timeout).
+	if not tutorial then return { ok = false, reason = "no_tutorial" } end
+	if tutorial.state == "complete" then
+		return { ok = false, reason = "already_complete" }
+	end
+	if tutorial.state ~= "daily_quest_hook" then
+		return { ok = false, reason = "wrong_beat", quests = data.dailyQuests }
+	end
+
+	-- Build the daily set with the seeded quest replacing one of the rolled
+	-- ones. Roll DailyCount-1 random quests, then prepend the seed.
+	local quests: {any} = { self:_seedFirstQuest() }
+	for _ = 2, GameConfig.Quests.DailyCount do
+		table.insert(quests, rollQuest())
+	end
+	PlayerDataService:SetQuests(player, quests)
+	self.Client.QuestsRefreshed:Fire(player, quests)
+
+	-- Hand control back to TutorialService to flip state -> "complete" and
+	-- run despawn / cleanup. We don't mutate tutorial state from here so
+	-- there's a single source of truth for "what's the tutorial doing now".
+	local TutorialService = Knit.GetService("TutorialService")
+	tutorial.seededQuestId = quests[1].id
+	TutorialService:CompleteFromQuestAccept(player)
+
+	return { ok = true, quests = quests }
 end
 
 -- ====================================================================
