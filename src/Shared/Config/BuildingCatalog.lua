@@ -37,7 +37,11 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		description = "Lets you cast in deeper water. Higher tiers reach Trench biome.",
 		tiers = {
 			{ cost = 0,    incomePerTick = 0  },               -- starter dock, free
-			{ cost = 2500, incomePerTick = 5  },
+			-- Tier 2 is the tutorial's "first repair" — kept cheap (40c) so
+			-- a brand-new player can afford it after a handful of catches,
+			-- matching GameConfig.Tutorial.RepairCostCoins. Tier 3 stays
+			-- expensive (longer-game sink).
+			{ cost = 40,   incomePerTick = 5  },
 			{ cost = 9000, incomePerTick = 15 },
 		},
 	},

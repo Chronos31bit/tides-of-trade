@@ -235,6 +235,21 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 		-- Every player has a starter dock, so this is their always-available
 		-- entry to the rod shop. Tier 1 dock works; higher tiers still work.
 		makePrompt("Buy Rod Upgrade", "Rod Shop")
+		-- Tier-1 docks also get a direct "Repair Dock" prompt so the
+		-- tutorial's beat-5 upgrade has a discoverable path — players
+		-- don't need to know about the BUILD/Upgrade-mode workflow.
+		-- Hidden once the dock reaches tier 2.
+		if building.tier == 1 then
+			local repairPrompt = Instance.new("ProximityPrompt")
+			repairPrompt.ActionText = "Repair Dock"
+			repairPrompt.ObjectText = "40 coins"
+			repairPrompt.HoldDuration = 0
+			repairPrompt.MaxActivationDistance = 12
+			repairPrompt.RequiresLineOfSight = false
+			repairPrompt.Name = "RepairDockPrompt"
+			repairPrompt:SetAttribute("buildingUid", building.uid)
+			repairPrompt.Parent = part
+		end
 	elseif building.kind == "BaitShop" then
 		makePrompt("Open Bait Shop", "Bait Shop")
 	end
