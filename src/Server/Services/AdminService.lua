@@ -35,7 +35,7 @@ local UidUtil     = require(ReplicatedStorage.Shared.Util.UidUtil)
 -- chose — print game.Players.LocalPlayer.UserId from the dev console if
 -- unsure. Add multiple ids for co-developers.
 local ADMIN_USER_IDS: {[number]: boolean} = {
-	-- [12345678] = true,   -- replace with your UserId
+	[10675658212] = true,   -- Derin (Chronos3131)
 }
 
 -- For Studio playtests we treat the *first* player who joins as admin so
