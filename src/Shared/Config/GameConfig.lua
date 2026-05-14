@@ -106,6 +106,31 @@ GameConfig.Harbor = {
 
 	-- Passive income tick interval (seconds). Buildings produce coins per tick.
 	IncomeTickSeconds = 60,
+
+	-- ----------------------------------------------------------------
+	-- VISUAL TUNING — every magic number for the harbor visual system.
+	-- HarborVisualController reads from here so designers can retune the
+	-- upgrade transition feel in one place. See HarborVisualService.lua
+	-- for the server-side broadcast logic.
+	-- ----------------------------------------------------------------
+	VisualTuning = {
+		UpgradeTransitionDuration  = 1.5,
+		UpgradeFadeOutDuration     = 0.5,
+		UpgradeFadeInDuration      = 1.0,
+		UpgradeOvershoot           = 1.05,
+		UpgradeSettleDuration      = 0.3,
+		ParticleBurstCount         = 30,
+		ParticleBurstDuration      = 0.3,
+		ParticleSpawnDelay         = 0.4,
+		AudioSpawnDelay            = 0.4,
+		HapticSpawnDelay           = 0.4,
+		DebrisFadeOutDuration      = 0.5,
+		DebrisPerBuildingMin       = 3,
+		DebrisPerBuildingMax       = 5,
+		DebrisRadiusStuds          = 6,
+		DebrisMaxPerPlot           = 30,
+		ReducedMotionDurationScale = 0.5,
+	},
 }
 
 -- ====================================================================

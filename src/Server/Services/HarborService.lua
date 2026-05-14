@@ -8,6 +8,7 @@
 local Players          = game:GetService("Players")
 local Workspace        = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
 
 local Knit             = require(ReplicatedStorage.Packages.Knit)
 local GameConfig       = require(ReplicatedStorage.Shared.Config.GameConfig)
@@ -15,6 +16,15 @@ local BuildingCatalog  = require(ReplicatedStorage.Shared.Config.BuildingCatalog
 local GridUtil         = require(ReplicatedStorage.Shared.Util.GridUtil)
 local UidUtil          = require(ReplicatedStorage.Shared.Util.UidUtil)
 local RateLimiter      = require(ReplicatedStorage.Shared.Util.RateLimiter)
+
+-- ====================================================================
+-- BUILDING_ANCHOR_TAG — CollectionService tag on every server-side
+-- invisible interaction anchor. The client HarborVisualController uses
+-- this to discover anchors (so it can fade-attach visuals at the same
+-- location), and ShopController / AquariumController / RodService still
+-- pick up the anchor's ProximityPrompt without code change.
+-- ====================================================================
+local BUILDING_ANCHOR_TAG = "BuildingAnchor"
 
 local HarborService = Knit.CreateService({
 	Name = "HarborService",
@@ -25,9 +35,17 @@ local HarborService = Knit.CreateService({
 		BuildingUpgraded = Knit.CreateSignal(), -- (uid, newTier)
 	},
 
+	-- Server-only signals for sibling services (HarborVisualService listens).
+	-- Plain BindableEvents so Knit's per-player .Client signal machinery
+	-- doesn't get in the way of broadcasts.
+	OnBuildingPlaced   = Instance.new("BindableEvent"),
+	OnBuildingUpgraded = Instance.new("BindableEvent"),
+	OnBuildingRemoved  = Instance.new("BindableEvent"),
+	OnPlotReleased     = Instance.new("BindableEvent"),
+
 	-- internal state
 	_plotOrigins = {}, -- [Player] -> CFrame (top-left corner of their plot in world)
-	_plotFolders = {}, -- [Player] -> Instance (Folder for visualizing buildings server-side)
+	_plotFolders = {}, -- [Player] -> Instance (Folder for invisible anchor parts)
 	_buildLimiter = nil :: any,
 	_incomeAccumulator = {}, -- [Player] -> seconds since last income tick (debounced by lifecycle)
 })
@@ -164,6 +182,10 @@ function HarborService:_assignPlot(player: Player)
 end
 
 function HarborService:_releasePlot(player: Player)
+	-- Notify visual service BEFORE we drop our own references so it can
+	-- still resolve the player's UserId from `player` (which is valid until
+	-- this function returns, even mid-PlayerRemoving).
+	self.OnPlotReleased:Fire(player)
 	self._plotOrigins[player] = nil
 	local folder = self._plotFolders[player]
 	if folder then folder:Destroy() end
@@ -171,39 +193,44 @@ function HarborService:_releasePlot(player: Player)
 end
 
 -- ====================================================================
--- VISUAL SPAWN — placeholder parts. Replace with real models later.
+-- VISUAL SPAWN — invisible interaction anchor only.
+--
+-- Per Path A of the harbor visual system, the *visible* building model is
+-- cloned client-side by HarborVisualController. This server function now
+-- creates only an invisible 1×1×1 stud anchor at the building's grid
+-- position so:
+--   1. ProximityPrompts (Aquarium / Dock rod shop / Bait Shop) still live
+--      on a server-replicated Part — visitors can interact with another
+--      player's harbor without coupling to the client visual model.
+--   2. The anchor is tagged BuildingAnchor + carries kind/tier attributes
+--      + the building uid as its Name, so the client controller (and any
+--      future server feature) can locate it via CollectionService.
 -- ====================================================================
 function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	local folder = self._plotFolders[player]; if not folder then return end
 	local origin = self._plotOrigins[player]; if not origin then return end
 	local def = BuildingCatalog[building.kind]; if not def then return end
 
-	local w, d = def.footprint[1], def.footprint[2]
-	if building.rotation == 90 or building.rotation == 270 then
-		w, d = d, w
-	end
-	local sizeStuds = Vector3.new(w * GridUtil.CELL, 6 + (building.tier * 2), d * GridUtil.CELL)
-	local local_ = GridUtil.gridToLocal(building.gridX, building.gridZ)
+	-- World CFrame at the footprint bottom-center (shared math with the client).
+	local worldCF = GridUtil.gridToWorld(origin, building.gridX, building.gridZ, def.footprint, building.rotation)
 
-	local part = Instance.new("Part")
-	part.Anchored = true
-	part.CanCollide = true
-	part.Size = sizeStuds
-	-- Center the part within its footprint and rest its base on top of the
-	-- plot plate (plate top is at local Y=1.5).
-	local PLATE_TOP = 1.5
-	part.CFrame = origin * CFrame.new(local_.X + sizeStuds.X / 2, PLATE_TOP + sizeStuds.Y / 2, local_.Z + sizeStuds.Z / 2)
-	part.Material = Enum.Material.WoodPlanks
-	-- Tint per kind so debug screenshots are legible without real art.
-	part.Color = Color3.fromHSV((string.byte(building.kind, 1) % 12) / 12, 0.45, 0.7)
-	part.Name = building.uid
-	part:SetAttribute("kind", building.kind)
-	part:SetAttribute("tier", building.tier)
-	part.Parent = folder
+	local anchor = Instance.new("Part")
+	anchor.Name = building.uid
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.new(1, 1, 1)
+	-- Anchor sits a bit above the plate so ProximityPrompts trigger range
+	-- works naturally for players standing at ground level.
+	anchor.CFrame = worldCF * CFrame.new(0, 2, 0)
+	anchor:SetAttribute("kind", building.kind)
+	anchor:SetAttribute("tier", building.tier)
+	anchor:SetAttribute("ownerUserId", player.UserId)
+	anchor.Parent = folder
+	CollectionService:AddTag(anchor, BUILDING_ANCHOR_TAG)
 
-	-- Some buildings get ProximityPrompts so players can interact via E
-	-- (PC) or the on-screen prompt (mobile). The client's ShopController
-	-- and AquariumController dispatch on the prompt's ActionText.
 	local function makePrompt(action: string, object: string)
 		local p = Instance.new("ProximityPrompt")
 		p.ActionText = action
@@ -211,14 +238,12 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 		p.HoldDuration = 0
 		p.MaxActivationDistance = 12
 		p.RequiresLineOfSight = false
-		p.Parent = part
+		p.Parent = anchor
 	end
 
 	if building.kind == "Aquarium" then
 		makePrompt("Open Aquarium", "Aquarium")
 	elseif building.kind == "Dock" then
-		-- Every player has a starter dock, so this is their always-available
-		-- entry to the rod shop. Tier 1 dock works; higher tiers still work.
 		makePrompt("Buy Rod Upgrade", "Rod Shop")
 	elseif building.kind == "BaitShop" then
 		makePrompt("Open Bait Shop", "Bait Shop")
@@ -331,6 +356,8 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 	PlayerDataService:AddBuilding(player, building)
 	self:_spawnBuildingVisual(player, building)
 	self.Client.BuildingPlaced:Fire(player, building)
+	-- Server-side broadcast hook for HarborVisualService (see service header).
+	self.OnBuildingPlaced:Fire(player, building)
 	return { ok = true, building = building }
 end
 
@@ -351,13 +378,16 @@ function HarborService.Client:Upgrade(player: Player, uid: string): {ok: boolean
 			if not PlayerDataService:TrySpendCoins(player, nextTier.cost) then
 				return { ok = false, reason = "not_enough_coins" }
 			end
+			local oldTier = b.tier
 			b.tier = nextTierIdx
-			-- Refresh visual so size/tint reflects new tier.
+			-- Refresh the invisible anchor's tier attribute. The visible
+			-- model is animated client-side by HarborVisualController.
 			self:_destroyBuildingVisual(player, uid)
 			self:_spawnBuildingVisual(player, b)
 			-- Force a profile broadcast since we mutated in place.
 			PlayerDataService.Client.BuildingsChanged:Fire(player, data.buildings)
 			self.Client.BuildingUpgraded:Fire(player, uid, nextTierIdx)
+			self.OnBuildingUpgraded:Fire(player, b, oldTier, nextTierIdx)
 			return { ok = true, newTier = nextTierIdx }
 		end
 	end
@@ -393,6 +423,7 @@ function HarborService.Client:Remove(player: Player, uid: string): {ok: boolean,
 
 	self:_destroyBuildingVisual(player, uid)
 	self.Client.BuildingRemoved:Fire(player, uid)
+	self.OnBuildingRemoved:Fire(player, uid)
 	-- No refund — discourages churn-griefing and keeps building tier1 cost as
 	-- meaningful sink. Game design call; flip to 50% refund if telemetry shows
 	-- players hesitate to experiment with placement.
