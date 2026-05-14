@@ -58,13 +58,16 @@ function DialogueUI.create(speakerName: string): DialogueUIInstance
 	-- Sit above HUD (HUD lives at default 0 with internal z-index 1-4)
 	-- but below modal UIs which use higher DisplayOrder.
 
-	-- Outer panel: bottom-anchored, ~30% screen height. Starts offscreen
-	-- (Y=1.1) and slides up on Show.
+	-- Outer panel: bottom-anchored ABOVE the HUD action bar (which sits
+	-- ~108px tall at the bottom of the screen). Starts offscreen (Y=1.1)
+	-- and slides up on Show. Slimmer height (22%) so the dialogue
+	-- doesn't dominate the screen when the player needs to interact
+	-- with HUD buttons during the tutorial.
 	local panel = UIUtil.makePanel({
 		Name = "DialoguePanel",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1.1, 0),  -- offscreen until Show
-		Size = UDim2.new(0.96, 0, 0.30, 0),
+		Size = UDim2.new(0.96, 0, 0.22, 0),
 	})
 	panel.Parent = gui
 
@@ -211,7 +214,7 @@ function DialogueUI:Show()
 	self.gui.Enabled = true
 
 	if self._reducedMotion then
-		self.panel.Position = UDim2.new(0.5, 0, 1, -10)
+		self.panel.Position = UDim2.new(0.5, 0, 1, -120)
 		self.panel.BackgroundTransparency = 1
 		TweenService:Create(self.panel,
 			TweenInfo.new(TUNE.DialogueReducedMotionFadeIn, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -221,7 +224,7 @@ function DialogueUI:Show()
 		self.panel.Position = UDim2.new(0.5, 0, 1.1, 0)
 		TweenService:Create(self.panel,
 			TweenInfo.new(TUNE.DialogueSlideInDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{ Position = UDim2.new(0.5, 0, 1, -10) }
+			{ Position = UDim2.new(0.5, 0, 1, -120) }
 		):Play()
 	end
 end

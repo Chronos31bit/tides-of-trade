@@ -291,18 +291,27 @@ end
 -- applied to every part (name tag stays visible since BillboardGui isn't
 -- a BasePart).
 local function applyVisibilityFilter(model: Model)
-	local ownerId = model:GetAttribute("ownerUserId")
-	if ownerId == LP.UserId then return end  -- our own Mira; leave alone
-	for _, descendant in ipairs(model:GetDescendants()) do
-		if descendant:IsA("BasePart") then
-			descendant.LocalTransparencyModifier = 1
+	-- Defensive: if the ownerUserId attribute isn't set yet, don't hide
+	-- anything (better to briefly see another player's Mira than to
+	-- accidentally hide our own when the attribute races behind the
+	-- ChildAdded). Re-evaluates on attribute change.
+	local function evaluate()
+		local ownerId = model:GetAttribute("ownerUserId")
+		local hide = ownerId ~= nil and ownerId ~= LP.UserId
+		local mod = hide and 1 or 0
+		for _, descendant in ipairs(model:GetDescendants()) do
+			if descendant:IsA("BasePart") then
+				descendant.LocalTransparencyModifier = mod
+			end
 		end
 	end
-	-- Also handle parts added later (in case the model is rebuilt while
-	-- already parented).
+	evaluate()
+	model:GetAttributeChangedSignal("ownerUserId"):Connect(evaluate)
 	model.DescendantAdded:Connect(function(descendant)
 		if descendant:IsA("BasePart") then
-			descendant.LocalTransparencyModifier = 1
+			local ownerId = model:GetAttribute("ownerUserId")
+			local hide = ownerId ~= nil and ownerId ~= LP.UserId
+			descendant.LocalTransparencyModifier = hide and 1 or 0
 		end
 	end)
 end
@@ -331,8 +340,18 @@ end
 
 function TutorialController:KnitStart()
 	local TutorialService = Knit.GetService("TutorialService")
+	local ProximityPromptService = game:GetService("ProximityPromptService")
 
 	watchNPCContainer()
+
+	-- ProximityPrompt on Mira (added server-side in NPCs/Mira.lua) re-
+	-- opens the dialogue at the current state line. The prompt only
+	-- fires on the owner client because Mira is invisible to others.
+	ProximityPromptService.PromptTriggered:Connect(function(prompt, triggerer)
+		if triggerer ~= LP then return end
+		if prompt.ObjectText ~= "Captain Mira" then return end
+		self:_reopenDialogue()
+	end)
 
 	-- Initial state pull (in case StateUpdate already fired before this
 	-- controller's KnitStart ran).
