@@ -140,16 +140,26 @@ function HarborVisualController:_instantiate(payload: any): Model
 	local template = getVisualTemplate(payload.kind, payload.newTier) or makeFallbackModel(payload.kind, payload.newTier)
 	local model = template:Clone()
 	model.Name = ("%s_%s_t%d"):format(payload.kind, payload.buildingId, payload.newTier)
+	model.Parent = self._root
 	-- Client visuals are pure decoration. Mouse picking (demolish, placement
 	-- preview) must pass through them to reach the invisible server anchor
 	-- (which carries the `kind` attribute the demolish raycast looks for).
 	-- CanQuery=false skips the part for Workspace:Raycast and mouse.Hit.
+	-- We set this AFTER parenting in case Roblox ever quietly resets BasePart
+	-- properties when the Instance enters the DataModel (it shouldn't, but
+	-- the previous attempt seemingly failed in playtest, so this version is
+	-- defensive and self-verifying).
+	local quieted = 0
 	for _, desc in ipairs(model:GetDescendants()) do
 		if desc:IsA("BasePart") then
 			desc.CanQuery = false
+			quieted += 1
 		end
 	end
-	model.Parent = self._root
+	-- One-line breadcrumb so we can confirm in the Output that this code
+	-- actually ran for the building the player is trying to demolish.
+	-- Safe to remove once placement/demolish are stable.
+	print(("[HarborVisualController] instantiated %s, %d parts CanQuery=false"):format(model.Name, quieted))
 	local cf = pivotForBuilding(payload.plotOriginCFrame, payload.kind, payload.gridX, payload.gridZ, payload.rotation)
 	-- PivotTo positions the model's pivot (PrimaryPart.CFrame) at `cf`.
 	-- For our placeholders the PrimaryPart is at the model's center; for
