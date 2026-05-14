@@ -93,32 +93,37 @@ function HarborEditController:_toggleDemolish()
 end
 
 function HarborEditController:_doDemolish()
-	local mouse = Players.LocalPlayer:GetMouse()
-	-- Walk the candidates the engine *already* picked for us. mouse.Target is
-	-- the topmost queryable part under the cursor; if CanQuery=false on the
-	-- client visuals, the engine ray naturally passes through them and lands
-	-- on the invisible server anchor below (which carries the kind attribute).
-	local target = mouse.Target
-	if target and target:GetAttribute("kind") then
-		self:_remove(target.Name)
-		return
+	-- Build the exclusion list:
+	--   1) Player's character (rod, body)
+	--   2) Every Workspace.HarborVisuals_Client_* folder (client-only decoration)
+	--   3) Every Workspace.Plot_*.PlotPlate / NameTag (plate has no `kind`)
+	-- The only part we *want* to hit is the invisible server-spawned anchor
+	-- under a Plot_* folder, which carries the `kind` attribute.
+	--
+	-- Why not rely on CanQuery=false on the visuals? Two playtests show
+	-- Roblox is hitting those parts anyway despite the property being set
+	-- (the print breadcrumb confirms our code runs and writes the value).
+	-- Whatever the root cause is, an explicit filter is bulletproof.
+	local exclude: { Instance } = {}
+	if Players.LocalPlayer.Character then table.insert(exclude, Players.LocalPlayer.Character) end
+	for _, child in ipairs(Workspace:GetChildren()) do
+		local name = child.Name
+		if name:sub(1, #"HarborVisuals_Client_") == "HarborVisuals_Client_" then
+			table.insert(exclude, child)
+		end
 	end
-	-- Fallback path: ScreenPointToRay using screen-space pixel coords (which
-	-- is what Mouse.X/Y return — they include the topbar inset, so this is the
-	-- right projection function, not ViewportPointToRay).
+
 	local camera = Workspace.CurrentCamera
 	if not camera then return end
+	local mouse = Players.LocalPlayer:GetMouse()
 	local screenRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	if Players.LocalPlayer.Character then
-		params.FilterDescendantsInstances = { Players.LocalPlayer.Character }
-	end
+	params.FilterDescendantsInstances = exclude
 	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction.Unit * 1000, params)
 	if not result then
 		warn(
 			"[HarborEdit] demolish: nothing under cursor.",
-			"mouse.Target=", target,
 			"mouse.X=", mouse.X, "mouse.Y=", mouse.Y,
 			"origin=", screenRay.Origin
 		)
