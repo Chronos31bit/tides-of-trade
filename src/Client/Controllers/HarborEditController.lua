@@ -93,28 +93,34 @@ function HarborEditController:_toggleDemolish()
 end
 
 function HarborEditController:_doDemolish()
-	-- Raycast from camera through cursor into the world. Whatever building
-	-- part the ray hits is the candidate; the part's Name is the building
-	-- uid (set by HarborService when spawning the visual).
+	-- Cast a ray through the viewport pixel under the cursor. ViewportPointToRay
+	-- gives a properly normalized direction from camera through screen-space
+	-- (gun camera, first-person, freecam — all handled), whereas building
+	-- (mouse.Hit - cam).Unit was fragile when mouse.Hit landed far behind a
+	-- CanQuery=false visual and produced near-camera positions.
 	local camera = Workspace.CurrentCamera
 	if not camera then return end
 	local mouse = Players.LocalPlayer:GetMouse()
-	local rayOrigin = camera.CFrame.Position
-	local rayDir = (mouse.Hit.Position - rayOrigin).Unit * 500
+	local screenRay = camera:ViewportPointToRay(mouse.X, mouse.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	-- Don't hit our own character (rod, body, etc.).
 	if Players.LocalPlayer.Character then
 		params.FilterDescendantsInstances = { Players.LocalPlayer.Character }
 	end
-	local result = Workspace:Raycast(rayOrigin, rayDir, params)
-	if not result then return end
-
+	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction * 500, params)
+	if not result then
+		warn("[HarborEdit] demolish: ray hit nothing")
+		return
+	end
 	local part = result.Instance
-	-- A building part has a 'kind' attribute set by HarborService. Use that
-	-- as our gate so we never try to delete the dock plate or terrain.
-	if not part:GetAttribute("kind") then return end
-	-- part.Name is the building uid.
+	-- The 'kind' attribute lives on the invisible server anchor that
+	-- HarborService spawns under Plot_N_<player>. Client-rendered visuals
+	-- have CanQuery=false so the ray passes through them. If we hit a plate
+	-- or terrain instead, bail without complaining to the player.
+	if not part:GetAttribute("kind") then
+		warn("[HarborEdit] demolish: hit", part:GetFullName(), "(no kind)")
+		return
+	end
 	local uid = part.Name
 	local HarborService = Knit.GetService("HarborService")
 	HarborService:Remove(uid):andThen(function(res)
