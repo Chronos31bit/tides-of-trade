@@ -152,6 +152,19 @@ function ShopController:KnitStart()
 			self:OpenRodShop()
 		elseif prompt.ActionText == "Open Bait Shop" then
 			self:OpenBaitShop()
+		elseif prompt.ActionText == "Repair Dock" then
+			-- Direct dock-repair shortcut so tutorial beat 5 doesn't
+			-- require finding the BUILD/Upgrade-mode flow. Server
+			-- re-validates cost; if the player can't afford it, warn
+			-- silently and let the dialogue's "Catch a few more" line
+			-- keep them moving.
+			local uid = prompt:GetAttribute("buildingUid")
+			if not uid then return end
+			Knit.GetService("HarborService"):Upgrade(uid):andThen(function(res)
+				if not res.ok then
+					warn("[Shop] Repair Dock failed:", res.reason)
+				end
+			end)
 		end
 	end)
 end
