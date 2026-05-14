@@ -171,7 +171,12 @@ function HarborService:_releasePlot(player: Player)
 end
 
 -- ====================================================================
--- VISUAL SPAWN — placeholder parts. Replace with real models later.
+-- INTERACTION ANCHOR — invisible part the ProximityPrompts attach to.
+-- HarborVisualController owns the real, pretty Model on top of this.
+-- The anchor stays server-side because shop ProximityPrompts need to be
+-- visible to ALL clients (visitors must be able to open the rod shop on
+-- someone else's dock too), which is simpler if the anchor part lives in
+-- replicated server-spawned geometry.
 -- ====================================================================
 function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	local folder = self._plotFolders[player]; if not folder then return end
@@ -182,20 +187,22 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	if building.rotation == 90 or building.rotation == 270 then
 		w, d = d, w
 	end
-	local sizeStuds = Vector3.new(w * GridUtil.CELL, 6 + (building.tier * 2), d * GridUtil.CELL)
+	-- Anchor part spans the full footprint at a low height. CanCollide stays
+	-- true so the player can't walk straight through a building, but it's
+	-- invisible — the client renders the real silhouette on top.
+	local sizeStuds = Vector3.new(w * GridUtil.CELL, 2, d * GridUtil.CELL)
 	local local_ = GridUtil.gridToLocal(building.gridX, building.gridZ)
 
 	local part = Instance.new("Part")
 	part.Anchored = true
 	part.CanCollide = true
+	part.Transparency = 1
 	part.Size = sizeStuds
 	-- Center the part within its footprint and rest its base on top of the
 	-- plot plate (plate top is at local Y=1.5).
 	local PLATE_TOP = 1.5
 	part.CFrame = origin * CFrame.new(local_.X + sizeStuds.X / 2, PLATE_TOP + sizeStuds.Y / 2, local_.Z + sizeStuds.Z / 2)
-	part.Material = Enum.Material.WoodPlanks
-	-- Tint per kind so debug screenshots are legible without real art.
-	part.Color = Color3.fromHSV((string.byte(building.kind, 1) % 12) / 12, 0.45, 0.7)
+	part.Material = Enum.Material.SmoothPlastic
 	part.Name = building.uid
 	part:SetAttribute("kind", building.kind)
 	part:SetAttribute("tier", building.tier)
@@ -230,6 +237,13 @@ function HarborService:_spawnExistingBuildings(player: Player)
 	local data = PlayerDataService:GetProfile(player); if not data then return end
 	for _, b in ipairs(data.buildings) do
 		self:_spawnBuildingVisual(player, b)
+	end
+	-- Push the full building list into HarborVisualService so every client
+	-- (including future joiners) renders this plot's real Models. Done after
+	-- the server-side anchors are created so ordering is deterministic.
+	local origin = self._plotOrigins[player]
+	if origin then
+		Knit.GetService("HarborVisualService"):RebroadcastForPlayer(player, origin, data.buildings)
 	end
 end
 
@@ -331,6 +345,9 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 	PlayerDataService:AddBuilding(player, building)
 	self:_spawnBuildingVisual(player, building)
 	self.Client.BuildingPlaced:Fire(player, building)
+	-- Tell the visual service to broadcast the new building's pretty Model
+	-- to every client (owner + visitors).
+	Knit.GetService("HarborVisualService"):OnBuildingPlaced(player, building)
 	return { ok = true, building = building }
 end
 
@@ -351,13 +368,17 @@ function HarborService.Client:Upgrade(player: Player, uid: string): {ok: boolean
 			if not PlayerDataService:TrySpendCoins(player, nextTier.cost) then
 				return { ok = false, reason = "not_enough_coins" }
 			end
+			local oldTier = b.tier
 			b.tier = nextTierIdx
-			-- Refresh visual so size/tint reflects new tier.
+			-- Refresh the invisible anchor (footprint is unchanged but tier
+			-- attribute should reflect reality for any debug tooling).
 			self:_destroyBuildingVisual(player, uid)
 			self:_spawnBuildingVisual(player, b)
 			-- Force a profile broadcast since we mutated in place.
 			PlayerDataService.Client.BuildingsChanged:Fire(player, data.buildings)
 			self.Client.BuildingUpgraded:Fire(player, uid, nextTierIdx)
+			-- Drives the upgrade tween on every client.
+			Knit.GetService("HarborVisualService"):OnBuildingUpgraded(player, b, oldTier)
 			return { ok = true, newTier = nextTierIdx }
 		end
 	end
@@ -393,6 +414,7 @@ function HarborService.Client:Remove(player: Player, uid: string): {ok: boolean,
 
 	self:_destroyBuildingVisual(player, uid)
 	self.Client.BuildingRemoved:Fire(player, uid)
+	Knit.GetService("HarborVisualService"):OnBuildingRemoved(player, uid)
 	-- No refund — discourages churn-griefing and keeps building tier1 cost as
 	-- meaningful sink. Game design call; flip to 50% refund if telemetry shows
 	-- players hesitate to experiment with placement.
