@@ -93,35 +93,46 @@ function HarborEditController:_toggleDemolish()
 end
 
 function HarborEditController:_doDemolish()
-	-- Cast a ray through the viewport pixel under the cursor. ViewportPointToRay
-	-- gives a properly normalized direction from camera through screen-space
-	-- (gun camera, first-person, freecam — all handled), whereas building
-	-- (mouse.Hit - cam).Unit was fragile when mouse.Hit landed far behind a
-	-- CanQuery=false visual and produced near-camera positions.
+	local mouse = Players.LocalPlayer:GetMouse()
+	-- Walk the candidates the engine *already* picked for us. mouse.Target is
+	-- the topmost queryable part under the cursor; if CanQuery=false on the
+	-- client visuals, the engine ray naturally passes through them and lands
+	-- on the invisible server anchor below (which carries the kind attribute).
+	local target = mouse.Target
+	if target and target:GetAttribute("kind") then
+		self:_remove(target.Name)
+		return
+	end
+	-- Fallback path: ScreenPointToRay using screen-space pixel coords (which
+	-- is what Mouse.X/Y return — they include the topbar inset, so this is the
+	-- right projection function, not ViewportPointToRay).
 	local camera = Workspace.CurrentCamera
 	if not camera then return end
-	local mouse = Players.LocalPlayer:GetMouse()
-	local screenRay = camera:ViewportPointToRay(mouse.X, mouse.Y)
+	local screenRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	if Players.LocalPlayer.Character then
 		params.FilterDescendantsInstances = { Players.LocalPlayer.Character }
 	end
-	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction * 500, params)
+	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction.Unit * 1000, params)
 	if not result then
-		warn("[HarborEdit] demolish: ray hit nothing")
+		warn(
+			"[HarborEdit] demolish: nothing under cursor.",
+			"mouse.Target=", target,
+			"mouse.X=", mouse.X, "mouse.Y=", mouse.Y,
+			"origin=", screenRay.Origin
+		)
 		return
 	end
 	local part = result.Instance
-	-- The 'kind' attribute lives on the invisible server anchor that
-	-- HarborService spawns under Plot_N_<player>. Client-rendered visuals
-	-- have CanQuery=false so the ray passes through them. If we hit a plate
-	-- or terrain instead, bail without complaining to the player.
 	if not part:GetAttribute("kind") then
 		warn("[HarborEdit] demolish: hit", part:GetFullName(), "(no kind)")
 		return
 	end
-	local uid = part.Name
+	self:_remove(part.Name)
+end
+
+function HarborEditController:_remove(uid: string)
 	local HarborService = Knit.GetService("HarborService")
 	HarborService:Remove(uid):andThen(function(res)
 		if not res.ok then
