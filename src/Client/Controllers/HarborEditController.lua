@@ -27,7 +27,8 @@ local HarborEditController = Knit.CreateController({
 	_catalog = nil :: any,
 	_heartbeatConn = nil :: RBXScriptConnection?,
 	_demolishing = false,   -- in demolish mode: world clicks remove buildings
-	_demolishHighlight = nil :: Highlight?,
+	_upgrading = false,     -- in upgrade mode: world clicks upgrade the hit building
+	_hoverHighlight = nil :: Highlight?,
 })
 
 function HarborEditController:KnitStart()
@@ -39,6 +40,7 @@ function HarborEditController:KnitStart()
 
 	-- World-click handler. Branches by current mode:
 	--   * demolish on: raycast and remove the building hit.
+	--   * upgrade on: raycast and upgrade the building hit.
 	--   * placement (kind selected): confirm the ghost.
 	-- gameProcessedEvent skip ensures clicks on UI panels don't fire either.
 	UserInputService.InputBegan:Connect(function(input, gpe)
@@ -51,6 +53,8 @@ function HarborEditController:KnitStart()
 		end
 		if self._demolishing then
 			self:_doDemolish()
+		elseif self._upgrading then
+			self:_doUpgrade()
 		elseif self._kind then
 			self:_confirm()
 		end
@@ -74,22 +78,22 @@ function HarborEditController:_open()
 			function() self._rotation = (self._rotation + 90) % 360 end,
 			function() self:_confirm() end,
 			function() self:_toggleDemolish() end,
+			function() self:_toggleUpgrade() end,
 			function() self:_close() end
 		)
-		-- One Highlight Instance is enough — we re-target it as the cursor
-		-- moves over different buildings. Parented to Workspace because
-		-- Roblox requires Highlights to be a descendant of the workspace
-		-- or PlayerGui to render; Workspace is the simplest.
+		-- One Highlight Instance shared by demolish + upgrade hover. We just
+		-- re-tint it on mode change so we don't pay for two of them. Parented
+		-- to Workspace because Highlights must descend from Workspace or
+		-- PlayerGui to render.
 		local hi = Instance.new("Highlight")
-		hi.Name = "DemolishHover"
-		hi.FillColor = Color3.fromRGB(255, 70, 70)
+		hi.Name = "HarborEditHover"
 		hi.FillTransparency = 0.6
 		hi.OutlineColor = Color3.fromRGB(255, 255, 255)
 		hi.OutlineTransparency = 0
 		hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 		hi.Enabled = false
 		hi.Parent = Workspace
-		self._demolishHighlight = hi
+		self._hoverHighlight = hi
 		self:_startEditLoop()
 	end)
 end
@@ -99,18 +103,49 @@ end
 function HarborEditController:_toggleDemolish()
 	self._demolishing = not self._demolishing
 	if self._demolishing then
-		-- Drop the placement ghost while demolishing — they're mutually
-		-- exclusive interactions.
+		-- Drop the placement ghost and cancel upgrade — mutually exclusive.
 		if self._ghost then self._ghost:Destroy(); self._ghost = nil end
 		self._kind = nil
+		if self._upgrading then
+			self._upgrading = false
+			if self._ui then self._ui.setUpgradeActive(false) end
+		end
 	end
 	if self._ui then self._ui.setDemolishActive(self._demolishing) end
+end
+
+-- Upgrade mode mirrors demolish but calls HarborService:Upgrade. Modes are
+-- exclusive — turning upgrade on cancels demolish (and vice versa) so the
+-- next world click has exactly one interpretation.
+function HarborEditController:_toggleUpgrade()
+	self._upgrading = not self._upgrading
+	if self._upgrading then
+		if self._ghost then self._ghost:Destroy(); self._ghost = nil end
+		self._kind = nil
+		if self._demolishing then
+			self._demolishing = false
+			if self._ui then self._ui.setDemolishActive(false) end
+		end
+	end
+	if self._ui then self._ui.setUpgradeActive(self._upgrading) end
 end
 
 function HarborEditController:_doDemolish()
 	local part = self:_raycastForAnchor()
 	if not part then return end
 	self:_remove(part.Name)
+end
+
+function HarborEditController:_doUpgrade()
+	local part = self:_raycastForAnchor()
+	if not part then return end
+	local uid = part.Name
+	local HarborService = Knit.GetService("HarborService")
+	HarborService:Upgrade(uid):andThen(function(res)
+		if not res.ok then
+			warn("[HarborEdit] Upgrade failed:", res.reason)
+		end
+	end)
 end
 
 function HarborEditController:_remove(uid: string)
@@ -127,18 +162,23 @@ function HarborEditController:_close()
 	if self._ui then self._ui.close(); self._ui = nil end
 	if self._ghost then self._ghost:Destroy(); self._ghost = nil end
 	if self._heartbeatConn then self._heartbeatConn:Disconnect(); self._heartbeatConn = nil end
-	if self._demolishHighlight then self._demolishHighlight:Destroy(); self._demolishHighlight = nil end
+	if self._hoverHighlight then self._hoverHighlight:Destroy(); self._hoverHighlight = nil end
 	self._kind = nil
 	self._demolishing = false
+	self._upgrading = false
 	-- Restore the HUD that we hid in _open.
 	Knit.GetController("HUDController"):SetVisible(true)
 end
 
 function HarborEditController:_selectKind(kind: string)
-	-- Picking a building cancels demolish mode (mutually exclusive).
+	-- Picking a building cancels both modes (mutually exclusive).
 	if self._demolishing then
 		self._demolishing = false
 		if self._ui then self._ui.setDemolishActive(false) end
+	end
+	if self._upgrading then
+		self._upgrading = false
+		if self._ui then self._ui.setUpgradeActive(false) end
 	end
 	self._kind = kind
 	if self._ghost then self._ghost:Destroy() end
@@ -165,24 +205,27 @@ function HarborEditController:_startEditLoop()
 	self._heartbeatConn = RunService.Heartbeat:Connect(function()
 		if not self._active then return end
 		if self._demolishing then
-			self:_updateDemolishHover()
+			self:_updateHoverHighlight(Color3.fromRGB(255, 70, 70))
+		elseif self._upgrading then
+			self:_updateHoverHighlight(Color3.fromRGB(220, 180, 88))
 		else
-			if self._demolishHighlight and self._demolishHighlight.Adornee then
-				self._demolishHighlight.Enabled = false
-				self._demolishHighlight.Adornee = nil
+			if self._hoverHighlight and self._hoverHighlight.Adornee then
+				self._hoverHighlight.Enabled = false
+				self._hoverHighlight.Adornee = nil
 			end
 			self:_updateGhost()
 		end
 	end)
 end
 
--- Demolish hover: raycast under cursor, find the hit anchor's uid, look up
--- the matching visible model in HarborVisualController, set as Highlight
--- adornee. Same exclude-the-visuals filter as _doDemolish so we hit the
--- invisible server anchor instead of the decorative client model.
-function HarborEditController:_updateDemolishHover()
-	local hi = self._demolishHighlight
+-- Hover highlight shared by demolish (red) and upgrade (gold). Re-tinted
+-- on every Heartbeat so toggling modes immediately re-colors. Same
+-- exclude-the-visuals filter as _doDemolish so we hit the invisible server
+-- anchor instead of the decorative client model.
+function HarborEditController:_updateHoverHighlight(tint: Color3)
+	local hi = self._hoverHighlight
 	if not hi then return end
+	hi.FillColor = tint
 	local part = self:_raycastForAnchor()
 	if not part then
 		hi.Enabled = false

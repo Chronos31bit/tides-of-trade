@@ -15,6 +15,7 @@ export type HarborEditHandle = {
 	close: () -> (),
 	setHint: (text: string) -> (),
 	setDemolishActive: (active: boolean) -> (),
+	setUpgradeActive: (active: boolean) -> (),
 }
 
 function HarborEditUI.show(
@@ -23,6 +24,7 @@ function HarborEditUI.show(
 	onRotate: () -> (),
 	onConfirm: () -> (),
 	onDemolish: () -> (),
+	onUpgrade: () -> (),
 	onCancel: () -> ()
 ): HarborEditHandle
 	local gui = UIUtil.makeScreenGui("HarborEditUI", nil, { respectTopbar = true })
@@ -60,7 +62,8 @@ function HarborEditUI.show(
 	local actions = Instance.new("Frame")
 	actions.AnchorPoint = Vector2.new(1, 0.5)
 	actions.Position = UDim2.new(1, -16, 0.5, 0)
-	actions.Size = UDim2.fromOffset(140, 290)
+	-- Five buttons now (added Upgrade), bump the stack height accordingly.
+	actions.Size = UDim2.fromOffset(140, 356)
 	actions.BackgroundTransparency = 1
 	actions.Parent = gui
 
@@ -85,18 +88,24 @@ function HarborEditUI.show(
 	placeBtn.LayoutOrder = 2
 	placeBtn.Parent = actions
 
+	-- Upgrade is a mode: while on, world-clicks call HarborService:Upgrade
+	-- on whichever building was hit. Costs are taken from the catalog tier.
+	local upgradeBtn = makeAction("Upgrade", P.Gold, onUpgrade)
+	upgradeBtn.LayoutOrder = 3
+	upgradeBtn.Parent = actions
+
 	-- Demolish is a *mode*, not a one-shot. The controller flips a state
 	-- flag and intercepts world clicks. The button itself just calls the
 	-- callback (controller updates the label to "Demolishing…" when active).
 	local demolishBtn = makeAction("Demolish", P.Danger, onDemolish)
-	demolishBtn.LayoutOrder = 3
+	demolishBtn.LayoutOrder = 4
 	demolishBtn.Parent = actions
 
 	local cancelBtn = makeAction("Cancel", P.Wood, function()
 		onCancel()
 		gui:Destroy()
 	end)
-	cancelBtn.LayoutOrder = 4
+	cancelBtn.LayoutOrder = 5
 	cancelBtn.Parent = actions
 
 	-- ----------------------------------------------------------------
@@ -225,6 +234,13 @@ function HarborEditUI.show(
 			demolishBtn.Text = active and "Cancel Demolish" or "Demolish"
 			if active then
 				hintLabel.Text = "Click a placed building to remove it."
+			end
+		end,
+		setUpgradeActive = function(active: boolean)
+			upgradeBtn.BackgroundColor3 = active and P.Gold or P.Gold:Lerp(Color3.new(0,0,0), 0.25)
+			upgradeBtn.Text = active and "Cancel Upgrade" or "Upgrade"
+			if active then
+				hintLabel.Text = "Click a placed building to upgrade it (costs coins)."
 			end
 		end,
 	}
