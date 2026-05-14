@@ -37,6 +37,7 @@ local TutorialController = Knit.CreateController({
 	_talkPromptButton = nil :: any,
 	_activeHighlight = nil :: any,
 	_waypoint = nil :: any,
+	_autoDismissToken = 0,           -- bumped per render; running task checks it to bail
 })
 
 -- ====================================================================
@@ -180,12 +181,15 @@ function TutorialController:_showTalkPrompt()
 	local gui, _ = UIUtil.makeScreenGui("TutorialTalkPrompt", nil, { respectTopbar = true })
 	gui.DisplayOrder = TUNE.DialogueZIndex
 
+	-- Top-center so it never overlaps the bottom action bar. Smaller
+	-- than the default makeButton so it reads as a transient hint, not
+	-- a primary CTA.
 	local btn = UIUtil.makeButton("Talk to Captain Mira", function()
 		self:_reopenDialogue()
 	end, {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -16),
-		Size = UDim2.fromOffset(220, 44),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 12),
+		Size = UDim2.fromOffset(200, 36),
 	})
 	btn.Parent = gui
 	self._talkPromptButton = gui
@@ -231,6 +235,33 @@ function TutorialController:_renderState(state: any)
 	self._dialogue:SetLine(line, state.speakerName)
 	self._dialogue:Show()
 	self:_refreshContinueLabel()
+	self:_scheduleAutoDismiss(state)
+end
+
+-- Auto-hide the dialogue after a few seconds so it doesn't sit over the
+-- cast meter / action bar while the player is mid-gameplay. State is
+-- preserved server-side — the talk-to-Mira prompt and her
+-- ProximityPrompt both re-open at the current line.
+function TutorialController:_scheduleAutoDismiss(state: any)
+	self._autoDismissToken += 1
+	local token = self._autoDismissToken
+	-- Transient overlays (wander_recall, farewell, repeat nudges) get a
+	-- shorter timeout since their job is to flash and clear.
+	local isTransient = state.advanceOn == "transient" or state.state == "wander_recall" or state.state == "farewell"
+	local delaySec = isTransient
+		and TUNE.DialogueAutoDismissTransientSeconds
+		or TUNE.DialogueAutoDismissSeconds
+
+	task.delay(delaySec, function()
+		if self._autoDismissToken ~= token then return end
+		if not self._dialogue then return end
+		if self._dismissed then return end
+		self._dialogue:Hide()
+		-- No talk-prompt button on auto-dismiss — Mira's own
+		-- ProximityPrompt is enough to re-engage. The floating button
+		-- only appears on explicit X press, where the player
+		-- specifically asked to dismiss but might forget about Mira.
+	end)
 end
 
 function TutorialController:_wireDialogue()
