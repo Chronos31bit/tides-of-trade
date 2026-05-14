@@ -27,6 +27,7 @@ local HarborEditController = Knit.CreateController({
 	_catalog = nil :: any,
 	_heartbeatConn = nil :: RBXScriptConnection?,
 	_demolishing = false,   -- in demolish mode: world clicks remove buildings
+	_demolishHighlight = nil :: Highlight?,
 })
 
 function HarborEditController:KnitStart()
@@ -75,7 +76,21 @@ function HarborEditController:_open()
 			function() self:_toggleDemolish() end,
 			function() self:_close() end
 		)
-		self:_startGhostLoop()
+		-- One Highlight Instance is enough — we re-target it as the cursor
+		-- moves over different buildings. Parented to Workspace because
+		-- Roblox requires Highlights to be a descendant of the workspace
+		-- or PlayerGui to render; Workspace is the simplest.
+		local hi = Instance.new("Highlight")
+		hi.Name = "DemolishHover"
+		hi.FillColor = Color3.fromRGB(255, 70, 70)
+		hi.FillTransparency = 0.6
+		hi.OutlineColor = Color3.fromRGB(255, 255, 255)
+		hi.OutlineTransparency = 0
+		hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		hi.Enabled = false
+		hi.Parent = Workspace
+		self._demolishHighlight = hi
+		self:_startEditLoop()
 	end)
 end
 
@@ -93,47 +108,8 @@ function HarborEditController:_toggleDemolish()
 end
 
 function HarborEditController:_doDemolish()
-	-- Build the exclusion list:
-	--   1) Player's character (rod, body)
-	--   2) Every Workspace.HarborVisuals_Client_* folder (client-only decoration)
-	--   3) Every Workspace.Plot_*.PlotPlate / NameTag (plate has no `kind`)
-	-- The only part we *want* to hit is the invisible server-spawned anchor
-	-- under a Plot_* folder, which carries the `kind` attribute.
-	--
-	-- Why not rely on CanQuery=false on the visuals? Two playtests show
-	-- Roblox is hitting those parts anyway despite the property being set
-	-- (the print breadcrumb confirms our code runs and writes the value).
-	-- Whatever the root cause is, an explicit filter is bulletproof.
-	local exclude: { Instance } = {}
-	if Players.LocalPlayer.Character then table.insert(exclude, Players.LocalPlayer.Character) end
-	for _, child in ipairs(Workspace:GetChildren()) do
-		local name = child.Name
-		if name:sub(1, #"HarborVisuals_Client_") == "HarborVisuals_Client_" then
-			table.insert(exclude, child)
-		end
-	end
-
-	local camera = Workspace.CurrentCamera
-	if not camera then return end
-	local mouse = Players.LocalPlayer:GetMouse()
-	local screenRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = exclude
-	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction.Unit * 1000, params)
-	if not result then
-		warn(
-			"[HarborEdit] demolish: nothing under cursor.",
-			"mouse.X=", mouse.X, "mouse.Y=", mouse.Y,
-			"origin=", screenRay.Origin
-		)
-		return
-	end
-	local part = result.Instance
-	if not part:GetAttribute("kind") then
-		warn("[HarborEdit] demolish: hit", part:GetFullName(), "(no kind)")
-		return
-	end
+	local part = self:_raycastForAnchor()
+	if not part then return end
 	self:_remove(part.Name)
 end
 
@@ -151,6 +127,7 @@ function HarborEditController:_close()
 	if self._ui then self._ui.close(); self._ui = nil end
 	if self._ghost then self._ghost:Destroy(); self._ghost = nil end
 	if self._heartbeatConn then self._heartbeatConn:Disconnect(); self._heartbeatConn = nil end
+	if self._demolishHighlight then self._demolishHighlight:Destroy(); self._demolishHighlight = nil end
 	self._kind = nil
 	self._demolishing = false
 	-- Restore the HUD that we hid in _open.
@@ -181,44 +158,122 @@ function HarborEditController:_selectKind(kind: string)
 	self._ghost = part
 end
 
--- Heartbeat: place the ghost at the player's current targeted grid cell.
--- We project the camera-forward onto a horizontal plane at plot height.
-function HarborEditController:_startGhostLoop()
+-- Heartbeat: positions the placement ghost AND updates the demolish hover
+-- highlight. Single connection so we don't pay Heartbeat overhead twice.
+function HarborEditController:_startEditLoop()
 	if self._heartbeatConn then self._heartbeatConn:Disconnect() end
 	self._heartbeatConn = RunService.Heartbeat:Connect(function()
-		if not self._active or not self._ghost or not self._kind or not self._plotOrigin then return end
-
-		local mouse = Players.LocalPlayer:GetMouse()
-		local hit = mouse.Hit -- world-space CFrame the cursor is over
-		-- Convert to plot-local. Plot origin is the corner of the plot.
-		local local_ = self._plotOrigin:PointToObjectSpace(hit.Position)
-		-- Snap to grid.
-		local gx, gz = GridUtil.snap(Vector3.new(local_.X, 0, local_.Z))
-		-- Clamp to plot bounds so the ghost can't fly off.
-		local def = self._catalog[self._kind]
-		local w, d = def.footprint[1], def.footprint[2]
-		if self._rotation == 90 or self._rotation == 270 then w, d = d, w end
-		gx = math.clamp(gx, 0, GridUtil.CELLS_PER_AXIS - w)
-		gz = math.clamp(gz, 0, GridUtil.CELLS_PER_AXIS - d)
-		local localPos = GridUtil.gridToLocal(gx, gz)
-		local sizeStuds = Vector3.new(w * GridUtil.CELL, 8, d * GridUtil.CELL)
-		self._ghost.Size = sizeStuds
-		self._ghost.CFrame = self._plotOrigin * CFrame.new(localPos.X + sizeStuds.X / 2, sizeStuds.Y / 2, localPos.Z + sizeStuds.Z / 2)
-		-- Stash the snapped coords on the part so :_confirm can read them
-		-- without recomputing.
-		self._ghost:SetAttribute("gx", gx)
-		self._ghost:SetAttribute("gz", gz)
+		if not self._active then return end
+		if self._demolishing then
+			self:_updateDemolishHover()
+		else
+			if self._demolishHighlight and self._demolishHighlight.Adornee then
+				self._demolishHighlight.Enabled = false
+				self._demolishHighlight.Adornee = nil
+			end
+			self:_updateGhost()
+		end
 	end)
+end
+
+-- Demolish hover: raycast under cursor, find the hit anchor's uid, look up
+-- the matching visible model in HarborVisualController, set as Highlight
+-- adornee. Same exclude-the-visuals filter as _doDemolish so we hit the
+-- invisible server anchor instead of the decorative client model.
+function HarborEditController:_updateDemolishHover()
+	local hi = self._demolishHighlight
+	if not hi then return end
+	local part = self:_raycastForAnchor()
+	if not part then
+		hi.Enabled = false
+		hi.Adornee = nil
+		return
+	end
+	local uid = part.Name
+	local HarborVisualController = Knit.GetController("HarborVisualController")
+	local model = HarborVisualController:GetVisualModel(uid)
+	if not model then
+		-- No visual found (race during stream-in) — fall back to the anchor
+		-- so the player at least sees *something* hovering.
+		hi.Adornee = part
+	else
+		hi.Adornee = model
+	end
+	hi.Enabled = true
+end
+
+-- Encapsulates the raycast used by both demolish hover and demolish click.
+-- Excludes the HarborVisuals_Client_* folders (decorative cloned visuals)
+-- so the ray always lands on the invisible server anchor or terrain/plate.
+function HarborEditController:_raycastForAnchor(): BasePart?
+	local camera = Workspace.CurrentCamera
+	if not camera then return nil end
+	local mouse = Players.LocalPlayer:GetMouse()
+	local screenRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
+	local exclude: { Instance } = {}
+	if Players.LocalPlayer.Character then table.insert(exclude, Players.LocalPlayer.Character) end
+	for _, child in ipairs(Workspace:GetChildren()) do
+		local name = child.Name
+		if name:sub(1, #"HarborVisuals_Client_") == "HarborVisuals_Client_" then
+			table.insert(exclude, child)
+		end
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = exclude
+	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction.Unit * 1000, params)
+	if not result then return nil end
+	local part = result.Instance
+	if not part:GetAttribute("kind") then return nil end
+	return part
+end
+
+-- Ghost positioning. Same logic as before, plus a client-side overlap
+-- preview: ghost tints red if the snapped cell collides with any building
+-- already on the local plot. Server still re-validates on Place, but this
+-- keeps the player from wasting clicks on visibly-occupied cells.
+function HarborEditController:_updateGhost()
+	if not self._ghost or not self._kind or not self._plotOrigin then return end
+	local mouse = Players.LocalPlayer:GetMouse()
+	local hit = mouse.Hit
+	local local_ = self._plotOrigin:PointToObjectSpace(hit.Position)
+	local gx, gz = GridUtil.snap(Vector3.new(local_.X, 0, local_.Z))
+	local def = self._catalog[self._kind]
+	local w, d = def.footprint[1], def.footprint[2]
+	if self._rotation == 90 or self._rotation == 270 then w, d = d, w end
+	gx = math.clamp(gx, 0, GridUtil.CELLS_PER_AXIS - w)
+	gz = math.clamp(gz, 0, GridUtil.CELLS_PER_AXIS - d)
+	local localPos = GridUtil.gridToLocal(gx, gz)
+	local sizeStuds = Vector3.new(w * GridUtil.CELL, 8, d * GridUtil.CELL)
+	self._ghost.Size = sizeStuds
+	self._ghost.CFrame = self._plotOrigin * CFrame.new(localPos.X + sizeStuds.X / 2, sizeStuds.Y / 2, localPos.Z + sizeStuds.Z / 2)
+	self._ghost:SetAttribute("gx", gx)
+	self._ghost:SetAttribute("gz", gz)
+
+	-- Tint red if the cell would collide with an existing building. This
+	-- consults the client's known visuals (HarborVisualController stores them
+	-- on update); it's authoritative for the player's own plot because every
+	-- Place/Remove pushes a HarborVisualUpdate before this snapshot loops.
+	local HarborVisualController = Knit.GetController("HarborVisualController")
+	local mine = HarborVisualController:GetBuildingsForOwner(Players.LocalPlayer.UserId)
+	local occ = GridUtil.buildOccupancy(mine)
+	local ok = GridUtil.checkPlacement(occ, gx, gz, def.footprint, self._rotation)
+	self._ghost.Color = ok and Color3.fromRGB(120, 200, 220) or Color3.fromRGB(220, 100, 100)
 end
 
 function HarborEditController:_confirm()
 	if not self._ghost or not self._kind then return end
 	local gx = self._ghost:GetAttribute("gx") :: number
 	local gz = self._ghost:GetAttribute("gz") :: number
+	local kind = self._kind
 	local HarborService = Knit.GetService("HarborService")
-	HarborService:Place(self._kind, gx, gz, self._rotation):andThen(function(res)
+	HarborService:Place(kind, gx, gz, self._rotation):andThen(function(res)
 		if not res.ok then
-			warn("[Harbor] Place failed:", res.reason)
+			if res.reason == "overlap" and res.conflictUid then
+				warn(("[Harbor] Place failed: overlap with %s (cell %d,%d). Demolish that to free the spot."):format(res.conflictUid, gx, gz))
+			else
+				warn("[Harbor] Place failed:", res.reason)
+			end
 		end
 	end)
 end

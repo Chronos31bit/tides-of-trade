@@ -283,7 +283,7 @@ end
 -- ====================================================================
 -- Returns (ok, reason). Reasons let the client surface a useful tooltip
 -- without leaking placement strategy.
-function HarborService:_validatePlacement(player: Player, kind: string, gridX: number, gridZ: number, rotation: number): (boolean, string?)
+function HarborService:_validatePlacement(player: Player, kind: string, gridX: number, gridZ: number, rotation: number): (boolean, string?, string?)
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return false, "no_profile" end
 
@@ -303,10 +303,10 @@ function HarborService:_validatePlacement(player: Player, kind: string, gridX: n
 	end
 
 	local occ = GridUtil.buildOccupancy(data.buildings)
-	local ok, _conflictUid = GridUtil.checkPlacement(occ, gridX, gridZ, def.footprint, rotation)
-	if not ok then return false, "overlap" end
+	local ok, conflictUid = GridUtil.checkPlacement(occ, gridX, gridZ, def.footprint, rotation)
+	if not ok then return false, "overlap", conflictUid end
 
-	return true, nil
+	return true, nil, nil
 end
 
 -- ====================================================================
@@ -318,12 +318,12 @@ function HarborService.Client:GetBuildingCatalog(_player: Player): any
 	return BuildingCatalog
 end
 
-function HarborService.Client:Place(player: Player, kind: string, gridX: number, gridZ: number, rotation: number): {ok: boolean, reason: string?, building: any?}
+function HarborService.Client:Place(player: Player, kind: string, gridX: number, gridZ: number, rotation: number): {ok: boolean, reason: string?, building: any?, conflictUid: string?}
 	local self = self.Server
 	if not self._buildLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 
-	local ok, reason = self:_validatePlacement(player, kind, gridX, gridZ, rotation)
-	if not ok then return { ok = false, reason = reason } end
+	local ok, reason, conflictUid = self:_validatePlacement(player, kind, gridX, gridZ, rotation)
+	if not ok then return { ok = false, reason = reason, conflictUid = conflictUid } end
 
 	local def = BuildingCatalog[kind] :: any
 	local tier1Cost = def.tiers[1].cost

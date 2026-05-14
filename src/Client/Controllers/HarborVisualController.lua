@@ -141,25 +141,16 @@ function HarborVisualController:_instantiate(payload: any): Model
 	local model = template:Clone()
 	model.Name = ("%s_%s_t%d"):format(payload.kind, payload.buildingId, payload.newTier)
 	model.Parent = self._root
-	-- Client visuals are pure decoration. Mouse picking (demolish, placement
-	-- preview) must pass through them to reach the invisible server anchor
-	-- (which carries the `kind` attribute the demolish raycast looks for).
-	-- CanQuery=false skips the part for Workspace:Raycast and mouse.Hit.
-	-- We set this AFTER parenting in case Roblox ever quietly resets BasePart
-	-- properties when the Instance enters the DataModel (it shouldn't, but
-	-- the previous attempt seemingly failed in playtest, so this version is
-	-- defensive and self-verifying).
-	local quieted = 0
+	-- Client visuals are pure decoration. We set CanQuery=false on each part
+	-- as a hint to Workspace:Raycast / mouse picking, but HarborEditController's
+	-- raycast also explicitly excludes the HarborVisuals_Client_* folder —
+	-- belt and braces, because a playtest revealed Roblox sometimes ignored
+	-- the CanQuery write here for reasons we never tracked down.
 	for _, desc in ipairs(model:GetDescendants()) do
 		if desc:IsA("BasePart") then
 			desc.CanQuery = false
-			quieted += 1
 		end
 	end
-	-- One-line breadcrumb so we can confirm in the Output that this code
-	-- actually ran for the building the player is trying to demolish.
-	-- Safe to remove once placement/demolish are stable.
-	print(("[HarborVisualController] instantiated %s, %d parts CanQuery=false"):format(model.Name, quieted))
 	local cf = pivotForBuilding(payload.plotOriginCFrame, payload.kind, payload.gridX, payload.gridZ, payload.rotation)
 	-- PivotTo positions the model's pivot (PrimaryPart.CFrame) at `cf`.
 	-- For our placeholders the PrimaryPart is at the model's center; for
@@ -444,6 +435,44 @@ function HarborVisualController:_animateUpgrade(entry: any, oldModel: Model, new
 end
 
 -- ====================================================================
+-- PUBLIC LOOKUP — HarborEditController uses this to find the visible
+-- model for a building uid (e.g. to attach a Highlight on hover). We
+-- expose only a read accessor; the caller never mutates the Trove or
+-- Model directly.
+-- ====================================================================
+
+function HarborVisualController:GetVisualModel(buildingUid: string): Model?
+	for _, plotMap in pairs(self._visuals) do
+		local entry = plotMap[buildingUid]
+		if entry and entry.model and entry.model.Parent then
+			return entry.model
+		end
+	end
+	return nil
+end
+
+-- Returns a flat list of building metadata for a specific plot owner.
+-- HarborEditController calls this for the local player to compute a
+-- client-side overlap preview while the placement ghost is moving.
+function HarborVisualController:GetBuildingsForOwner(ownerUserId: number): {{kind: string, gridX: number, gridZ: number, rotation: number, uid: string}}
+	local out = {}
+	local plotMap = self._visuals[ownerUserId]
+	if not plotMap then return out end
+	for uid, entry in pairs(plotMap) do
+		if entry.kind then
+			table.insert(out, {
+				kind = entry.kind,
+				gridX = entry.gridX,
+				gridZ = entry.gridZ,
+				rotation = entry.rotation,
+				uid = uid,
+			})
+		end
+	end
+	return out
+end
+
+-- ====================================================================
 -- DISPATCH
 -- ====================================================================
 
@@ -471,7 +500,17 @@ function HarborVisualController:_applyUpdate(payload: any)
 		local trove = Trove.new()
 		local model = self:_instantiate(payload)
 		trove:Add(model)
-		local entry: any = { model = model, debris = nil, trove = trove }
+		local entry: any = {
+			model = model,
+			debris = nil,
+			trove = trove,
+			-- Cache metadata for HarborEditController's overlap preview.
+			kind = payload.kind,
+			gridX = payload.gridX,
+			gridZ = payload.gridZ,
+			rotation = payload.rotation,
+			ownerUserId = payload.ownerUserId,
+		}
 		plotMap[buildingId] = entry
 		-- Tier 1 spawns also bring in procedural debris (rundown-harbor feel).
 		if payload.newTier == 1 then
