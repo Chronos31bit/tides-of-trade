@@ -26,6 +26,7 @@ local Types        = require(ReplicatedStorage.Shared.Types)
 local UidUtil      = require(ReplicatedStorage.Shared.Util.UidUtil)
 local RateLimiter  = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local FishCatalog  = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local Signal       = require(ReplicatedStorage.Packages.Signal)
 
 local MARKET_INDEX_KEY = "market_index"  -- single key under MarketStore that holds the list
 local DEMAND_KEY = "current_demand"
@@ -36,6 +37,12 @@ local MarketService = Knit.CreateService({
 		ListingsUpdated = Knit.CreateSignal(),  -- (listings) — periodic broadcast
 		DemandRotated   = Knit.CreateSignal(),  -- (speciesId, multiplier)
 	},
+
+	-- Server-internal Signal: fires for both QuickSell (local NPC stall) and
+	-- the global-market Buy path (when this server happens to host the
+	-- seller). TutorialService listens for beat 4 completion. Convention
+	-- TODO: see HarborService note about Remote/Server affix sweep.
+	SoldServer = Signal.new(),  -- (player, payout, kind)  kind: "quick" | "market"
 
 	-- internal
 	_marketStore = nil :: any,
@@ -422,6 +429,10 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	if seller then
 		local QuestService = Knit.GetService("QuestService")
 		QuestService:OnSoldAtMarket(seller, boughtListing.price)
+		-- Server-side fan-out (tutorial / analytics). Beat 4 still resolves
+		-- on QuickSell — the global path is here for completeness so future
+		-- listeners (e.g. quest service refactors) don't miss the event.
+		self.SoldServer:Fire(seller, payout, "market")
 	end
 
 	-- Invalidate caches.
@@ -525,6 +536,9 @@ function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: b
 	-- Quest hook: counts as a sale at market for daily quest progress.
 	local QuestService = Knit.GetService("QuestService")
 	QuestService:OnSoldAtMarket(player, payout)
+
+	-- Server-side fan-out (tutorial beat 4 advance, future analytics).
+	self.SoldServer:Fire(player, payout, "quick")
 
 	return { ok = true, coinsEarned = payout }
 end

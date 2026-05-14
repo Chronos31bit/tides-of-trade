@@ -303,13 +303,15 @@ function HUD.create(): HUDController
 	abl.Parent = actionBar
 
 	-- 7 tiles total. Home goes last (rightmost) so it's a clear "go back" position.
-	local rodBtn  = actionTile("⌇",  "ROD",      P.Sunset)
-	local invBtn  = actionTile("▤",  "BAG",      P.Wood)
-	local mktBtn  = actionTile("$",  "MARKET",   P.TealLight)
-	local aquaBtn = actionTile("◉",  "AQUARIUM", P.Rare)
-	local hrbBtn  = actionTile("▣",  "BUILD",    P.SunsetDeep)
-	local socBtn  = actionTile("♥",  "CREW",     P.Lure)
-	local homeBtn = actionTile("⌂",  "HOME",     P.Uncommon)
+	-- Named so TutorialController and any future tooltip system can target
+	-- specific tiles via FindFirstChild without coupling to layout order.
+	local rodBtn  = actionTile("⌇",  "ROD",      P.Sunset);     rodBtn.Name  = "RodButton"
+	local invBtn  = actionTile("▤",  "BAG",      P.Wood);       invBtn.Name  = "InventoryButton"
+	local mktBtn  = actionTile("$",  "MARKET",   P.TealLight);  mktBtn.Name  = "MarketButton"
+	local aquaBtn = actionTile("◉",  "AQUARIUM", P.Rare);       aquaBtn.Name = "AquariumButton"
+	local hrbBtn  = actionTile("▣",  "BUILD",    P.SunsetDeep); hrbBtn.Name  = "HarborButton"
+	local socBtn  = actionTile("♥",  "CREW",     P.Lure);       socBtn.Name  = "SocialButton"
+	local homeBtn = actionTile("⌂",  "HOME",     P.Uncommon);   homeBtn.Name = "HomeButton"
 	rodBtn.LayoutOrder = 1; rodBtn.Parent = actionBar
 	invBtn.LayoutOrder = 2; invBtn.Parent = actionBar
 	mktBtn.LayoutOrder = 3; mktBtn.Parent = actionBar

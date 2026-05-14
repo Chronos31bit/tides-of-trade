@@ -46,6 +46,22 @@ local PROFILE_TEMPLATE: Profile = {
 		totalCoinsEarned = 0,
 		caughtSpecies = {},
 	},
+	-- Tutorial state machine. New fields are picked up by profile:Reconcile()
+	-- on load, so existing saves get a default-not_started slot — but the
+	-- TutorialService:_isReturningVet check below force-completes any profile
+	-- whose stats show prior play (catches/sales > 0). That keeps existing
+	-- players from being re-onboarded after a deploy.
+	tutorial = {
+		state = "not_started",        -- "not_started" | "greet" | "cast_intro" | "first_catch" | "first_sale" | "first_repair" | "daily_quest_hook" | "complete"
+		lineIndex = 1,                -- which line in the current beat's dialogue
+		startedAt = nil,
+		completedAt = nil,
+		beginnerAssistsRemaining = 3,
+		seededQuestId = nil,          -- id of the beat-6 seeded quest, used to detect Accept
+		flags = {
+			seenGlobalMarketHint = false,
+		},
+	},
 	schemaVersion = 1,
 }
 
