@@ -31,9 +31,6 @@ export type HUDController = {
 	levelLabel: TextLabel,
 	xpFill: Frame,
 
-	-- Quest list — container; HUDController rebuilds children on update.
-	questList: Frame,
-
 	-- Action bar
 	actionBar: Frame,
 	rodButton: TextButton,
@@ -251,29 +248,10 @@ function HUD.create(): HUDController
 	local xpfc = Instance.new("UICorner"); xpfc.CornerRadius = UDim.new(1, 0); xpfc.Parent = xpFill
 	xpFill.Parent = xpBg
 
-	-- QUEST PANEL
-	local questPanel = Instance.new("Frame")
-	questPanel.Size = UDim2.fromOffset(260, 172)
-	questPanel.BackgroundColor3 = P.TealDark
-	questPanel.BorderSizePixel = 0
-	questPanel.LayoutOrder = 2
-	local qpc = Instance.new("UICorner"); qpc.CornerRadius = UDim.new(0, 10); qpc.Parent = questPanel
-	questPanel.Parent = statusCol
-
-	local questTitle = smallCaps("daily quests")
-	questTitle.Position = UDim2.new(0, 12, 0, 10)
-	questTitle.Size = UDim2.new(1, -24, 0, 12)
-	questTitle.Parent = questPanel
-
-	local questList = Instance.new("Frame")
-	questList.BackgroundTransparency = 1
-	questList.Position = UDim2.new(0, 8, 0, 28)
-	questList.Size = UDim2.new(1, -16, 1, -36)
-	questList.Parent = questPanel
-
-	local qll = Instance.new("UIListLayout")
-	qll.Padding = UDim.new(0, 4)
-	qll.Parent = questList
+	-- Daily quests are owned entirely by QuestTrackerUI now (its own
+	-- ScreenGui, pinned right edge, with streak + refresh countdown +
+	-- completion popups). The HUD no longer renders a quest panel — it
+	-- would duplicate the tracker and fight it for the top-right corner.
 
 	-- ================================================================
 	-- BOTTOM ACTION BAR
@@ -326,7 +304,6 @@ function HUD.create(): HUDController
 		lureLabel = lureLabel,
 		levelLabel = levelLabel,
 		xpFill = xpFill,
-		questList = questList,
 		actionBar = actionBar,
 		rodButton = rodBtn,
 		inventoryButton = invBtn,

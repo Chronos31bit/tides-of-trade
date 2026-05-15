@@ -73,8 +73,8 @@ local FishingService = Knit.CreateService({
 	-- (tracked in CLAUDE.md follow-up): client RemoteSignals should adopt
 	-- a "Remote" prefix; server Signals shouldn't need a "Server" suffix.
 	-- Don't rename today — additive only.
-	CaughtServer    = Signal.new(),  -- (player, fishId)
-	CastStartedServer = Signal.new(), -- (player) — fires every successful StartCast (any green-zone, before claim)
+	CaughtServer      = Signal.new(),  -- (player, fish, weightKg, isPerfect) — `fish` is the full FishCatalog entry
+	CastStartedServer = Signal.new(),  -- (player) — fires every successful StartCast (any green-zone, before claim)
 	-- TUTORIAL ASSIST: per-player multiplier applied to the *validation*
 	-- green zone width. Client never sees this number — the display width
 	-- sent in StartCast stays at the raw fish value, so the player sees a
@@ -387,13 +387,10 @@ function FishingService:_grantCatch(player: Player, pending: any, perfectFractio
 		PlayerDataService:AddLureTokens(player, 1)
 	end
 
-	local QuestService = Knit.GetService("QuestService")
-	QuestService:OnFishCaught(player, fish.id)
-
-	-- Server-side hook for TutorialService (decrements assist counter, drives
-	-- beat 3 entry). Fired AFTER profile mutation so listeners see the new
-	-- catch count. No tutorial-coupling lives in FishingService itself.
-	self.CaughtServer:Fire(player, fish.id)
+	-- Server-side fan-out. Fired AFTER profile mutation so listeners (Quest,
+	-- Tutorial, future analytics) see the new catch count. No QuestService
+	-- direct call — it listens to CaughtServer alongside everyone else.
+	self.CaughtServer:Fire(player, fish, weight, isPerfect)
 
 	self.Client.CastResolved:Fire(player, {
 		success = true,

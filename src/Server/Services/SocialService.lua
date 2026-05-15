@@ -12,13 +12,21 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local UidUtil    = require(ReplicatedStorage.Shared.Util.UidUtil)
+local Signal     = require(ReplicatedStorage.Packages.Signal)
 
 local SocialService = Knit.CreateService({
 	Name = "SocialService",
 	Client = {
-		CrewChat   = Knit.CreateSignal(),  -- (fromName, message)
-		EmotePlayed = Knit.CreateSignal(), -- (userId, emoteId)
+		CrewChat    = Knit.CreateSignal(),  -- (fromName, message)
+		EmotePlayed = Knit.CreateSignal(),  -- (userId, emoteId)
 	},
+
+	-- Server-internal Signals. QuestService listens to these to advance
+	-- daily quest progress. Convention TODO: see HarborService note about
+	-- Remote/Server affix sweep.
+	HarborVisitedServer = Signal.new(),  -- (visitor, hostUserId)
+	EmoteUsedServer     = Signal.new(),  -- (player, emoteId)
+
 	_crewStore = nil :: any,
 })
 
@@ -137,6 +145,8 @@ function SocialService.Client:PlayEmote(player: Player, emoteId: string)
 	for _, other in ipairs(Players:GetPlayers()) do
 		self.Client.EmotePlayed:Fire(other, player.UserId, emoteId)
 	end
+	-- Server-side fan-out for quest progress (social_emote_n).
+	self.EmoteUsedServer:Fire(player, emoteId)
 end
 
 -- ====================================================================
@@ -181,8 +191,10 @@ function SocialService.Client:VisitLocalHarbor(player: Player, targetUserId: num
 		(char.HumanoidRootPart :: BasePart).CFrame = landing
 	end
 
-	local QuestService = Knit.GetService("QuestService")
-	QuestService:OnHarborVisited(player)
+	-- Server-side fan-out for quest progress (social_visit_harbors).
+	-- QuestService listens to this signal; no direct call so SocialService
+	-- doesn't have a compile-time dependency on QuestService's API.
+	self.HarborVisitedServer:Fire(player, targetUserId)
 	return { ok = true }
 end
 

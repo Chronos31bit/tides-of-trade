@@ -214,8 +214,10 @@ Handlers.tutorialreset = function(_self, issuer)
 		data.stats.totalSold = 0
 	end
 	-- Wipe any rolled daily quests so the HUD reflects the gated state
-	-- (no quests until AcceptFirstQuest fires at beat 6).
+	-- (no quests until AcceptFirstQuest fires at beat 6). Also clear the
+	-- yesterday-grace list so a fresh reset doesn't leak stale claimables.
 	data.dailyQuests = {}
+	data.yesterdayQuests = {}
 	data.questsRefreshedDay = nil
 	PlayerDataService:NudgeQuestsChanged(issuer)
 	FishingService:SetAssistMultiplier(issuer, 1.8)
