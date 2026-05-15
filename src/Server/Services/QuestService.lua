@@ -3,7 +3,7 @@
 -- Daily quests + login streak rewards.
 --
 -- Architecture:
---   * Quest *shapes* (the 19 templates) live in QuestTemplates.lua.
+--   * Quest *shapes* (18 templates) live in QuestTemplates.lua.
 --   * Per-player *rolls* live on profile.dailyQuests / profile.yesterdayQuests.
 --   * Refresh trigger: profile.questsRefreshedDay != currentUTCDay → roll.
 --     On profile load AND once a minute (in case a player straddles midnight UTC).

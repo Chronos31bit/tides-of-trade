@@ -379,10 +379,12 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 	-- Tell the visual service to broadcast the new building's pretty Model
 	-- to every client (owner + visitors).
 	Knit.GetService("HarborVisualService"):OnBuildingPlaced(player, building)
-	-- Server-side fan-out (quest hooks). `isDecorative` is reserved for a
-	-- future cosmetic-furniture catalog; today every BuildingCatalog entry
-	-- is functional so we always pass false. QuestService.building_decorate_n
-	-- counts any placement until the catalog grows a decorative flag.
+	-- Server-side fan-out. `isDecorative` is reserved for the future
+	-- decorative-props system; today every BuildingCatalog entry is
+	-- functional so we always pass false. No quest template consumes this
+	-- yet (building_decorate_n was dropped until decorative props exist —
+	-- see TODO in QuestTemplates.lua); the signal stays so that task has
+	-- its plumbing ready.
 	self.BuildingPlacedServer:Fire(player, building, false)
 	return { ok = true, building = building }
 end

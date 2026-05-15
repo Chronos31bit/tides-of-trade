@@ -491,7 +491,7 @@ QuestTemplates.social_emote_n = {
 } :: Template
 
 -- ====================================================================
--- BUILDING TEMPLATES (3)
+-- BUILDING TEMPLATES (2) — building_decorate_n dropped, see TODO below
 -- ====================================================================
 
 QuestTemplates.building_upgrade_any = {
@@ -512,30 +512,21 @@ QuestTemplates.building_upgrade_any = {
 	end,
 } :: Template
 
-QuestTemplates.building_decorate_n = {
-	id = "building_decorate_n",
-	category = "building",
-	difficulty = "easy",
-	-- NOTE: a true decorative-furniture catalog doesn't exist yet, so this
-	-- counts any BuildingPlaced event. When cosmetic furniture lands
-	-- (Phase 3), restrict matchFn to `event.isDecorative == true` and
-	-- rename the visible text. Stable id stays.
-	textTemplate = "Place {N} buildings on your plot",
-	parameters = {
-		N = { type = "int", min = 1, max = 3 },
-	},
-	trigger = "BuildingPlaced",
-	matchFn = function(_event, _params, _profile)
-		return true
-	end,
-	progressFn = function(_event, params, currentProgress)
-		return currentProgress + 1, params.N
-	end,
-	rewardFormula = function(params, difficulty)
-		local nScale = math.clamp((params.N - 1) / 2, 0, 1)
-		return bandReward(difficulty, nScale)
-	end,
-} :: Template
+-- TODO(decorative-props): `building_decorate_n` was specced but DROPPED
+-- until the decorative-props system exists. Reason: no decorative
+-- buildings exist — the catalog is the 6 functional cores only — so the
+-- template could only count *any* placement, which overlaps
+-- building_upgrade_any and reads as a confusing duplicate. Same
+-- treatment as the dropped social_gift_tip / social_crew_progress
+-- templates. When the decorative-props feature lands (separate task):
+-- add `isDecorative` to BuildingCatalog entries (lanterns/crates/buoys/
+-- rope coils/fountains = true; Dock/MarketStall/Smokehouse/Lighthouse/
+-- BaitShop/Guildhall = false), restore this template with
+-- matchFn = function(event) return event.isDecorative == true end, and
+-- re-add it to QuestTemplates.All. Stable id stays "building_decorate_n".
+-- HarborService.BuildingPlacedServer already fires (player, building,
+-- isDecorative) so the plumbing is ready; only the catalog flag + this
+-- template are missing.
 
 QuestTemplates.building_earn_passive = {
 	id = "building_earn_passive",
@@ -686,9 +677,9 @@ QuestTemplates.All = {
 	-- social (2)
 	QuestTemplates.social_visit_harbors,
 	QuestTemplates.social_emote_n,
-	-- building (3)
+	-- building (2) — building_decorate_n dropped until decorative-props
+	-- system exists (see TODO above its former definition).
 	QuestTemplates.building_upgrade_any,
-	QuestTemplates.building_decorate_n,
 	QuestTemplates.building_earn_passive,
 	-- exploration (3)
 	QuestTemplates.exploration_biomes_visited,
