@@ -31,6 +31,13 @@ export type HUDController = {
 	levelLabel: TextLabel,
 	xpFill: Frame,
 
+	-- Rod tier chip (read-only; tap/long-press/hover opens a tooltip).
+	-- HUDController recolours icon disc + stroke + value by tier.
+	rodChip: TextButton,
+	rodChipIcon: Frame,
+	rodChipStroke: UIStroke,
+	rodChipValue: TextLabel,
+
 	-- Quest list — container; HUDController rebuilds children on update.
 	questList: Frame,
 
@@ -210,7 +217,10 @@ function HUD.create(): HUDController
 	statusCol.BackgroundTransparency = 1
 	statusCol.AnchorPoint = Vector2.new(1, 0)
 	statusCol.Position = UDim2.new(1, -16, 0, 16)
-	statusCol.Size = UDim2.fromOffset(260, 240)
+	-- Tall enough for level chip (52) + rod chip (52) + quest panel (172)
+	-- + 2x8 layout padding. statusCol doesn't clip, so this is a hint that
+	-- keeps the column from visually colliding with the bottom action bar.
+	statusCol.Size = UDim2.fromOffset(260, 304)
 	statusCol.Parent = gui
 
 	local statusLayout = Instance.new("UIListLayout")
@@ -251,12 +261,51 @@ function HUD.create(): HUDController
 	local xpfc = Instance.new("UICorner"); xpfc.CornerRadius = UDim.new(1, 0); xpfc.Parent = xpFill
 	xpFill.Parent = xpBg
 
+	-- ROD TIER CHIP
+	-- Read-only pill. It's a TextButton so HUDController can hook .Activated
+	-- (tap/click), MouseEnter (PC hover) and touch long-press to open the
+	-- tooltip. Background stays TealDark like the other chips; the tier
+	-- colour shows on the icon disc / stroke / value text (recoloured by
+	-- HUDController via UIUtil.tierPalette).
+	local rodChip = Instance.new("TextButton")
+	rodChip.Name = "RodChip"
+	rodChip.AutoButtonColor = false
+	rodChip.Text = ""
+	rodChip.BackgroundColor3 = P.TealDark
+	rodChip.BorderSizePixel = 0
+	rodChip.Size = UDim2.fromOffset(260, 52)
+	rodChip.LayoutOrder = 2
+	local rcc = Instance.new("UICorner"); rcc.CornerRadius = UDim.new(0, 10); rcc.Parent = rodChip
+	local rodChipStroke = Instance.new("UIStroke")
+	rodChipStroke.Color = P.Common
+	rodChipStroke.Thickness = 1.5
+	rodChipStroke.Transparency = 0.25
+	rodChipStroke.Parent = rodChip
+	rodChip.Parent = statusCol
+
+	-- TODO(asset): swap this glyph for a proper rod-silhouette image asset
+	-- once art is available (rbxassetid). Keep the disc + recolour logic.
+	local rodChipIcon = iconDisc(28, P.Common, "⌇")
+	rodChipIcon.Position = UDim2.new(0, 12, 0.5, 0)
+	rodChipIcon.Parent = rodChip
+
+	local rodHeader = smallCaps("rod")
+	rodHeader.Position = UDim2.new(0, 50, 0, 8)
+	rodHeader.Size = UDim2.new(1, -64, 0, 12)
+	rodHeader.Parent = rodChip
+
+	local rodChipValue = valueLabel("Tier 1", 18)
+	rodChipValue.Position = UDim2.new(0, 50, 0, 22)
+	rodChipValue.Size = UDim2.new(1, -64, 0, 22)
+	rodChipValue.TextColor3 = P.Cream
+	rodChipValue.Parent = rodChip
+
 	-- QUEST PANEL
 	local questPanel = Instance.new("Frame")
 	questPanel.Size = UDim2.fromOffset(260, 172)
 	questPanel.BackgroundColor3 = P.TealDark
 	questPanel.BorderSizePixel = 0
-	questPanel.LayoutOrder = 2
+	questPanel.LayoutOrder = 3
 	local qpc = Instance.new("UICorner"); qpc.CornerRadius = UDim.new(0, 10); qpc.Parent = questPanel
 	questPanel.Parent = statusCol
 
@@ -326,6 +375,10 @@ function HUD.create(): HUDController
 		lureLabel = lureLabel,
 		levelLabel = levelLabel,
 		xpFill = xpFill,
+		rodChip = rodChip,
+		rodChipIcon = rodChipIcon,
+		rodChipStroke = rodChipStroke,
+		rodChipValue = rodChipValue,
 		questList = questList,
 		actionBar = actionBar,
 		rodButton = rodBtn,

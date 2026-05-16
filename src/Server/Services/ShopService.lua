@@ -100,10 +100,9 @@ function ShopService.Client:BuyRodTier(player: Player, targetTier: number): {ok:
 	if not PlayerDataService:TrySpendCoins(player, cost) then
 		return { ok = false, reason = "not_enough_coins" }
 	end
-	data.rodTier = targetTier
-	-- No specific signal for rodTier yet; the client can re-fetch the
-	-- snapshot. Fire ProfileLoaded as a coarse cue so listeners refresh.
-	PlayerDataService.Client.ProfileLoaded:Fire(player, data)
+	-- Routes through the single rodTier writer, which fires the dedicated
+	-- RodTierChanged signal (replaces the old coarse ProfileLoaded cue).
+	PlayerDataService:SetRodTier(player, targetTier)
 	return { ok = true, newTier = targetTier }
 end
 

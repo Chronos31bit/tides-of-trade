@@ -9,6 +9,8 @@
 local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Knit             = require(ReplicatedStorage.Packages.Knit)
+local GameConfig       = require(ReplicatedStorage.Shared.Config.GameConfig)
+local RodTierUtil      = require(ReplicatedStorage.Shared.Util.RodTierUtil)
 
 local RodService = Knit.CreateService({
 	Name = "RodService",
@@ -167,6 +169,26 @@ function RodService:_grantRod(player: Player)
 		self.Client.RodActivated:Fire(player)
 	end)
 	tool.Parent = backpack
+end
+
+-- Populate GameConfig.Fishing.RodTierUnlocks[*].speciesUnlocked from
+-- FishCatalog and log the per-tier breakdown so a glance at the server
+-- output verifies the gating data. Warns about any fish missing an explicit
+-- rodMinTier (defaulted to tier 1) so the catalog can be filled in.
+function RodService:KnitInit()
+	local grouping = RodTierUtil.populate(GameConfig.Fishing.RodTierUnlocks)
+	for t = 1, grouping.maxTier do
+		local newCount = #(grouping.newAtTier[t] or {})
+		local cumulative = grouping.countAtOrBelow[t] or 0
+		print(("[RodService] RodTierUnlocks: tier %d unlocks %d new species (%d catchable at or below tier %d)")
+			:format(t, newCount, cumulative, t))
+	end
+	if #grouping.missing > 0 then
+		warn(("[RodService] %d fish have no explicit rodMinTier (defaulted to tier 1) — fill these in FishCatalog: %s")
+			:format(#grouping.missing, table.concat(grouping.missing, ", ")))
+	else
+		print("[RodService] All fish have an explicit rodMinTier.")
+	end
 end
 
 function RodService:KnitStart()

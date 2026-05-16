@@ -26,25 +26,50 @@ local QuestService = Knit.CreateService({
 -- ====================================================================
 -- QUEST GENERATION
 -- ====================================================================
-local function rollQuest(): Types.Quest
+-- A fish missing an explicit numeric rodMinTier is treated as tier 1 (kept
+-- catchable for everyone). Matches RodTierUtil's defaulting rule.
+local function fishTier(f: any): number
+	local raw = f.rodMinTier
+	if typeof(raw) == "number" and raw == raw and raw >= 1 then
+		return math.floor(raw)
+	end
+	return 1
+end
+
+-- `profile` is required so CatchSpecies can only ever pick a species the
+-- player's current rod can actually hook. Without this a tier-1 player could
+-- be handed "catch 8 Lantern Squid" (rodMinTier 2) — an impossible daily.
+local function rollQuest(profile: Types.Profile): Types.Quest
 	local template = GameConfig.Quests.Templates[math.random(1, #GameConfig.Quests.Templates)]
 	local target = math.random(template.targetMin, template.targetMax)
+	local kind = template.kind
 	local speciesId: string? = nil
-	if template.kind == "CatchSpecies" then
-		-- Bias toward Common/Uncommon — players with low rod tier shouldn't
-		-- get a Mythic-only daily.
+	if kind == "CatchSpecies" then
+		local rodTier = profile.rodTier or 1
+		-- Eligible = catchable with the current rod AND low-rarity (the
+		-- original cozy intent: never hand out a grindy Rare/Mythic-species
+		-- daily). At tier 1 this is the Commons; tier 2+ adds the Uncommons.
 		local pool = {}
 		for _, f in ipairs(FishCatalog.fish) do
-			if f.rarity == "Common" or f.rarity == "Uncommon" then
+			if (f.rarity == "Common" or f.rarity == "Uncommon") and fishTier(f) <= rodTier then
 				table.insert(pool, f.id)
 			end
 		end
-		speciesId = pool[math.random(1, #pool)]
+		if #pool > 0 then
+			speciesId = pool[math.random(1, #pool)]
+		else
+			-- Safety net: should be unreachable (Commons are all tier 1), but
+			-- if the catalog ever changes such that no low-rarity species fits
+			-- this rod, fall back to a guaranteed-completable any-fish quest
+			-- rather than ship an impossible one.
+			warn(("[QuestService] No tier<=%d low-rarity species for CatchSpecies roll; falling back to CatchAnyFish."):format(rodTier))
+			kind = "CatchAnyFish"
+		end
 	end
 	local today = TimeUtil.currentUTCDay()
 	return {
 		id = ("daily_%s_%s"):format(today, UidUtil.new()),
-		kind = template.kind,
+		kind = kind,
 		target = target,
 		progress = 0,
 		speciesId = speciesId,
@@ -77,7 +102,7 @@ function QuestService:_refreshIfNeeded(player: Player)
 
 	local quests = {}
 	for _ = 1, GameConfig.Quests.DailyCount do
-		table.insert(quests, rollQuest())
+		table.insert(quests, rollQuest(data))
 	end
 	PlayerDataService:SetQuests(player, quests)
 	self.Client.QuestsRefreshed:Fire(player, quests)
@@ -128,7 +153,7 @@ function QuestService.Client:AcceptFirstQuest(player: Player): {ok: boolean, rea
 	-- ones. Roll DailyCount-1 random quests, then prepend the seed.
 	local quests: {any} = { self:_seedFirstQuest() }
 	for _ = 2, GameConfig.Quests.DailyCount do
-		table.insert(quests, rollQuest())
+		table.insert(quests, rollQuest(data))
 	end
 	PlayerDataService:SetQuests(player, quests)
 	self.Client.QuestsRefreshed:Fire(player, quests)

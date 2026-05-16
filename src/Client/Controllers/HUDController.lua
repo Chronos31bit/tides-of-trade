@@ -12,10 +12,17 @@ local Knit = require(ReplicatedStorage.Packages.Knit)
 
 local HUD = require(script.Parent.Parent.UI.HUD)
 local UIUtil = require(script.Parent.Parent.UI.UIUtil)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local RodTierUtil = require(ReplicatedStorage.Shared.Util.RodTierUtil)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local HUDController = Knit.CreateController({
 	Name = "HUDController",
 	_hud = nil :: any,
+	_rodTier = 1,
+	_rodCatalog = nil :: any,    -- { [tier] = { name, cost, description } } once fetched
+	_rodTooltip = nil :: any,    -- UIUtil.TooltipHandle, rebuilt per open
+	_rodCycleTween = nil :: any, -- looping max-tier accent shimmer
 })
 
 -- Pretty-print a quest's kind into a player-readable description.
@@ -148,12 +155,16 @@ function HUDController:KnitStart()
 	PlayerDataService.QuestsChanged:Connect(function(quests)
 		self:_renderQuests(quests, QuestService)
 	end)
+
+	self:_wireRodChip()
 end
 
 function HUDController:_apply(profile: any)
 	self._hud.coinsLabel.Text = tostring(profile.coins or 0)
 	self._hud.lureLabel.Text = tostring(profile.lureTokens or 0)
 	self._hud.levelLabel.Text = ("Lv %d"):format(profile.level or 1)
+	-- Initial paint (no pulse) — RodTierChanged handles later live changes.
+	self:_applyRodTier(profile.rodTier or 1, false)
 	self:_renderQuests(profile.dailyQuests or {}, Knit.GetService("QuestService"))
 end
 
@@ -213,6 +224,273 @@ function HUDController:_renderQuests(quests: {any}, QuestService: any)
 			done.Parent = row
 		end
 	end
+end
+
+-- ====================================================================
+-- ROD TIER CHIP
+-- ====================================================================
+
+-- Recolour the chip for `tier` and (if `animate`) play a one-shot glow
+-- pulse. Background stays TealDark; the tier colour lives on the icon disc,
+-- stroke, and value text. Tiers at/above max get a subtle accent shimmer.
+function HUDController:_applyRodTier(tier: number, animate: boolean)
+	tier = math.max(1, math.floor(tonumber(tier) or 1))
+	-- compute() is cached, so reading maxTier here is cheap and avoids any
+	-- ordering dependency on _wireRodChip having run first.
+	local maxTier = RodTierUtil.compute().maxTier
+	self._rodTier = tier
+
+	local pal = UIUtil.tierPalette(tier, maxTier)
+	local hud = self._hud
+	hud.rodChipValue.Text = ("Tier %d"):format(tier)
+	hud.rodChipValue.TextColor3 = pal.accent
+	hud.rodChipIcon.BackgroundColor3 = pal.accent
+	hud.rodChipStroke.Color = pal.accent
+
+	-- Stop any prior shimmer so colours don't fight.
+	if self._rodCycleTween then
+		self._rodCycleTween:Cancel()
+		self._rodCycleTween:Destroy()
+		self._rodCycleTween = nil
+	end
+	-- Max-tier shimmer: gentle accent<->accent2 loop on the stroke. Decorative,
+	-- so skipped entirely under ReducedMotion (static accent instead).
+	if pal.isMax and not MotionUtil.reducedMotionEnabled() then
+		local cfg = GameConfig.UI.RodTierChip
+		local info = TweenInfo.new(
+			cfg.MaxTierCycleDuration,
+			Enum.EasingStyle.Sine,
+			Enum.EasingDirection.InOut,
+			-1, true
+		)
+		self._rodCycleTween = game:GetService("TweenService"):Create(
+			hud.rodChipStroke, info, { Color = pal.accent2 }
+		)
+		self._rodCycleTween:Play()
+	end
+
+	-- Tier-change glow pulse (not on the initial paint). Decorative: under
+	-- ReducedMotion we skip it rather than snap (a snap would leave the
+	-- stroke fully opaque).
+	if animate and not MotionUtil.reducedMotionEnabled() then
+		local cfg = GameConfig.UI.RodTierChip
+		local info = TweenInfo.new(
+			cfg.GlowPulseDuration / 2,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out,
+			0, true
+		)
+		local t = game:GetService("TweenService"):Create(
+			hud.rodChipStroke, info, { Transparency = 0 }
+		)
+		t.Completed:Connect(function() t:Destroy() end)
+		t:Play()
+	end
+end
+
+-- Build (fresh each open — content depends on current tier) the tooltip body.
+function HUDController:_buildRodTooltip(content: Frame)
+	local cfg = GameConfig.UI.RodTierChip
+	local g = RodTierUtil.compute()
+	local tier = self._rodTier
+	local maxTier = g.maxTier
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 14); pad.PaddingBottom = UDim.new(0, 14)
+	pad.PaddingLeft = UDim.new(0, 14); pad.PaddingRight = UDim.new(0, 14)
+	pad.Parent = content
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.Padding = UDim.new(0, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = content
+
+	local order = 0
+	local function nextOrder(): number
+		order += 1
+		return order
+	end
+
+	-- --- Current tier ---
+	local header = UIUtil.makeLabel(("Tier %d"):format(tier), "display", {
+		Size = UDim2.new(1, 0, 0, 32),
+		LayoutOrder = nextOrder(),
+	})
+	header.Parent = content
+
+	local catchable = g.countAtOrBelow[tier] or 0
+	local sub = UIUtil.makeLabel(("Catches %d fish species"):format(catchable), "subtitle", {
+		Size = UDim2.new(1, 0, 0, 20),
+		LayoutOrder = nextOrder(),
+	})
+	sub.Parent = content
+
+	-- --- Next tier preview ---
+	if tier >= maxTier then
+		local best = UIUtil.makeLabel("You've got the best rod available.", "body", {
+			Size = UDim2.new(1, 0, 0, 40),
+			TextWrapped = true,
+			LayoutOrder = nextOrder(),
+		})
+		best.Parent = content
+	else
+		local nextTier = tier + 1
+		local nextName = self._rodCatalog and self._rodCatalog[nextTier] and self._rodCatalog[nextTier].name
+		local title = nextName
+			and ("At Tier %d — %s"):format(nextTier, nextName)
+			or ("At Tier %d"):format(nextTier)
+		local nextHeader = UIUtil.makeLabel(title, "title", {
+			Size = UDim2.new(1, 0, 0, 22),
+			LayoutOrder = nextOrder(),
+		})
+		nextHeader.Parent = content
+
+		local shown, remaining = RodTierUtil.examplesForTier(nextTier, cfg.NextTierExampleLimit)
+		local plus = UIUtil.makeLabel(("+%d new species"):format(#(g.newAtTier[nextTier] or {})), "subtitle", {
+			Size = UDim2.new(1, 0, 0, 18),
+			LayoutOrder = nextOrder(),
+		})
+		plus.Parent = content
+
+		-- Horizontal scroll of example species, rarity-coloured badges.
+		local scroller = Instance.new("ScrollingFrame")
+		scroller.BackgroundTransparency = 1
+		scroller.BorderSizePixel = 0
+		scroller.Size = UDim2.new(1, 0, 0, 30)
+		scroller.CanvasSize = UDim2.new(0, 0, 0, 0)
+		scroller.AutomaticCanvasSize = Enum.AutomaticSize.X
+		scroller.ScrollBarThickness = 3
+		scroller.ScrollingDirection = Enum.ScrollingDirection.X
+		scroller.LayoutOrder = nextOrder()
+		local sl = Instance.new("UIListLayout")
+		sl.FillDirection = Enum.FillDirection.Horizontal
+		sl.Padding = UDim.new(0, 6)
+		sl.SortOrder = Enum.SortOrder.LayoutOrder
+		sl.Parent = scroller
+		scroller.Parent = content
+
+		local badgeOrder = 0
+		for _, sp in ipairs(shown) do
+			badgeOrder += 1
+			local rarityColor = (UIUtil.Palette :: any)[sp.rarity] or UIUtil.Palette.Common
+			local badge = Instance.new("Frame")
+			badge.BackgroundColor3 = UIUtil.Palette.TealDeeper
+			badge.BorderSizePixel = 0
+			badge.AutomaticSize = Enum.AutomaticSize.X
+			badge.Size = UDim2.new(0, 0, 1, 0)
+			badge.LayoutOrder = badgeOrder
+			local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0, 6); bc.Parent = badge
+			local bs = Instance.new("UIStroke"); bs.Color = rarityColor; bs.Thickness = 1.5; bs.Parent = badge
+			local bp = Instance.new("UIPadding")
+			bp.PaddingLeft = UDim.new(0, 8); bp.PaddingRight = UDim.new(0, 8)
+			bp.Parent = badge
+			local bl = UIUtil.makeLabel(sp.displayName, "caption", {
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.new(0, 0, 1, 0),
+				TextColor3 = rarityColor,
+			})
+			bl.Parent = badge
+			badge.Parent = scroller
+		end
+		if remaining > 0 then
+			badgeOrder += 1
+			local more = UIUtil.makeLabel(("and %d more"):format(remaining), "caption", {
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.new(0, 0, 1, 0),
+				LayoutOrder = badgeOrder,
+			})
+			more.Parent = scroller
+		end
+	end
+
+	-- --- How to upgrade (single source of truth: GameConfig string) ---
+	local up = UIUtil.makeLabel(cfg.UpgradeHintText, "caption", {
+		Size = UDim2.new(1, 0, 0, 32),
+		TextWrapped = true,
+		LayoutOrder = nextOrder(),
+	})
+	up.Parent = content
+end
+
+function HUDController:_toggleRodTooltip()
+	-- Open -> close (true toggle on a second tap).
+	if self._rodTooltip and self._rodTooltip.isOpen() then
+		self._rodTooltip.close()
+		return
+	end
+	-- Rebuild every open so the content matches the current tier.
+	if self._rodTooltip then
+		self._rodTooltip.destroy()
+		self._rodTooltip = nil
+	end
+	local cfg = GameConfig.UI.RodTierChip
+	self._rodTooltip = UIUtil.makeTooltip({
+		parent = self._hud.gui,
+		size = UDim2.fromOffset(300, 320),
+		-- Sit just left of the 260-wide status column (16 margin + 260 + 12 gap)
+		-- so it never covers the chips it describes.
+		position = UDim2.new(1, -(16 + 260 + 12), 0, 16),
+		anchorPoint = Vector2.new(1, 0),
+		build = function(c) self:_buildRodTooltip(c) end,
+		inactivitySeconds = cfg.TooltipInactivitySeconds,
+		fadeDuration = cfg.TooltipFadeDuration,
+		slideOffsetPx = cfg.TooltipSlideOffsetPx,
+	})
+	self._rodTooltip.open()
+end
+
+function HUDController:_wireRodChip()
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local ShopService = Knit.GetService("ShopService")
+
+	-- Tier names for the tooltip's "At Tier N — <name>" line. Single source
+	-- of truth is the shop catalog (no duplication into GameConfig).
+	ShopService:GetRodCatalog():andThen(function(catalog)
+		self._rodCatalog = catalog
+	end)
+
+	-- Tap / click toggles the tooltip.
+	self._hud.rodChip.Activated:Connect(function()
+		self:_toggleRodTooltip()
+	end)
+
+	-- PC: hover opens (open-only — the full-screen dismiss backdrop would
+	-- otherwise fight a leave-to-close handler and flicker). Dismiss is via
+	-- tap-outside / Escape / inactivity / re-tapping the chip. Touch:
+	-- long-press opens (tap already toggles via Activated above).
+	if not UIUtil.isTouchDevice() then
+		self._hud.rodChip.MouseEnter:Connect(function()
+			if not (self._rodTooltip and self._rodTooltip.isOpen()) then
+				self:_toggleRodTooltip()
+			end
+		end)
+	else
+		local cfg = GameConfig.UI.RodTierChip
+		local pressThread: thread? = nil
+		self._hud.rodChip.InputBegan:Connect(function(input)
+			if input.UserInputType ~= Enum.UserInputType.Touch then return end
+			pressThread = task.delay(cfg.LongPressSeconds, function()
+				pressThread = nil
+				if not (self._rodTooltip and self._rodTooltip.isOpen()) then
+					self:_toggleRodTooltip()
+				end
+			end)
+		end)
+		local function cancelPress()
+			if pressThread then task.cancel(pressThread); pressThread = nil end
+		end
+		self._hud.rodChip.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch then cancelPress() end
+		end)
+	end
+
+	-- Live updates: dedicated signal (fires today from ShopService:BuyRodTier
+	-- via PlayerDataService:SetRodTier; future upgrade paths route the same
+	-- way). Pulse on real changes, not the initial paint.
+	PlayerDataService.RodTierChanged:Connect(function(tier)
+		self:_applyRodTier(tier, true)
+	end)
 end
 
 return HUDController

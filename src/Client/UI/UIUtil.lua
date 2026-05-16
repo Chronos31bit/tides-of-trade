@@ -11,6 +11,8 @@
 --   * Tighter typography hierarchy with weight contrast
 
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local MotionUtil = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
 
 local UIUtil = {}
 
@@ -272,6 +274,196 @@ end
 
 -- makeChip helper removed; the new HUD builds its own purpose-fit currency
 -- pills inline.
+
+-- ====================================================================
+-- ROD TIER COLOUR CODING
+-- ====================================================================
+-- Maps a rod tier to an accent colour, reusing the existing rarity palette
+-- so the chip reads consistently with catch-reveal badges:
+--   tier 1            -> Common  (neutral gray)
+--   tier 2            -> Uncommon (green)
+--   tier 3            -> Rare    (blue)
+--   tier 4 .. maxTier -> a single amber "max" treatment (no per-tier colour
+--                        creep above 3; tiers 4, 5, 6... all share this).
+-- `accent2` is only meaningfully different for the max treatment, where the
+-- caller may cycle the stroke between accent and accent2 for a subtle shimmer.
+-- The chip *background* stays TealDark (HUD opaque-legibility rule) — tier
+-- colour lives in the icon disc / stroke / value text only.
+function UIUtil.tierPalette(tier: number, maxTier: number): { accent: Color3, accent2: Color3, isMax: boolean }
+	local P = UIUtil.Palette
+	if tier <= 1 then
+		return { accent = P.Common, accent2 = P.Common, isMax = (maxTier <= 1) }
+	elseif tier == 2 then
+		return { accent = P.Uncommon, accent2 = P.Uncommon, isMax = (maxTier <= 2) }
+	elseif tier == 3 then
+		return { accent = P.Rare, accent2 = P.Rare, isMax = (maxTier <= 3) }
+	end
+	-- tier 4+ : unified amber max treatment (palette has no amber "Mythic";
+	-- Mythic is magenta, Gold is the amber — see report flag).
+	return { accent = P.Gold, accent2 = P.GoldDeep, isMax = true }
+end
+
+-- ====================================================================
+-- TOOLTIP
+-- ====================================================================
+-- A read-only floating panel anchored near a chip. Dismisses on: tap
+-- outside (full-screen backdrop button), Escape (PC), or `inactivitySeconds`
+-- after it opened. Fades in (slide too, unless ReducedMotion). The caller
+-- owns nothing — handle:destroy() tears down every instance + connection.
+--
+-- opts:
+--   parent            ScreenGui to mount into
+--   size              UDim2 of the panel
+--   position          UDim2 (resting position)
+--   anchorPoint       Vector2 (default 1,0)
+--   build             function(content: Frame) -> () : fills the panel body
+--   inactivitySeconds number
+--   fadeDuration      number
+--   slideOffsetPx     number (downward offset the panel slides up from)
+export type TooltipHandle = {
+	open: () -> (),
+	close: () -> (),
+	toggle: () -> (),
+	isOpen: () -> boolean,
+	destroy: () -> (),
+}
+function UIUtil.makeTooltip(opts: {
+	parent: Instance,
+	size: UDim2,
+	position: UDim2,
+	anchorPoint: Vector2?,
+	build: (Frame) -> (),
+	inactivitySeconds: number,
+	fadeDuration: number,
+	slideOffsetPx: number,
+}): TooltipHandle
+	local P = UIUtil.Palette
+
+	-- Full-screen invisible backdrop catches "tap outside to dismiss".
+	local backdrop = Instance.new("TextButton")
+	backdrop.Name = "TooltipBackdrop"
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.BackgroundTransparency = 1
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.ZIndex = 50
+	backdrop.Visible = false
+	backdrop.Parent = opts.parent
+
+	-- CanvasGroup root so the whole panel fades as one (GroupTransparency).
+	local panel = Instance.new("CanvasGroup")
+	panel.Name = "Tooltip"
+	panel.BackgroundColor3 = P.TealDark
+	panel.BorderSizePixel = 0
+	panel.AnchorPoint = opts.anchorPoint or Vector2.new(1, 0)
+	panel.Size = opts.size
+	panel.ZIndex = 51
+	panel.Visible = false
+	panel.GroupTransparency = 1
+	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 12); corner.Parent = panel
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = P.TealDeeper
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.25
+	stroke.Parent = panel
+	panel.Parent = opts.parent
+
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.BackgroundTransparency = 1
+	content.Size = UDim2.fromScale(1, 1)
+	content.Parent = panel
+	opts.build(content)
+
+	local restPos = opts.position
+	local fromPos = UDim2.new(
+		restPos.X.Scale, restPos.X.Offset,
+		restPos.Y.Scale, restPos.Y.Offset + opts.slideOffsetPx
+	)
+
+	local isOpen = false
+	local dismissThread: thread? = nil
+	local escConn: RBXScriptConnection? = nil
+	local fadeTween: Tween? = nil
+
+	local function cancelDismiss()
+		if dismissThread then
+			task.cancel(dismissThread)
+			dismissThread = nil
+		end
+	end
+
+	local close, open
+
+	close = function()
+		if not isOpen then return end
+		isOpen = false
+		cancelDismiss()
+		if escConn then escConn:Disconnect(); escConn = nil end
+		backdrop.Visible = false
+		if fadeTween then fadeTween:Destroy(); fadeTween = nil end
+		local reduced = MotionUtil.reducedMotionEnabled()
+		local dur = reduced and (opts.fadeDuration * 0.5) or opts.fadeDuration
+		local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local props: { [string]: any } = { GroupTransparency = 1 }
+		if not reduced then props.Position = fromPos end
+		fadeTween = TweenService:Create(panel, info, props)
+		local t = fadeTween
+		t.Completed:Connect(function()
+			if t == fadeTween then panel.Visible = false end
+		end)
+		t:Play()
+	end
+
+	open = function()
+		if isOpen then
+			-- Re-open resets the inactivity timer.
+			cancelDismiss()
+			dismissThread = task.delay(opts.inactivitySeconds, close)
+			return
+		end
+		isOpen = true
+		if fadeTween then fadeTween:Destroy(); fadeTween = nil end
+		panel.Visible = true
+		backdrop.Visible = true
+		local reduced = MotionUtil.reducedMotionEnabled()
+		local dur = reduced and (opts.fadeDuration * 0.5) or opts.fadeDuration
+		local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		if reduced then
+			panel.Position = restPos
+			fadeTween = TweenService:Create(panel, info, { GroupTransparency = 0 })
+		else
+			panel.Position = fromPos
+			fadeTween = TweenService:Create(panel, info, { GroupTransparency = 0, Position = restPos })
+		end
+		fadeTween:Play()
+
+		escConn = UserInputService.InputBegan:Connect(function(input, gpe)
+			if gpe then return end
+			if input.KeyCode == Enum.KeyCode.Escape then close() end
+		end)
+		cancelDismiss()
+		dismissThread = task.delay(opts.inactivitySeconds, close)
+	end
+
+	backdrop.Activated:Connect(close)
+
+	return {
+		open = open,
+		close = close,
+		toggle = function()
+			if isOpen then close() else open() end
+		end,
+		isOpen = function() return isOpen end,
+		destroy = function()
+			cancelDismiss()
+			if escConn then escConn:Disconnect(); escConn = nil end
+			if fadeTween then fadeTween:Destroy(); fadeTween = nil end
+			backdrop:Destroy()
+			panel:Destroy()
+		end,
+	}
+end
 
 -- ====================================================================
 -- DEVICE HELPERS
