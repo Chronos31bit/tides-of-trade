@@ -42,7 +42,11 @@ local MarketService = Knit.CreateService({
 	-- the global-market Buy path (when this server happens to host the
 	-- seller). TutorialService listens for beat 4 completion. Convention
 	-- TODO: see HarborService note about Remote/Server affix sweep.
-	SoldServer = Signal.new(),  -- (player, payout, kind)  kind: "quick" | "market"
+	SoldServer    = Signal.new(),  -- (player, payout, kind)  kind: "quick" | "market"
+	-- Fired when a player creates a new listing on the global market.
+	ListedServer  = Signal.new(),  -- (player, listing)
+	-- Fired when a player buys an item from the global market.
+	BoughtServer  = Signal.new(),  -- (player, listing)
 
 	-- internal
 	_marketStore = nil :: any,
@@ -308,6 +312,9 @@ function MarketService.Client:Create(player: Player, itemUid: string, price: num
 	-- Now safe to remove from inventory.
 	PlayerDataService:RemoveItemByUid(player, itemUid)
 
+	-- Quest hook for the lister.
+	self.ListedServer:Fire(player, addedListing)
+
 	-- Best-effort cross-server invalidation.
 	self:_publishCacheRefresh()
 	-- Update local cache immediately so the seller sees it before the periodic
@@ -402,6 +409,9 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	end
 	PlayerDataService:AddItem(player, item)
 
+	-- Quest hook for the buyer.
+	self.BoughtServer:Fire(player, boughtListing)
+
 	-- Pay the seller. They might be online on this server or a different one;
 	-- if they're online here we credit immediately, otherwise the next time
 	-- they log in we settle via the offline payouts queue.
@@ -425,13 +435,11 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 		end)
 	end
 
-	-- Quest hook for the seller (only if online here).
+	-- Server-side fan-out (tutorial / analytics / quest progress). Beat 4
+	-- still resolves on QuickSell — the global path is here for completeness
+	-- so listeners don't miss the event. QuestService listens to SoldServer
+	-- directly; no direct OnSoldAtMarket call needed.
 	if seller then
-		local QuestService = Knit.GetService("QuestService")
-		QuestService:OnSoldAtMarket(seller, boughtListing.price)
-		-- Server-side fan-out (tutorial / analytics). Beat 4 still resolves
-		-- on QuickSell — the global path is here for completeness so future
-		-- listeners (e.g. quest service refactors) don't miss the event.
 		self.SoldServer:Fire(seller, payout, "market")
 	end
 
@@ -533,11 +541,8 @@ function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: b
 	PlayerDataService:RemoveItemByUid(player, itemUid)
 	PlayerDataService:AddCoins(player, payout, "quick_sell")
 
-	-- Quest hook: counts as a sale at market for daily quest progress.
-	local QuestService = Knit.GetService("QuestService")
-	QuestService:OnSoldAtMarket(player, payout)
-
-	-- Server-side fan-out (tutorial beat 4 advance, future analytics).
+	-- Server-side fan-out (tutorial beat 4 advance, quest progress, future
+	-- analytics). QuestService listens to SoldServer; no direct call needed.
 	self.SoldServer:Fire(player, payout, "quick")
 
 	return { ok = true, coinsEarned = payout }

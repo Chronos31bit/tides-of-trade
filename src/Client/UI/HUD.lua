@@ -11,8 +11,8 @@
 --     labels.
 --   * Anchored carefully around the Roblox topbar (IgnoreGuiInset = false)
 --     so the chat / menu icons never sit on top of our chips.
---   * Single ScreenGui contains *all* HUD elements (no second GUI for the
---     quest tracker). Self-cleans via UIUtil.makeScreenGui.
+--   * Daily quests are owned by QuestTrackerUI (separate ScreenGui, higher
+--     DisplayOrder). Self-cleans via UIUtil.makeScreenGui.
 
 local UIUtil = require(script.Parent.UIUtil)
 
@@ -37,9 +37,6 @@ export type HUDController = {
 	rodChipIcon: Frame,
 	rodChipStroke: UIStroke,
 	rodChipValue: TextLabel,
-
-	-- Quest list — container; HUDController rebuilds children on update.
-	questList: Frame,
 
 	-- Action bar
 	actionBar: Frame,
@@ -217,10 +214,9 @@ function HUD.create(): HUDController
 	statusCol.BackgroundTransparency = 1
 	statusCol.AnchorPoint = Vector2.new(1, 0)
 	statusCol.Position = UDim2.new(1, -16, 0, 16)
-	-- Tall enough for level chip (52) + rod chip (52) + quest panel (172)
-	-- + 2x8 layout padding. statusCol doesn't clip, so this is a hint that
-	-- keeps the column from visually colliding with the bottom action bar.
-	statusCol.Size = UDim2.fromOffset(260, 304)
+	-- level chip (52) + rod chip (52) + 1 layout gap (8) = 112.
+	-- Quest panel removed — QuestTrackerUI owns it now.
+	statusCol.Size = UDim2.fromOffset(260, 112)
 	statusCol.Parent = gui
 
 	local statusLayout = Instance.new("UIListLayout")
@@ -300,30 +296,6 @@ function HUD.create(): HUDController
 	rodChipValue.TextColor3 = P.Cream
 	rodChipValue.Parent = rodChip
 
-	-- QUEST PANEL
-	local questPanel = Instance.new("Frame")
-	questPanel.Size = UDim2.fromOffset(260, 172)
-	questPanel.BackgroundColor3 = P.TealDark
-	questPanel.BorderSizePixel = 0
-	questPanel.LayoutOrder = 3
-	local qpc = Instance.new("UICorner"); qpc.CornerRadius = UDim.new(0, 10); qpc.Parent = questPanel
-	questPanel.Parent = statusCol
-
-	local questTitle = smallCaps("daily quests")
-	questTitle.Position = UDim2.new(0, 12, 0, 10)
-	questTitle.Size = UDim2.new(1, -24, 0, 12)
-	questTitle.Parent = questPanel
-
-	local questList = Instance.new("Frame")
-	questList.BackgroundTransparency = 1
-	questList.Position = UDim2.new(0, 8, 0, 28)
-	questList.Size = UDim2.new(1, -16, 1, -36)
-	questList.Parent = questPanel
-
-	local qll = Instance.new("UIListLayout")
-	qll.Padding = UDim.new(0, 4)
-	qll.Parent = questList
-
 	-- ================================================================
 	-- BOTTOM ACTION BAR
 	-- AutomaticSize.X = bar shrinks to fit children, so the dark background
@@ -379,7 +351,6 @@ function HUD.create(): HUDController
 		rodChipIcon = rodChipIcon,
 		rodChipStroke = rodChipStroke,
 		rodChipValue = rodChipValue,
-		questList = questList,
 		actionBar = actionBar,
 		rodButton = rodBtn,
 		inventoryButton = invBtn,

@@ -312,32 +312,83 @@ GameConfig.Tutorial = {
 -- ====================================================================
 -- QUESTS — daily refresh at midnight UTC
 -- ====================================================================
+-- All tunable knobs for the daily-quest system. Quest *shapes* live in
+-- src/Shared/Config/QuestTemplates.lua; this block sets the dials around
+-- them: how many slots per day, which categories rotate when, what each
+-- difficulty band pays out, and how long completed-but-unclaimed quests
+-- linger after midnight.
 GameConfig.Quests = {
 	DailyCount = 3,
-	-- Quest templates the QuestService can roll. {kind, target range, reward range}
-	-- The actual target value is randomized within [min, max] per day.
-	Templates = {
-		{ kind = "CatchSpecies", targetMin = 3,  targetMax = 8,  coins = 150,  xp = 60  },
-		{ kind = "CatchAnyFish", targetMin = 10, targetMax = 25, coins = 120,  xp = 50  },
-		{ kind = "SellAtMarket", targetMin = 2,  targetMax = 5,  coins = 200,  xp = 80  },
-		{ kind = "EarnCoins",    targetMin = 500, targetMax = 1500, coins = 100, xp = 40 },
-		{ kind = "VisitHarbor",  targetMin = 1,  targetMax = 3,  coins = 80,   xp = 30  },
-	},
-}
+	-- After midnight UTC, completed-but-unclaimed quests move to
+	-- profile.yesterdayQuests and stay claimable for this many hours.
+	-- Incomplete quests are discarded outright (cozy: no streak stress).
+	RolloverGraceHours = 24,
 
--- ====================================================================
--- DAILY LOGIN — Day 7 grants a guaranteed Rare lure
--- ====================================================================
-GameConfig.LoginRewards = {
-	-- Streak slot 1 = day 1, slot 7 = day 7. After day 7 the cycle restarts.
-	-- Mix coins, lure tokens, and on day 7 a Rare-tier lure item.
-	[1] = { kind = "Coins",      amount = 100 },
-	[2] = { kind = "Coins",      amount = 200 },
-	[3] = { kind = "LureToken",  amount = 1   },
-	[4] = { kind = "Coins",      amount = 350 },
-	[5] = { kind = "LureToken",  amount = 2   },
-	[6] = { kind = "Coins",      amount = 500 },
-	[7] = { kind = "RareLure",   amount = 1   },
+	-- Weekday rotation. UTC weekdays use Mon=1..Sun=7. Each day picks
+	-- exactly 3 categories so the daily roll always spans 3 distinct
+	-- categories — no day of three fishing quests.
+	CategoryRotation = {
+		[1] = { "fishing", "market", "social" },        -- Monday
+		[2] = { "fishing", "market", "social" },        -- Tuesday
+		[3] = { "fishing", "building", "exploration" }, -- Wednesday
+		[4] = { "fishing", "building", "exploration" }, -- Thursday
+		[5] = { "fishing", "market", "social" },        -- Friday
+		[6] = { "fishing", "building", "exploration" }, -- Saturday
+		[7] = { "fishing", "market", "exploration" },   -- Sunday
+	},
+
+	-- Difficulty mix per day. Today's roll always picks 1 easy + 1 medium
+	-- + 1 hard quest, mapped onto the 3 rotation categories in that order
+	-- (easy → first rotation category, etc.). Adjust if the daily feels
+	-- too breezy or grindy.
+	DifficultyDistribution = { "easy", "medium", "hard" },
+
+	-- Reward bands per difficulty. Templates' rewardFormula picks within
+	-- these via a per-template "param scale" (e.g. larger N → closer to
+	-- the band max). Easy ≈ 5 min play, medium ≈ 15 min, hard ≈ 45 min.
+	DifficultyRewardScale = {
+		easy     = { coinsMin = 40,  coinsMax = 80,  xpMin = 20,  xpMax = 40  },
+		medium   = { coinsMin = 100, coinsMax = 200, xpMin = 50,  xpMax = 100 },
+		hard     = { coinsMin = 250, coinsMax = 500, xpMin = 150, xpMax = 300 },
+		-- Tutorial seed is a special case — rewardFormula reads
+		-- GameConfig.Tutorial.FirstQuestRewardCoins directly, ignoring
+		-- this band.
+		tutorial = { coinsMin = 100, coinsMax = 100, xpMin = 40,  xpMax = 40  },
+	},
+
+	-- Login-streak rewards. Day 7 is the headline (guaranteed Rare lure).
+	-- Day 14/21/28 are cosmetic placeholders — the cosmetic catalog
+	-- doesn't exist yet, so QuestService grants them as Good items with
+	-- the placeholder ids until cosmetics ship. After day 28 the streak
+	-- continues earning the day-28+ entry every day until the streak
+	-- breaks; we never reset the streak just because they "finished".
+	LoginStreakRewards = {
+		[1]  = { coins = 50  },
+		[2]  = { coins = 75  },
+		[3]  = { coins = 100 },
+		[4]  = { coins = 150 },
+		[5]  = { coins = 200 },
+		[6]  = { coins = 300 },
+		-- Day 7: keep existing `rare_lure` goodId (stable IDs are forever).
+		[7]  = { items = { { id = "rare_lure", count = 1 } } },
+		[14] = { items = { { id = "cosmetic_streak_14", count = 1 } } },  -- TODO: cosmetic catalog
+		[21] = { items = { { id = "cosmetic_streak_21", count = 1 } } },  -- TODO
+		[28] = { items = { { id = "cosmetic_streak_28", count = 1 } } },  -- TODO
+	},
+	-- After day 28 reward this every day until streak breaks.
+	LoginStreakReward28Plus = { coins = 200 },
+
+	-- Coalescing window for the QuestsChanged network push during
+	-- incremental progress. NOT a DataStore batch — the profile is mutated
+	-- in memory immediately and ProfileService owns the autosave, so there
+	-- is no thrash to guard against. Quest *completion* bypasses this and
+	-- pushes instantly so the card flip lands with the popup. Keep this
+	-- small; 0.3–0.5s coalesces rapid catches without feeling laggy.
+	SnapshotPushDebounceSeconds = 0.4,
+
+	-- How long the completion popup stays visible before auto-collapsing
+	-- to a tab badge. The reward stays claimable from the tracker either way.
+	CompletionPopupDuration = 8,
 }
 
 -- ====================================================================

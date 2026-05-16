@@ -32,6 +32,13 @@ local HarborService = Knit.CreateService({
 	-- a "Remote" prefix; server signals shouldn't need a "Server" suffix.
 	-- Don't refactor now — flag for a later sweep.
 	BuildingUpgradedServer = Signal.new(),  -- (player, uid, kind, oldTier, newTier)
+	BuildingPlacedServer   = Signal.new(),  -- (player, building, isDecorative)
+	-- Fires once per IncomeTickSeconds tick with the total coins granted to
+	-- the player from passive building income. QuestService's
+	-- building_earn_passive listens here. Separate from PlayerData's
+	-- CoinsChanged (which fires for every coin source) so we don't have to
+	-- thread a "reason" string through replication.
+	PassiveIncomeServer    = Signal.new(),  -- (player, coinsGranted)
 
 	-- internal state
 	_plotOrigins = {}, -- [Player] -> CFrame (top-left corner of their plot in world)
@@ -294,6 +301,7 @@ function HarborService:_payAllPassiveIncome()
 		end
 		if total > 0 then
 			PlayerDataService:AddCoins(player, total, "harbor_income")
+			self.PassiveIncomeServer:Fire(player, total)
 		end
 		-- Aquarium payouts handled in their own service since they're driven
 		-- by stock rather than a flat per-tick number on the building.
@@ -371,6 +379,13 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 	-- Tell the visual service to broadcast the new building's pretty Model
 	-- to every client (owner + visitors).
 	Knit.GetService("HarborVisualService"):OnBuildingPlaced(player, building)
+	-- Server-side fan-out. `isDecorative` is reserved for the future
+	-- decorative-props system; today every BuildingCatalog entry is
+	-- functional so we always pass false. No quest template consumes this
+	-- yet (building_decorate_n was dropped until decorative props exist —
+	-- see TODO in QuestTemplates.lua); the signal stays so that task has
+	-- its plumbing ready.
+	self.BuildingPlacedServer:Fire(player, building, false)
 	return { ok = true, building = building }
 end
 

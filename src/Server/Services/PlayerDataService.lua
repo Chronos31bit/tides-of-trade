@@ -34,9 +34,14 @@ local PROFILE_TEMPLATE: Profile = {
 	aquariumStock = {},     -- [aquariumUid] -> { FishItem, ... }
 	cosmetics = {},
 	rodTier = 1,
-	loginStreak = 0,
-	lastLoginDay = nil,
+	streak = {
+		current = 0,
+		longest = 0,
+		lastLoginUtcDay = nil,
+		weekStartedAt = 0,
+	},
 	dailyQuests = {},
+	yesterdayQuests = {},
 	questsRefreshedDay = nil,
 	crewId = nil,
 	activeBuff = nil,

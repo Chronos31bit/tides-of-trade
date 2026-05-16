@@ -48,19 +48,52 @@ export type PlacedBuilding = {
 -- ====================================================================
 -- QUESTS
 -- ====================================================================
+-- A rolled, per-player daily quest. The quest's *shape* (text, trigger,
+-- match/progress/reward logic) lives in QuestTemplates.lua keyed by
+-- templateId. This struct carries only the per-player roll: the sampled
+-- parameters, the player's progress, and claim state. Reward amounts are
+-- snapshotted at roll-time (via the template's rewardFormula) so that
+-- balance tweaks to a template don't retroactively change what a player
+-- already saw.
+
+export type QuestReward = {
+	coins: number?,
+	xp: number?,
+	lureTokens: number?,
+	items: {{id: string, count: number}}?,
+}
 
 export type Quest = {
-	id: string,         -- per-player unique id (e.g. "daily_2026_05_10_1")
-	kind: string,       -- "CatchSpecies" | "CatchAnyFish" | ...
-	target: number,     -- e.g. catch 5 mackerel -> 5
+	id: string,                      -- per-player unique id (e.g. "daily_2026-05-15_uid")
+	templateId: string,              -- key into QuestTemplates (e.g. "fishing_catch_n")
+	params: {[string]: any},         -- sampled parameter values for this roll
 	progress: number,
-	-- For CatchSpecies, the specific species id required.
-	speciesId: string?,
-	rewardCoins: number,
-	rewardXp: number,
+	target: number,                  -- progress required to complete
+	difficulty: string,              -- "easy" | "medium" | "hard" | "tutorial"
+	reward: QuestReward,             -- snapshotted at roll-time
 	completed: boolean,
 	claimed: boolean,
-	expiresAt: number,
+	rolledForUtcDay: string,         -- the "YYYY-MM-DD" the quest belongs to
+	expiresAt: number,               -- os.time() — drives the yesterday-grace countdown
+	-- Opaque service-only state for templates that need uniqueness
+	-- tracking (e.g. exploration_biomes_visited tracks the set of biomes
+	-- seen today). Keys are template-defined.
+	progressState: {[string]: any}?,
+	-- Cached rendered text so clients and logs don't need to import the
+	-- template module. Re-derivable from templateId+params if dropped.
+	renderedText: string,
+	-- Localized category for UI grouping ("fishing" | "market" | ...).
+	category: string,
+}
+
+-- ====================================================================
+-- STREAK
+-- ====================================================================
+export type Streak = {
+	current: number,                 -- consecutive UTC days logged in
+	longest: number,                 -- record
+	lastLoginUtcDay: string?,        -- "YYYY-MM-DD" of last credited login
+	weekStartedAt: number,           -- os.time() of the current 7-day cycle start
 }
 
 -- ====================================================================
@@ -98,9 +131,14 @@ export type Profile = {
 	rodTier: number,
 
 	-- Daily systems
-	loginStreak: number,
-	lastLoginDay: string?,    -- "YYYY-MM-DD" UTC
+	streak: Streak,
 	dailyQuests: {Quest},
+	-- Yesterday's completed-but-unclaimed quests, held for
+	-- GameConfig.Quests.RolloverGraceHours after the midnight refresh. After
+	-- the grace window ends this list is wiped (rewards forfeit).
+	-- Incomplete quests from yesterday are NOT moved here — they're
+	-- discarded outright (cozy: no stress accumulation).
+	yesterdayQuests: {Quest},
 	questsRefreshedDay: string?,
 
 	-- Social

@@ -280,7 +280,7 @@ function TutorialService:KnitStart()
 	-- ----------------------------------------------------------------
 	-- GAMEPLAY HOOKS
 	-- ----------------------------------------------------------------
-	FishingService.CaughtServer:Connect(function(player, _fishId)
+	FishingService.CaughtServer:Connect(function(player, _fish, _weightKg, _isPerfect)
 		self:_onFishCaught(player)
 	end)
 	FishingService.CastStartedServer:Connect(function(player)
