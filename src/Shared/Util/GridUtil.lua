@@ -85,6 +85,33 @@ function GridUtil.checkPlacement(occupancy: {[string]: string}, gx: number, gz: 
 	return true, nil
 end
 
+-- ====================================================================
+-- gridToWorld — used by HarborVisualController to position cloned Models.
+--
+-- Returns a CFrame at the *footprint's bottom-center on the plot plate*,
+-- already rotated by `rotation` around Y. A Model whose PrimaryPart sits
+-- at its footprint bottom-center can be PivotTo'd directly to this CFrame.
+--
+-- footprint axes are pre-swapped here for 90/270° rotations so the
+-- returned position centers the rotated footprint correctly. The caller
+-- still passes the unrotated footprint from BuildingCatalog.
+-- ====================================================================
+function GridUtil.gridToWorld(plotOrigin: CFrame, gridX: number, gridZ: number, footprint: {number}, rotation: number): CFrame
+	local w, d = footprint[1], footprint[2]
+	if rotation == 90 or rotation == 270 then
+		w, d = d, w
+	end
+	local local_ = GridUtil.gridToLocal(gridX, gridZ)
+	-- PLATE_TOP matches HarborService's plate (Y=1 thick plate centered at Y=1,
+	-- so top of plate is at Y=1.5). Buildings rest on this surface.
+	local PLATE_TOP = 1.5
+	local centerX = local_.X + (w * CELL) / 2
+	local centerZ = local_.Z + (d * CELL) / 2
+	return plotOrigin
+		* CFrame.new(centerX, PLATE_TOP, centerZ)
+		* CFrame.Angles(0, math.rad(rotation), 0)
+end
+
 GridUtil.CELLS_PER_AXIS = CELLS_PER_AXIS
 GridUtil.CELL = CELL
 GridUtil.PLOT = PLOT

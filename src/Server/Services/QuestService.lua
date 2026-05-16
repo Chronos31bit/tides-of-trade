@@ -803,17 +803,17 @@ function QuestService:KnitStart()
 		end)
 	end
 	if self._availableTriggers.BuildingUpgraded then
-		HarborService.BuildingUpgradedServer:Connect(function(player, _uid, kind, oldTier, newTier)
-			self:_applyEvent(player, "BuildingUpgraded", { kind = kind, oldTier = oldTier, newTier = newTier })
+		HarborService.BuildingUpgradedServer.Event:Connect(function(player, building, oldTier, newTier)
+			self:_applyEvent(player, "BuildingUpgraded", { kind = building.kind, oldTier = oldTier, newTier = newTier })
 		end)
 	end
 	if self._availableTriggers.BuildingPlaced then
-		HarborService.BuildingPlacedServer:Connect(function(player, building, isDecorative)
-			self:_applyEvent(player, "BuildingPlaced", { building = building, isDecorative = isDecorative })
+		HarborService.BuildingPlacedServer.Event:Connect(function(player, building)
+			self:_applyEvent(player, "BuildingPlaced", { building = building, isDecorative = false })
 		end)
 	end
 	if self._availableTriggers.PassiveIncome then
-		HarborService.PassiveIncomeServer:Connect(function(player, coinsGranted)
+		HarborService.PassiveIncomeServer.Event:Connect(function(player, coinsGranted)
 			self:_applyEvent(player, "PassiveIncome", { coinsGranted = coinsGranted })
 		end)
 	end

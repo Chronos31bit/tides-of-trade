@@ -196,6 +196,35 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	end
 
 	-- ----------------------------------------------------------------
+	-- PERFECT SPARKLES — 1-second burst of tiny gold dots drifting up
+	-- along the card border. We don't have a 2D ParticleEmitter, so we
+	-- spawn ~10 short-lived Frames manually. Skipped under reduced motion.
+	-- ----------------------------------------------------------------
+	if payload.perfect and not MotionUtil.reducedMotionEnabled() then
+		task.spawn(function()
+			for i = 1, 10 do
+				if not card.Parent then return end
+				local dot = Instance.new("Frame")
+				dot.AnchorPoint = Vector2.new(0.5, 0.5)
+				-- Spawn along the top edge, randomly distributed.
+				dot.Position = UDim2.new(math.random(), math.random(-4, 4), 0, math.random(-2, 2))
+				dot.Size = UDim2.fromOffset(4, 4)
+				dot.BackgroundColor3 = perfectColor
+				dot.BorderSizePixel = 0
+				local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(1, 0); dc.Parent = dot
+				dot.ZIndex = 6
+				dot.Parent = card
+				local rise = MotionUtil.tween(dot, TweenInfo.new(0.7 + math.random() * 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Position = dot.Position + UDim2.fromOffset(math.random(-12, 12), -30),
+					BackgroundTransparency = 1,
+				})
+				rise.Completed:Connect(function() rise:Destroy(); dot:Destroy() end)
+				task.wait(0.07)
+			end
+		end)
+	end
+
+	-- ----------------------------------------------------------------
 	-- SLIDE IN — Back/Out for a satisfying overshoot. Reduced motion =
 	-- fade in only.
 	-- ----------------------------------------------------------------

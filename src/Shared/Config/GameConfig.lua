@@ -146,10 +146,13 @@ GameConfig.Fishing = {
 	-- How long the meter stays up before the cast auto-fails.
 	CastTimeoutSeconds = 8.0,
 
-	-- How long the reel-phase stays open before server auto-fails the cast.
-	-- Wider than CastTimeoutSeconds because the player is actively engaged
-	-- (holding/releasing input) rather than waiting on a meter to oscillate.
-	ReelTimeoutSeconds = 20.0,
+	-- Reel mini-game window. After the bite (ClaimCast hit), the player has
+	-- this many seconds to either complete the hold or escape, otherwise the
+	-- pending cast is reaped and CastResolved fires with reason="reel_timeout".
+	ReelTimeoutSeconds = 12.0,
+
+	-- Consolation XP granted when a fish escapes during the reel phase.
+	EscapeConsolationXP = 5,
 
 	-- Lure Token drop chance per successful catch (premium soft currency).
 	LureTokenDropChance = 0.02, -- 2% per catch
@@ -185,14 +188,6 @@ GameConfig.Fishing = {
 		ReelHoldDuration          = 2.0,
 		ReelZoneSpeedBase         = 1.2,
 		ReelZoneSpeedPerKg        = 0.04,
-		-- Indicator movement (0..1 bar fraction per second).
-		ReelIndicatorHoldSpeed    = 0.5,
-		ReelIndicatorReleaseSpeed = 0.4,
-		-- Zone width as a fraction of the bar; narrowed for heavier fish.
-		ReelZoneBaseWidth         = 0.22,
-		ReelZoneWidthPerDifficulty = -0.10,  -- subtracted: heavier => narrower
-		-- How far the zone center oscillates from 0.5 (sine amplitude).
-		ReelZoneSwingAmplitude    = 0.32,
 		PerfectZoneFraction       = 0.25,
 		PerfectBonusMultiplier    = 2.0,
 		PerfectThreshold          = 0.8,
@@ -411,6 +406,10 @@ GameConfig.AntiExploit = {
 	-- If a client claims a catch outside this window after server says "fish
 	-- on the line", reject. Tight window = exploiters can't replay old hooks.
 	CatchClaimWindowSeconds = 6,
+
+	-- Minimum elapsed seconds between bite and ReleaseReel claim.
+	-- Below this, the reel mini-game couldn't have been played honestly.
+	MinReelSeconds = 0.5,
 }
 
 -- ====================================================================
