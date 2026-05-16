@@ -80,6 +80,7 @@ local PlayerDataService = Knit.CreateService({
 		ProfileLoaded     = Knit.CreateSignal(),  -- fired once per session, after load
 		CoinsChanged      = Knit.CreateSignal(),  -- (newCoins, newLureTokens)
 		XPChanged         = Knit.CreateSignal(),  -- (newLevel, newXp, xpForNextLevel)
+		RodTierChanged    = Knit.CreateSignal(),  -- (newTier)
 		InventoryChanged  = Knit.CreateSignal(),  -- (snapshot)
 		BuildingsChanged  = Knit.CreateSignal(),  -- (snapshot)
 		QuestsChanged     = Knit.CreateSignal(),  -- (snapshot)
@@ -262,6 +263,17 @@ function PlayerDataService:AddXP(player: Player, amount: number)
 		data.level += 1
 	end
 	self.Client.XPChanged:Fire(player, data.level, data.xp, xpForLevel(data.level + 1))
+end
+
+-- ============ Rod tier ============
+
+-- Single writer for rodTier. Today only ShopService:BuyRodTier calls this;
+-- any future upgrade path (achievement, story beat) should route through here
+-- too so the RodTierChanged signal always fires and the HUD chip stays live.
+function PlayerDataService:SetRodTier(player: Player, tier: number)
+	local data = self:GetProfile(player); if not data then return end
+	data.rodTier = tier
+	self.Client.RodTierChanged:Fire(player, tier)
 end
 
 -- ============ Inventory ============

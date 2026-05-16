@@ -200,6 +200,58 @@ GameConfig.Fishing = {
 		RevealAutoDismissAfter    = 3.0,
 		MythicBorderCycleDuration = 1.5,
 	},
+
+	-- ----------------------------------------------------------------
+	-- ROD TIER UNLOCKS — declarative tier slots. `speciesUnlocked` is
+	-- left empty here and populated at server boot from FishCatalog by
+	-- RodTierUtil.populate (RodService:KnitInit). Keyed by tier number.
+	--
+	-- Intentionally species-ONLY: the rod display name / cost /
+	-- description already live in ShopService.RODS (the rod shop's
+	-- catalog, client-exposed via ShopService:GetRodCatalog). Duplicating
+	-- them here would let the two drift apart, so the tooltip pulls names
+	-- from the shop catalog and counts/species from FishCatalog via
+	-- RodTierUtil. Biomes are NOT listed because rod tier does not gate
+	-- biomes in this game — only per-fish rodMinTier gates catches.
+	--
+	-- Slot count must cover every rodMinTier the catalog uses (currently
+	-- 1..5). RodTierUtil only populates slots that exist here.
+	RodTierUnlocks = {
+		[1] = { speciesUnlocked = {} },
+		[2] = { speciesUnlocked = {} },
+		[3] = { speciesUnlocked = {} },
+		[4] = { speciesUnlocked = {} },
+		[5] = { speciesUnlocked = {} },
+	},
+}
+
+-- ====================================================================
+-- UI — client-only presentation tunables (no gameplay effect)
+-- ====================================================================
+GameConfig.UI = {
+	-- HUD rod-tier chip + its tap/long-press tooltip.
+	RodTierChip = {
+		-- Tooltip auto-dismisses after this many seconds of no interaction.
+		TooltipInactivitySeconds = 12,
+		-- Fade in/out duration. Under ReducedMotion the slide is skipped but
+		-- the fade still plays (halved) — a fade is the reduced-motion-safe
+		-- form of "appear".
+		TooltipFadeDuration      = 0.18,
+		-- Slide-in vertical offset (px). Skipped entirely under ReducedMotion.
+		TooltipSlideOffsetPx     = 14,
+		-- Tier-change glow pulse duration (decorative; snapped under RM).
+		GlowPulseDuration        = 0.45,
+		-- Max example species names shown in the "next tier" preview.
+		NextTierExampleLimit     = 5,
+		-- Hold this long (seconds) on touch to count as a long-press open.
+		LongPressSeconds         = 0.35,
+		-- Max-tier accent colour cycle period (reuses the mythic-frame feel).
+		MaxTierCycleDuration     = 1.5,
+		-- Single source of truth for the tooltip's "how to upgrade" line.
+		-- The Rod Shop exists (ShopService:BuyRodTier), so this points at it
+		-- rather than a placeholder. Edit this one string if the path moves.
+		UpgradeHintText          = "Upgrade your rod at the Rod Shop on the dock.",
+	},
 }
 
 -- ====================================================================
