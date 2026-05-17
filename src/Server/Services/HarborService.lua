@@ -287,6 +287,19 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	if building.kind == "Aquarium" then
 		makePrompt("Open Aquarium", "Aquarium")
 	elseif building.kind == "Dock" then
+		-- At tier 1 the dock is still "broken" — show the repair prompt so the
+		-- tutorial beat can be completed. The anchor is destroyed and respawned
+		-- after the upgrade, so this prompt disappears automatically.
+		if building.tier == 1 then
+			local repairPrompt = Instance.new("ProximityPrompt")
+			repairPrompt.ActionText    = "Repair Dock"
+			repairPrompt.ObjectText    = "Dock"
+			repairPrompt.HoldDuration  = 0
+			repairPrompt.MaxActivationDistance = 12
+			repairPrompt.RequiresLineOfSight   = false
+			repairPrompt:SetAttribute("buildingUid", building.uid)
+			repairPrompt.Parent = anchor
+		end
 		makePrompt("Buy Rod Upgrade", "Rod Shop")
 		-- Bait shop is also accessible from the Dock so players can buy bait
 		-- from day one without placing a separate BaitShop building. Dock tier
