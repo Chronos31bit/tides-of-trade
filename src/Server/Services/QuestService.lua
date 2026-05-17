@@ -334,10 +334,6 @@ function QuestService:_rolloverAndRoll(player: Player)
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return end
 
-	-- Tutorial gate: no daily rolls until tutorial complete. The tutorial
-	-- handoff calls SeedTutorialQuest which builds its own set.
-	if data.tutorial and data.tutorial.state ~= "complete" then return end
-
 	local today = TimeUtil.currentUTCDay()
 	-- Detect schema drift: pre-rewrite quests lack templateId. If any
 	-- quest in the bag is on the old shape, force a re-roll so the
