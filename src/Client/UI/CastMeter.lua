@@ -235,7 +235,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 		local indicator = Instance.new("Frame")
 		indicator.Name = "ReelIndicator"
 		indicator.AnchorPoint = Vector2.new(0.5, 0.5)
-		indicator.Position = UDim2.new(0, 0, 0.5, 0)  -- starts at left edge
+		indicator.Position = UDim2.new(0.5, 0, 0.5, 0)  -- starts at centre, matches indicatorPos
 		indicator.Size = UDim2.new(0, 8, 1.6, 0)
 		indicator.BackgroundColor3 = P.Cream
 		indicator.BackgroundTransparency = 1
@@ -268,7 +268,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 		-- ---- reel state ----
 		local reelStart = os.clock()
 		local lastFrameAt = reelStart
-		local indicatorPos = 0.0       -- 0..1 along the bar
+		local indicatorPos = 0.5       -- start at centre so the player has time to react
 		local holdTime = 0.0           -- accumulated time in zone (perfect = 2×)
 		local perfectTime = 0.0        -- raw seconds spent inside the perfect strip
 		local totalTrackingTime = 0.0  -- raw seconds spent inside the zone
