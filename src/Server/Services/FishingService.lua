@@ -215,6 +215,10 @@ function FishingService:_getContext(player: Player): {biome: string, timeOfDay: 
 		end
 	end
 
+	-- Stack bait rarityBoost on top of any active buff multiplier.
+	local BaitService = Knit.GetService("BaitService")
+	rareMul = rareMul * BaitService:GetEquippedRarityBoost(player)
+
 	return {
 		biome = biome,
 		timeOfDay = WeatherService:GetTimeOfDay(),
@@ -337,6 +341,12 @@ function FishingService.Client:ClaimCast(player: Player, castId: string, marker:
 	-- validation zone, so the check matches what the UI showed.
 	local perfHalf = (pending.displaySize * GameConfig.Fishing.FeelTuning.PerfectZoneFraction) / 2
 	pending.castPerfect = math.abs(marker - pending.displayCenter) <= perfHalf
+
+	-- Consume 1 bait on a successful cast (green-zone hit). Spawned so the
+	-- stash-notify round-trip doesn't add latency to the ClaimCast response.
+	task.spawn(function()
+		Knit.GetService("BaitService"):ConsumeEquippedBait(player)
+	end)
 
 	-- HIT → transition to reel. Weight & tier travel to the client via
 	-- BiteStarted; fish identity stays server-side until CastResolved.

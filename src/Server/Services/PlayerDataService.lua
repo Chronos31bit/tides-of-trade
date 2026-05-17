@@ -52,6 +52,12 @@ local PROFILE_TEMPLATE: Profile = {
 		totalCoinsEarned = 0,
 		caughtSpecies = {},
 	},
+	-- Bait. baitStash is a map of baitId → unit count; Reconcile adds it as
+	-- an empty table for existing profiles (safe default). equippedBaitId stays
+	-- nil for existing profiles — code reads it as nil via normal table lookup.
+	baitStash = {},
+	equippedBaitId = nil,
+
 	-- Tutorial state machine. New fields are picked up by profile:Reconcile()
 	-- on load, so existing saves get a default-not_started slot — but the
 	-- TutorialService:_isReturningVet check below force-completes any profile
