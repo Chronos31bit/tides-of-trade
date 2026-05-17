@@ -290,8 +290,8 @@ function TutorialService:KnitStart()
 	MarketService.SoldServer:Connect(function(player, _payout, _kind)
 		self:_onSold(player)
 	end)
-	HarborService.BuildingUpgradedServer:Connect(function(player, _uid, kind, oldTier, newTier)
-		self:_onBuildingUpgraded(player, kind, oldTier, newTier)
+	HarborService.BuildingUpgradedServer:Connect(function(player, building, oldTier, newTier)
+		self:_onBuildingUpgraded(player, building.kind, oldTier, newTier)
 	end)
 
 	-- Coin gain hook for beat 5's waiting state. Re-check every coin
