@@ -39,11 +39,12 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {4, 6},
 		description = "Lets you cast in deeper water. Higher tiers reach Trench biome.",
 		tiers = {
-			{ incomePerTick = 0  },               -- starter dock (free — see GameConfig.Buildings)
+			-- Tier 1 — starter dock (free). Bait purchased here at full price.
+			{ incomePerTick = 0,  baitDiscountPct = 0.00 },
 			-- Tier 2 is the tutorial's "first repair" — see GameConfig.Tutorial.RepairCostCoins
 			-- and GameConfig.Buildings.Dock.tierCosts[2] for the coin cost.
-			{ incomePerTick = 5  },
-			{ incomePerTick = 15 },
+			{ incomePerTick = 5,  baitDiscountPct = 0.10 },
+			{ incomePerTick = 15, baitDiscountPct = 0.20 },
 		},
 	},
 

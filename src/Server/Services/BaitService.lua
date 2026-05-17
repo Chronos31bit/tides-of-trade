@@ -52,22 +52,21 @@ local function getPlayerDataService()
 	return Knit.GetService("PlayerDataService")
 end
 
--- Returns the baitDiscountPct from the player's highest-tier BaitShop
--- building (0 if they have no BaitShop placed).
+-- Returns the baitDiscountPct from the player's Dock building tier.
+-- Every player has a Dock, so this is always defined (0 for tier 1).
 function BaitService:_getDiscount(player: Player): number
 	local data = getPlayerDataService():GetProfile(player)
 	if not data then return 0 end
-	local best = 0
 	for _, building in ipairs(data.buildings) do
-		if building.kind == "BaitShop" then
-			local def = BuildingCatalog.BaitShop
+		if building.kind == "Dock" then
+			local def = BuildingCatalog.Dock
 			local tierData = def and def.tiers[building.tier]
-			if tierData and tierData.baitDiscountPct and tierData.baitDiscountPct > best then
-				best = tierData.baitDiscountPct
+			if tierData and tierData.baitDiscountPct then
+				return tierData.baitDiscountPct
 			end
 		end
 	end
-	return best
+	return 0
 end
 
 -- Push the current stash snapshot to the owning client.
