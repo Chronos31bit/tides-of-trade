@@ -1,16 +1,14 @@
 --!strict
 -- BaitShopUI.lua
--- Mobile-first bait shop panel (target 380px portrait, scales up on desktop).
--- Shows every bait in BaitCatalog, the player's current stock and equipped state,
--- the price after BaitShop discount, and Buy / Equip buttons.
--- All interactivity goes through callbacks — no Knit/service calls here.
+-- Mobile-first bait shop panel, max 380px wide.
+-- Row layout fits Buy + Equip inside a single 380px column without overflow:
+--   [tier badge] [name / tier / boost · N held] [Buy Xc] [Equip / ✓]
+-- Price and stock count are baked into button labels so we need no extra columns.
 
 local UIUtil = require(script.Parent.UIUtil)
 
 local P = UIUtil.Palette
 
--- Tier colours reuse the rarity palette so bait chips read consistently with
--- catch-reveal badges and the cast-meter colour coding.
 local TIER_COLOUR: {[string]: Color3} = {
 	Common   = P.Common,
 	Uncommon = P.Uncommon,
@@ -18,12 +16,11 @@ local TIER_COLOUR: {[string]: Color3} = {
 	Epic     = P.Gold,
 }
 
-local BaitShopUI = {}
+-- Pixels reserved for the header (title + close button). The ScrollingFrame
+-- starts below this so it can never overlap the header.
+local HEADER_H = 54
 
-export type BaitHandle = {
-	close:        () -> (),
-	refreshStash: (stash: {[string]: number}, equippedBaitId: string?) -> (),
-}
+local BaitShopUI = {}
 
 export type BaitDef = {
 	id: string,
@@ -34,274 +31,228 @@ export type BaitDef = {
 	maxStack: number,
 }
 
+export type BaitHandle = {
+	close:        () -> (),
+	refreshStash: (stash: {[string]: number}, equippedBaitId: string?) -> (),
+}
+
 -- ====================================================================
--- INTERNAL — build a single bait row card
+-- ROW BUILDER
 -- ====================================================================
-local ROW_HEIGHT = 88
 
 local function buildRow(
-	parent:       ScrollingFrame,
-	bait:         BaitDef,
-	count:        number,
-	equipped:     boolean,
-	discountPct:  number,
-	layoutOrder:  number,
-	onBuy:        () -> (),
-	onEquip:      () -> ()
+	parent:      ScrollingFrame,
+	bait:        BaitDef,
+	count:       number,
+	equipped:    boolean,
+	discountPct: number,
+	order:       number,
+	onBuy:       () -> (),
+	onEquip:     () -> ()
 ): Frame
-	local discountedCost = math.max(1, math.ceil(bait.baseCost * (1 - discountPct)))
+	local discounted = math.max(1, math.ceil(bait.baseCost * (1 - discountPct)))
+	local maxed      = count >= bait.maxStack
 
 	local row = Instance.new("Frame")
-	row.Name = "Row_" .. bait.id
-	row.Size = UDim2.new(1, 0, 0, ROW_HEIGHT)
+	row.Name             = "Row"
+	row.Size             = UDim2.new(1, 0, 0, 80)
 	row.BackgroundColor3 = equipped and P.TealLight or P.Teal
-	row.BorderSizePixel = 0
-	row.LayoutOrder = layoutOrder
+	row.BorderSizePixel  = 0
+	row.LayoutOrder      = order
 	local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, 10); rc.Parent = row
 	if equipped then
 		local stroke = Instance.new("UIStroke")
-		stroke.Color = P.Gold
-		stroke.Thickness = 2
+		stroke.Color       = P.Gold
+		stroke.Thickness   = 2
 		stroke.Transparency = 0.1
-		stroke.Parent = row
+		stroke.Parent      = row
 	end
 	row.Parent = parent
 
-	-- ── Tier badge (left edge) ────────────────────────────────────────
-	local badge = Instance.new("Frame")
-	badge.Name = "TierBadge"
-	badge.AnchorPoint = Vector2.new(0, 0.5)
-	badge.Position = UDim2.new(0, 10, 0.5, 0)
-	badge.Size = UDim2.fromOffset(8, 48)
-	badge.BackgroundColor3 = TIER_COLOUR[bait.tier] or P.Common
-	badge.BorderSizePixel = 0
-	local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0.5, 0); bc.Parent = badge
-	badge.Parent = row
+	-- Tier colour strip (left edge)
+	local strip = Instance.new("Frame")
+	strip.AnchorPoint       = Vector2.new(0, 0.5)
+	strip.Position          = UDim2.new(0, 8, 0.5, 0)
+	strip.Size              = UDim2.fromOffset(5, 44)
+	strip.BackgroundColor3  = TIER_COLOUR[bait.tier] or P.Common
+	strip.BorderSizePixel   = 0
+	local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(0.5, 0); sc.Parent = strip
+	strip.Parent = row
 
-	-- ── Name + description ───────────────────────────────────────────
+	-- Name
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.BackgroundTransparency = 1
-	nameLabel.Position = UDim2.new(0, 26, 0, 10)
-	nameLabel.Size = UDim2.new(0.42, 0, 0, 22)
-	nameLabel.Font = Enum.Font.GothamBold
-	nameLabel.TextSize = 15
-	nameLabel.TextColor3 = P.Cream
-	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	nameLabel.Text = bait.displayName
-	nameLabel.Parent = row
+	nameLabel.Position          = UDim2.new(0, 20, 0, 7)
+	nameLabel.Size              = UDim2.fromOffset(168, 20)
+	nameLabel.Font              = Enum.Font.GothamBold
+	nameLabel.TextSize          = 15
+	nameLabel.TextColor3        = P.Cream
+	nameLabel.TextXAlignment    = Enum.TextXAlignment.Left
+	nameLabel.TextTruncate      = Enum.TextTruncate.AtEnd
+	nameLabel.Text              = bait.displayName
+	nameLabel.Parent            = row
 
+	-- Tier text
 	local tierLabel = Instance.new("TextLabel")
 	tierLabel.BackgroundTransparency = 1
-	tierLabel.Position = UDim2.new(0, 26, 0, 30)
-	tierLabel.Size = UDim2.new(0.42, 0, 0, 16)
-	tierLabel.Font = Enum.Font.Gotham
-	tierLabel.TextSize = 12
-	tierLabel.TextColor3 = TIER_COLOUR[bait.tier] or P.CreamSoft
-	tierLabel.TextXAlignment = Enum.TextXAlignment.Left
-	tierLabel.Text = bait.tier
-	tierLabel.Parent = row
+	tierLabel.Position          = UDim2.new(0, 20, 0, 27)
+	tierLabel.Size              = UDim2.fromOffset(168, 14)
+	tierLabel.Font              = Enum.Font.Gotham
+	tierLabel.TextSize          = 12
+	tierLabel.TextColor3        = TIER_COLOUR[bait.tier] or P.CreamSoft
+	tierLabel.TextXAlignment    = Enum.TextXAlignment.Left
+	tierLabel.Text              = bait.tier
+	tierLabel.Parent            = row
 
-	local boostStr = (bait.rarityBoost == 1.0) and "No rarity boost"
-		or (("%.1f× rare weight"):format(bait.rarityBoost))
-	local descLabel = Instance.new("TextLabel")
-	descLabel.BackgroundTransparency = 1
-	descLabel.Position = UDim2.new(0, 26, 0, 50)
-	descLabel.Size = UDim2.new(0.42, 0, 0, 28)
-	descLabel.Font = Enum.Font.Gotham
-	descLabel.TextSize = 11
-	descLabel.TextColor3 = P.CreamSoft
-	descLabel.TextXAlignment = Enum.TextXAlignment.Left
-	descLabel.TextWrapped = true
-	descLabel.Text = boostStr
-	descLabel.Parent = row
+	-- Boost + held count in one line
+	local boostStr = bait.rarityBoost == 1.0
+		and "No boost"
+		or ("%.1f× rares"):format(bait.rarityBoost)
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.Position          = UDim2.new(0, 20, 0, 46)
+	infoLabel.Size              = UDim2.fromOffset(168, 13)
+	infoLabel.Font              = Enum.Font.Gotham
+	infoLabel.TextSize          = 11
+	infoLabel.TextColor3        = P.CreamSoft
+	infoLabel.TextXAlignment    = Enum.TextXAlignment.Left
+	infoLabel.Text              = boostStr .. "  ·  " .. count .. " held"
+	infoLabel.Parent            = row
 
-	-- ── Stock counter ─────────────────────────────────────────────────
-	local stockLabel = Instance.new("TextLabel")
-	stockLabel.BackgroundTransparency = 1
-	stockLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-	stockLabel.Position = UDim2.new(0.53, 0, 0.5, 0)
-	stockLabel.Size = UDim2.fromOffset(48, 22)
-	stockLabel.Font = Enum.Font.GothamBold
-	stockLabel.TextSize = 14
-	stockLabel.TextColor3 = count > 0 and P.Gold or P.CreamSoft
-	stockLabel.TextXAlignment = Enum.TextXAlignment.Center
-	stockLabel.Text = tostring(count)
-	stockLabel.Parent = row
-
-	local stockCaption = Instance.new("TextLabel")
-	stockCaption.BackgroundTransparency = 1
-	stockCaption.AnchorPoint = Vector2.new(0.5, 0)
-	stockCaption.Position = UDim2.new(0.53, 0, 0.5, 4)
-	stockCaption.Size = UDim2.fromOffset(48, 14)
-	stockCaption.Font = Enum.Font.Gotham
-	stockCaption.TextSize = 10
-	stockCaption.TextColor3 = P.CreamSoft
-	stockCaption.TextXAlignment = Enum.TextXAlignment.Center
-	stockCaption.Text = "held"
-	stockCaption.Parent = row
-
-	-- ── Price label ───────────────────────────────────────────────────
-	local priceLabel = Instance.new("TextLabel")
-	priceLabel.BackgroundTransparency = 1
-	priceLabel.AnchorPoint = Vector2.new(1, 0.5)
-	priceLabel.Position = UDim2.new(1, -126, 0.5, 0)
-	priceLabel.Size = UDim2.fromOffset(70, 22)
-	priceLabel.Font = Enum.Font.GothamBold
-	priceLabel.TextSize = 13
-	priceLabel.TextColor3 = discountPct > 0 and P.Success or P.Gold
-	priceLabel.TextXAlignment = Enum.TextXAlignment.Right
-	priceLabel.Text = discountedCost .. "c"
-	priceLabel.Parent = row
-
-	-- ── Equip button ──────────────────────────────────────────────────
-	local equipBtn = UIUtil.makeButton(
-		equipped and "Equipped" or "Equip",
-		onEquip,
-		{
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -10, 0.5, 0),
-			Size = UDim2.fromOffset(86, 44),
-			BackgroundColor3 = equipped and P.GoldDeep or (count > 0 and P.Wood or P.TealDark),
-			variant = "secondary",
-		}
-	)
-	if equipped then
-		equipBtn.TextColor3 = P.Cream
-	elseif count == 0 then
+	-- Equip button (right-most, 90 × 44)
+	local equipText = equipped and "✓ On" or (count > 0 and "Equip" or "Equip")
+	local equipBtn = UIUtil.makeButton(equipText, onEquip, {
+		AnchorPoint      = Vector2.new(1, 0.5),
+		Position         = UDim2.new(1, -8, 0.5, 0),
+		Size             = UDim2.fromOffset(90, 44),
+		BackgroundColor3 = equipped and P.GoldDeep or (count > 0 and P.Wood or P.TealDark),
+		variant          = "secondary",
+	})
+	if not equipped and count == 0 then
 		equipBtn.TextColor3 = P.CreamSoft
 	end
 	equipBtn.Parent = row
 
-	-- ── Buy button ────────────────────────────────────────────────────
-	local buyBtn = UIUtil.makeButton(
-		"Buy",
-		onBuy,
-		{
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -104, 0.5, 0),
-			Size = UDim2.fromOffset(72, 44),
-			BackgroundColor3 = count >= bait.maxStack and P.TealDark or P.Sunset,
-			variant = "primary",
-		}
-	)
-	if count >= bait.maxStack then
-		buyBtn.TextColor3 = P.CreamSoft
-	end
+	-- Buy button ("Buy Xc"), to the left of Equip with an 8 px gap
+	local buyText = maxed and "Full" or ("Buy " .. discounted .. "c")
+	local buyBtn = UIUtil.makeButton(buyText, onBuy, {
+		AnchorPoint      = Vector2.new(1, 0.5),
+		Position         = UDim2.new(1, -106, 0.5, 0),
+		Size             = UDim2.fromOffset(90, 44),
+		BackgroundColor3 = maxed and P.TealDark or P.Sunset,
+		variant          = "primary",
+	})
+	if maxed then buyBtn.TextColor3 = P.CreamSoft end
 	buyBtn.Parent = row
 
 	return row
 end
 
 -- ====================================================================
--- PUBLIC API
+-- PUBLIC
 -- ====================================================================
 
 function BaitShopUI.show(
-	baits:         {BaitDef},
-	initialStash:  {[string]: number},
+	baits:          {BaitDef},
+	initialStash:   {[string]: number},
 	equippedBaitId: string?,
-	discountPct:   number,
-	onBuy:         (baitId: string, qty: number) -> (),
-	onEquip:       (baitId: string?) -> ()
+	discountPct:    number,
+	onBuy:          (baitId: string, qty: number) -> (),
+	onEquip:        (baitId: string?) -> ()
 ): BaitHandle
+
 	local gui = UIUtil.makeScreenGui("BaitShopUI")
+	-- Sit above HUD and other gameplay ScreenGuis so panels aren't clipped
+	-- by elements that were created before this session.
+	gui.DisplayOrder = 20
 
-	-- Semi-transparent full-screen backdrop for tap-to-close.
+	-- Semi-transparent full-screen backdrop (tap to close).
 	local backdrop = Instance.new("TextButton")
-	backdrop.Text = ""
-	backdrop.AutoButtonColor = false
-	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
+	backdrop.Text                 = ""
+	backdrop.AutoButtonColor      = false
+	backdrop.BackgroundColor3     = Color3.new(0, 0, 0)
 	backdrop.BackgroundTransparency = 0.45
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.Parent = gui
+	backdrop.BorderSizePixel      = 0
+	backdrop.Size                 = UDim2.fromScale(1, 1)
+	backdrop.Parent               = gui
 
-	-- Main panel — max 380px wide to match the mobile-first design target.
+	-- Main panel — capped at 380 × 680 so it fits phones and doesn't
+	-- stomp the HUD on tall screens.
 	local panel = UIUtil.makePanel({
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position    = UDim2.fromScale(0.5, 0.5),
-		Size        = UDim2.new(0.94, 0, 0.88, 0),
+		AnchorPoint      = Vector2.new(0.5, 0.5),
+		Position         = UDim2.fromScale(0.5, 0.5),
+		Size             = UDim2.new(0.94, 0, 0.88, 0),
+		ClipsDescendants = true,
 	})
 	local cap = Instance.new("UISizeConstraint")
-	cap.MaxSize = Vector2.new(380, 700)
-	cap.Parent = panel
+	cap.MaxSize = Vector2.new(380, 680)
+	cap.Parent  = panel
 	panel.Parent = gui
 
-	-- ── Header ────────────────────────────────────────────────────────
-	local titleText = "Bait Shop"
-	if discountPct > 0 then
-		titleText = ("Bait Shop  −%d%%"):format(math.round(discountPct * 100))
-	end
-	local titleLabel = UIUtil.makeLabel(titleText, "title", {
-		Position = UDim2.new(0, 14, 0, 12),
-		Size     = UDim2.new(1, -100, 0, 28),
-	})
-	titleLabel.Parent = panel
+	-- ── Header bar (fixed height = HEADER_H, always visible above list) ──
+	local header = Instance.new("Frame")
+	header.BackgroundTransparency = 1
+	header.Size                   = UDim2.new(1, 0, 0, HEADER_H)
+	header.Position               = UDim2.new(0, 0, 0, 0)
+	header.Parent                 = panel
 
-	local closeBtn = UIUtil.makeButton("✕", function()
-		gui:Destroy()
-	end, {
-		AnchorPoint      = Vector2.new(1, 0),
-		Position         = UDim2.new(1, -10, 0, 10),
+	local titleText = discountPct > 0
+		and ("Bait Shop  ·  -%d%% dock"):format(math.round(discountPct * 100))
+		or "Bait Shop"
+	local titleLabel = UIUtil.makeLabel(titleText, "title", {
+		Position = UDim2.new(0, 14, 0, 0),
+		Size     = UDim2.new(1, -64, 1, 0),
+	})
+	titleLabel.Parent = header
+
+	local closeBtn = UIUtil.makeButton("✕", function() gui:Destroy() end, {
+		AnchorPoint      = Vector2.new(1, 0.5),
+		Position         = UDim2.new(1, -8, 0.5, 0),
 		Size             = UDim2.fromOffset(44, 44),
 		BackgroundColor3 = P.Wood,
 		variant          = "secondary",
 	})
-	closeBtn.Parent = panel
+	closeBtn.Parent = header
 
-	if discountPct > 0 then
-		local discLabel = UIUtil.makeLabel(
-			("BaitShop discount active"):format(),
-			"caption",
-			{
-				Position = UDim2.new(0, 14, 0, 38),
-				Size     = UDim2.new(1, -28, 0, 14),
-			}
-		)
-		discLabel.TextColor3 = P.Success
-		discLabel.Parent = panel
-	end
+	-- Thin divider line below header
+	local divider = Instance.new("Frame")
+	divider.BackgroundColor3     = P.TealDeeper
+	divider.BackgroundTransparency = 0.5
+	divider.BorderSizePixel      = 0
+	divider.Position             = UDim2.new(0, 0, 0, HEADER_H)
+	divider.Size                 = UDim2.new(1, 0, 0, 1)
+	divider.Parent               = panel
 
-	local listTop = discountPct > 0 and 58 or 46
-
-	-- ── Scrolling bait list ───────────────────────────────────────────
+	-- ── Scrolling bait list (starts below header) ──
 	local list = Instance.new("ScrollingFrame")
 	list.BackgroundTransparency = 1
-	list.BorderSizePixel = 0
-	list.Position = UDim2.new(0, 10, 0, listTop)
-	list.Size = UDim2.new(1, -20, 1, -(listTop + 10))
-	list.ScrollBarThickness = 5
-	list.ScrollBarImageColor3 = P.TealDeeper
-	list.CanvasSize = UDim2.new(0, 0, 0, 0)
-	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	list.Parent = panel
+	list.BorderSizePixel        = 0
+	list.Position               = UDim2.new(0, 8, 0, HEADER_H + 4)
+	list.Size                   = UDim2.new(1, -16, 1, -(HEADER_H + 12))
+	list.ScrollBarThickness     = 4
+	list.ScrollBarImageColor3   = P.TealDeeper
+	list.CanvasSize             = UDim2.new(0, 0, 0, 0)
+	list.AutomaticCanvasSize    = Enum.AutomaticSize.Y
+	list.Parent                 = panel
 
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 6)
-	layout.Parent = list
+	layout.Padding      = UDim.new(0, 6)
+	layout.SortOrder    = Enum.SortOrder.LayoutOrder   -- must be explicit; default varies
+	layout.Parent       = list
 
-	-- Rebuild the entire list from scratch (called on open and on stash refresh).
+	-- Rebuilds all rows from the current stash state.
 	local function rebuild(stash: {[string]: number}, equipped: string?)
 		for _, c in ipairs(list:GetChildren()) do
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for i, bait in ipairs(baits) do
-			local count     = stash[bait.id] or 0
+			local count      = stash[bait.id] or 0
 			local isEquipped = equipped == bait.id
 			buildRow(
-				list,
-				bait,
-				count,
-				isEquipped,
-				discountPct,
-				i,
+				list, bait, count, isEquipped, discountPct, i,
 				function() onBuy(bait.id, 1) end,
 				function()
-					if isEquipped then
-						onEquip(nil)
-					else
-						onEquip(bait.id)
-					end
+					if isEquipped then onEquip(nil) else onEquip(bait.id) end
 				end
 			)
 		end
@@ -309,13 +260,12 @@ function BaitShopUI.show(
 
 	rebuild(initialStash, equippedBaitId)
 
-	-- Tap backdrop to close.
 	backdrop.Activated:Connect(function() gui:Destroy() end)
 
 	return {
-		close = function() gui:Destroy() end,
-		refreshStash = function(newStash: {[string]: number}, newEquipped: string?)
-			rebuild(newStash, newEquipped)
+		close        = function() gui:Destroy() end,
+		refreshStash = function(newStash, newEquipped)
+			if gui.Parent then rebuild(newStash, newEquipped) end
 		end,
 	}
 end
