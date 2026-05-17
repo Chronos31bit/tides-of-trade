@@ -158,6 +158,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 
 	local castStart = os.clock()
 	local lastMarker = 0.5
+	local wasInCastGreen   = false
 	local wasInCastPerfect = false
 	local castConn: RBXScriptConnection? = nil
 	castConn = RunService.Heartbeat:Connect(function()
@@ -165,10 +166,21 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 		local p = (math.sin(t / period * math.pi * 2) + 1) / 2
 		lastMarker = p
 		marker.Position = UDim2.new(p, 0, 0.5, 0)
-		-- Flash "PERFECT!" each time the marker sweeps into the gold inner strip.
+		-- Zone hit-tests.
+		local gLow  = greenCenter - greenSize / 2
+		local gHigh = greenCenter + greenSize / 2
 		local pLow  = greenCenter - (greenSize * FT.PerfectZoneFraction) / 2
 		local pHigh = greenCenter + (greenSize * FT.PerfectZoneFraction) / 2
-		local inCastPerfect = p >= pLow and p <= pHigh
+		local inCastGreen   = p >= gLow  and p <= gHigh
+		local inCastPerfect = p >= pLow  and p <= pHigh
+		-- Marker turns green while inside the zone, snaps cream on exit.
+		if inCastGreen ~= wasInCastGreen then
+			wasInCastGreen = inCastGreen
+			MotionUtil.tweenOrSnap(marker, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = inCastGreen and P.Success or P.Cream,
+			})
+		end
+		-- Flash "PERFECT!" each time the marker sweeps into the gold inner strip.
 		if inCastPerfect and not wasInCastPerfect then flashPerfect() end
 		wasInCastPerfect = inCastPerfect
 	end)
@@ -223,6 +235,21 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 		local fadeInfo = TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		MotionUtil.tweenOrSnap(marker, fadeInfo, { BackgroundTransparency = 1 })
 		MotionUtil.tweenOrSnap(castGreen, fadeInfo, { BackgroundTransparency = 1 })
+		-- castPerfect is a child of castGreen but Roblox doesn't inherit tweens,
+		-- so we must fade it out explicitly or it stays visible as a stuck bar.
+		MotionUtil.tweenOrSnap(castPerfect, fadeInfo, { BackgroundTransparency = 1 })
+		-- "Bite!" flash: bar pulses to announce the reel phase starting.
+		if not MotionUtil.reducedMotionEnabled() then
+			MotionUtil.tween(bar, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = P.TealDeeper,
+			})
+			task.delay(0.12, function()
+				if stopped then return end
+				MotionUtil.tween(bar, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					BackgroundColor3 = P.WoodDark,
+				})
+			end)
+		end
 
 		-- ---- reel: moving good zone ----
 		local NEUTRAL_TRANSPARENCY = 0.3   -- dim when not tracking
@@ -422,8 +449,19 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 				end
 			end
 
-			-- Perfect-flash edge trigger.
-			if inPerfect and not wasInPerfect then flashPerfect() end
+			-- Perfect-strip glow + flash on zone edge transitions.
+			if inPerfect ~= wasInPerfect then
+				if inPerfect then
+					flashPerfect()
+					MotionUtil.tweenOrSnap(perfectStrip,
+						TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+						{ BackgroundTransparency = 0.0 })
+				else
+					MotionUtil.tweenOrSnap(perfectStrip,
+						TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+						{ BackgroundTransparency = 0.08 })
+				end
+			end
 			wasInPerfect = inPerfect
 
 			-- Hold-progress fill.
@@ -442,6 +480,10 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 	-- ----------------------------------------------------------------
 	local function releaseCast(): number
 		if castConn then castConn:Disconnect(); castConn = nil end
+		-- Dim the frozen marker: signals "locked in, waiting for the bite".
+		MotionUtil.tweenOrSnap(marker, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 0.5,
+		})
 		return lastMarker
 	end
 
