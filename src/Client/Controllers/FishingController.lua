@@ -162,19 +162,19 @@ end
 -- cursor is not aimed at terrain water.
 -- ====================================================================
 local function inferCastPoint(): Vector3?
-	local cam = Workspace.CurrentCamera
-	if not cam then return nil end
 	local mouse = Players.LocalPlayer:GetMouse()
 	if not mouse then return nil end
 
-	-- Cast a ray from the camera through the mouse/touch position.
+	-- mouse.UnitRay is the camera→cursor ray in world space, already
+	-- accounting for the GUI inset (unlike ViewportPointToRay which uses
+	-- full-viewport coords that don't match mouse.X / mouse.Y).
 	-- Filter to Terrain only so player parts, harbor buildings, etc.
-	-- don't satisfy the check.
-	local unitRay = cam:ViewportPointToRay(mouse.X, mouse.Y)
+	-- don't block a click that's visually over the sea.
+	local unitRay = mouse.UnitRay
 	local params  = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
 	params.FilterDescendantsInstances = { Workspace.Terrain }
-	local result = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, params)
+	local result = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 2000, params)
 
 	if not result or result.Material ~= Enum.Material.Water then
 		return nil  -- cursor is over land, a building, the sky, etc.
