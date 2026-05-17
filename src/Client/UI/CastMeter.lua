@@ -134,6 +134,18 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 	local cgc = Instance.new("UICorner"); cgc.CornerRadius = UDim.new(0, 4); cgc.Parent = castGreen
 	castGreen.Parent = castFolder
 
+	-- Inner gold perfect strip — sweet-spot within the green zone.
+	local cpFrac = FT.PerfectZoneFraction
+	local castPerfect = Instance.new("Frame")
+	castPerfect.Name = "CastPerfect"
+	castPerfect.BackgroundColor3 = P.Gold
+	castPerfect.BackgroundTransparency = 0.15
+	castPerfect.BorderSizePixel = 0
+	castPerfect.Position = UDim2.new((1 - cpFrac) / 2, 0, 0, 0)
+	castPerfect.Size = UDim2.new(cpFrac, 0, 1, 0)
+	local cpc = Instance.new("UICorner"); cpc.CornerRadius = UDim.new(0, 3); cpc.Parent = castPerfect
+	castPerfect.Parent = castGreen
+
 	local marker = Instance.new("Frame")
 	marker.Name = "Marker"
 	marker.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -146,12 +158,19 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 
 	local castStart = os.clock()
 	local lastMarker = 0.5
+	local wasInCastPerfect = false
 	local castConn: RBXScriptConnection? = nil
 	castConn = RunService.Heartbeat:Connect(function()
 		local t = os.clock() - castStart
 		local p = (math.sin(t / period * math.pi * 2) + 1) / 2
 		lastMarker = p
 		marker.Position = UDim2.new(p, 0, 0.5, 0)
+		-- Flash "PERFECT!" each time the marker sweeps into the gold inner strip.
+		local pLow  = greenCenter - (greenSize * FT.PerfectZoneFraction) / 2
+		local pHigh = greenCenter + (greenSize * FT.PerfectZoneFraction) / 2
+		local inCastPerfect = p >= pLow and p <= pHigh
+		if inCastPerfect and not wasInCastPerfect then flashPerfect() end
+		wasInCastPerfect = inCastPerfect
 	end)
 
 	-- ================================================================
@@ -229,7 +248,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 		perfectStrip.Size = UDim2.new(pWidth, 0, 1, 0)
 		local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 4); pc.Parent = perfectStrip
 		perfectStrip.Parent = zone
-		MotionUtil.tweenOrSnap(perfectStrip, fadeInfo, { BackgroundTransparency = 0.2 })
+		MotionUtil.tweenOrSnap(perfectStrip, fadeInfo, { BackgroundTransparency = 0.08 })
 
 		-- ---- reel: indicator (player-controlled) ----
 		local indicator = Instance.new("Frame")
@@ -268,7 +287,9 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 		-- ---- reel state ----
 		local reelStart = os.clock()
 		local lastFrameAt = reelStart
-		local indicatorPos = 0.5       -- start at centre so the player has time to react
+		local indicatorPos = 0.5       -- physics position 0..1
+		local displayPos   = 0.5       -- smoothed visual position (spring-follows indicatorPos)
+		local prevHeld     = false     -- detects hold press/release for squeeze animation
 		local holdTime = 0.0           -- accumulated time in zone (perfect = 2×)
 		local perfectTime = 0.0        -- raw seconds spent inside the perfect strip
 		local totalTrackingTime = 0.0  -- raw seconds spent inside the zone
@@ -350,7 +371,22 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 				end
 			end
 			if indicatorPos >= 1 then indicatorPos = 1 end
-			indicator.Position = UDim2.new(indicatorPos, 0, 0.5, 0)
+
+			-- Spring-follow: smooth visual so movement feels weighted, not snappy.
+			displayPos = displayPos + (indicatorPos - displayPos) * math.min(1, dt * 18)
+			indicator.Position = UDim2.new(displayPos, 0, 0.5, 0)
+
+			-- Hold squeeze: indicator widens on press, shrinks on release.
+			if reelHeld ~= prevHeld then
+				prevHeld = reelHeld
+				if not MotionUtil.reducedMotionEnabled() then
+					local w = reelHeld and 11 or 8
+					local h = reelHeld and 1.9 or 1.6
+					MotionUtil.tween(indicator, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						Size = UDim2.new(0, w, h, 0),
+					})
+				end
+			end
 
 			-- Zone center oscillation (sine, clamped to keep the zone on-bar).
 			local t = now - reelStart
@@ -378,7 +414,12 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 				end
 				setState("tracking")
 			else
-				if lastState == "tracking" then setState("losing") else setState("neutral") end
+				-- Danger: show red warning when close to escaping regardless of prior state.
+				if indicatorPos < 0.15 or lastState == "tracking" then
+					setState("losing")
+				else
+					setState("neutral")
+				end
 			end
 
 			-- Perfect-flash edge trigger.
