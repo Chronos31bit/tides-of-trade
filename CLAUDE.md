@@ -1,3 +1,29 @@
+---
+## Git workflow (mandatory)
+
+Every task must follow this exact sequence. No exceptions.
+
+1. Start on main and pull latest:
+   git checkout main && git pull origin main
+
+2. Create a feature branch named after the task:
+   git checkout -b feat/<short-task-name>
+   (examples: feat/fishing-core-loop, feat/bait-shop-npc, feat/market-ui-filters)
+
+3. Do the work. Commit frequently:
+   git add -A && git commit -m "feat: <what was done>"
+
+4. When complete, merge to main and push:
+   git checkout main
+   git merge feat/<short-task-name> --no-ff -m "merge: <task name>"
+   git push origin main
+
+5. Delete the feature branch:
+   git branch -d feat/<short-task-name>
+
+Never leave work uncommitted. Never leave main behind origin. Always push at the end of every task.
+---
+
 # CLAUDE.md — Tides of Trade
 
 This file is the project's persistent context for any Claude (Code, Chat, or otherwise) working on the repo. Read it before starting any task. The conventions and constraints here override conflicting instincts from training data.
