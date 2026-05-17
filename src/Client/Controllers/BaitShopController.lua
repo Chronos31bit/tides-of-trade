@@ -24,21 +24,20 @@ local BaitShopController = Knit.CreateController({
 -- HELPERS
 -- ====================================================================
 
--- Reads the player's current profile snapshot and returns the baitDiscountPct
--- from their highest-tier placed BaitShop building (0 if none placed).
+-- Returns the baitDiscountPct from the player's Dock building tier.
+-- Every player has a Dock, so this is always available (0 for tier 1).
 local function discountFromSnapshot(snap: any): number
 	if not snap or not snap.buildings then return 0 end
-	local best = 0
 	for _, building in ipairs(snap.buildings) do
-		if building.kind == "BaitShop" then
-			local def = BuildingCatalog.BaitShop
+		if building.kind == "Dock" then
+			local def = BuildingCatalog.Dock
 			local tierData = def and def.tiers[building.tier]
-			if tierData and tierData.baitDiscountPct and tierData.baitDiscountPct > best then
-				best = tierData.baitDiscountPct
+			if tierData and tierData.baitDiscountPct then
+				return tierData.baitDiscountPct
 			end
 		end
 	end
-	return best
+	return 0
 end
 
 -- ====================================================================
@@ -61,9 +60,10 @@ function BaitShopController:KnitStart()
 		end
 	end)
 
-	-- Open the bait shop when the player activates the ProximityPrompt.
+	-- Open the bait shop from the Dock ("Buy Bait") or a placed BaitShop building.
 	self._trove:Connect(ProximityPromptService.PromptTriggered, function(prompt, _player)
-		if prompt.ActionText == "Open Bait Shop" then
+		local action = prompt.ActionText
+		if action == "Buy Bait" or action == "Open Bait Shop" then
 			self:_open()
 		end
 	end)

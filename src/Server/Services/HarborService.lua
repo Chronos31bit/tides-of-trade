@@ -288,6 +288,10 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 		makePrompt("Open Aquarium", "Aquarium")
 	elseif building.kind == "Dock" then
 		makePrompt("Buy Rod Upgrade", "Rod Shop")
+		-- Bait shop is also accessible from the Dock so players can buy bait
+		-- from day one without placing a separate BaitShop building. Dock tier
+		-- controls the discount (baitDiscountPct in BuildingCatalog.Dock.tiers).
+		makePrompt("Buy Bait", "Bait Shop")
 	elseif building.kind == "BaitShop" then
 		makePrompt("Open Bait Shop", "Bait Shop")
 	end
