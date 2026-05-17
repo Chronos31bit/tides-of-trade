@@ -2,8 +2,10 @@
 ## Git workflow (mandatory)
 
 Every task must follow this exact sequence. No exceptions.
+Always work from C:\Users\derin\purna — never from worktrees or any other directory.
 
 1. Start on main and pull latest:
+   cd C:\Users\derin\purna
    git checkout main && git pull origin main
 
 2. Create a feature branch named after the task:
@@ -21,7 +23,7 @@ Every task must follow this exact sequence. No exceptions.
 5. Delete the feature branch:
    git branch -d feat/<short-task-name>
 
-Never leave work uncommitted. Never leave main behind origin. Always push at the end of every task.
+Never leave work uncommitted. Never leave main behind origin. Always push at the end of every task. Never use worktrees.
 ---
 
 # CLAUDE.md — Tides of Trade
