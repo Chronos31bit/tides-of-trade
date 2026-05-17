@@ -191,6 +191,10 @@ GameConfig.Fishing = {
 		PerfectZoneFraction       = 0.25,
 		PerfectBonusMultiplier    = 2.0,
 		PerfectThreshold          = 0.8,
+		-- Perfect-cast: marker lands in the inner gold strip → fish is heavier.
+		PerfectCastWeightBonus    = 0.15,   -- +15% weight, capped at 1.5× catalog max
+		-- Perfect-reel: award immediate coins = fraction of the fish's base market price.
+		PerfectReelCoinFraction   = 0.20,   -- 20% of fish.basePrice awarded on completion
 		RevealSlideInDuration     = 0.5,
 		RevealAutoDismissAfter    = 3.0,
 		MythicBorderCycleDuration = 1.5,

@@ -526,6 +526,7 @@ function FishingController:_celebrate(result: any)
 		coinsEarned = result.coinsEarned,
 		xpGained = result.xpGained,
 		perfect = result.perfect == true,
+		castPerfect = result.castPerfect == true,
 	})
 end
 

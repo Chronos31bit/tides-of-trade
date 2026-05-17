@@ -34,9 +34,10 @@ local MYTHIC_CYCLE_TARGET = Color3.fromRGB(240, 100, 100)
 export type CatchPayload = {
 	fish: { displayName: string, rarity: string, basePrice: number, id: string? },
 	weightKg: number,
-	coinsEarned: number?,
+	coinsEarned: number?,   -- instant coin bonus from perfect reel (0 if not perfect)
 	xpGained: number?,
-	perfect: boolean?,    -- client-set: was the catch perfect-zone?
+	perfect: boolean?,      -- reel was perfect-zone (triggers coin bonus)
+	castPerfect: boolean?,  -- cast marker hit the inner gold strip (triggers weight bonus)
 }
 
 export type RevealHandle = {
@@ -103,9 +104,11 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	-- ----------------------------------------------------------------
 	-- TEXT BLOCK
 	-- ----------------------------------------------------------------
-	-- If perfect: small amber label above the name.
+	-- Perfect label — shows above the fish name whenever either phase was perfect.
 	local nameTopY = 12
-	if payload.perfect then
+	local reelPerfect = payload.perfect == true
+	local castPerfect = payload.castPerfect == true
+	if reelPerfect or castPerfect then
 		local perfectLbl = Instance.new("TextLabel")
 		perfectLbl.BackgroundTransparency = 1
 		perfectLbl.Position = UDim2.new(0, 108, 0, 8)
@@ -114,7 +117,13 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		perfectLbl.TextSize = 12
 		perfectLbl.TextColor3 = perfectColor
 		perfectLbl.TextXAlignment = Enum.TextXAlignment.Left
-		perfectLbl.Text = "PERFECT"
+		if reelPerfect and castPerfect then
+			perfectLbl.Text = "PERFECT CATCH"      -- both phases nailed
+		elseif reelPerfect then
+			perfectLbl.Text = "PERFECT REEL"       -- reel mini-game only
+		else
+			perfectLbl.Text = "PRECISION CAST"     -- cast timing only
+		end
 		perfectLbl.Parent = card
 		nameTopY = 24
 	end
@@ -142,17 +151,24 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	weightLbl.Text = ("%.1f kg"):format(payload.weightKg or 0)
 	weightLbl.Parent = card
 
-	-- Coin value preview — bottom-left area, gold text.
+	-- Coin label — shows the instant perfect-reel bonus if earned, otherwise
+	-- shows the fish's market sell value as a reference.
 	local coinLbl = Instance.new("TextLabel")
 	coinLbl.BackgroundTransparency = 1
 	coinLbl.AnchorPoint = Vector2.new(0, 1)
 	coinLbl.Position = UDim2.new(0, 108, 1, -14)
-	coinLbl.Size = UDim2.new(0, 160, 0, 22)
+	coinLbl.Size = UDim2.new(0, 180, 0, 22)
 	coinLbl.Font = Enum.Font.GothamBold
 	coinLbl.TextSize = 16
-	coinLbl.TextColor3 = P.Gold
 	coinLbl.TextXAlignment = Enum.TextXAlignment.Left
-	coinLbl.Text = ("%d coins"):format(payload.fish.basePrice or 0)
+	local earned = payload.coinsEarned or 0
+	if earned > 0 then
+		coinLbl.TextColor3 = perfectColor   -- amber to match the perfect label
+		coinLbl.Text = ("+%d coins bonus!"):format(earned)
+	else
+		coinLbl.TextColor3 = P.Gold
+		coinLbl.Text = ("~%d coins"):format(payload.fish.basePrice or 0)
+	end
 	coinLbl.Parent = card
 
 	-- ----------------------------------------------------------------
@@ -200,7 +216,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	-- along the card border. We don't have a 2D ParticleEmitter, so we
 	-- spawn ~10 short-lived Frames manually. Skipped under reduced motion.
 	-- ----------------------------------------------------------------
-	if payload.perfect and not MotionUtil.reducedMotionEnabled() then
+	if (payload.perfect or payload.castPerfect) and not MotionUtil.reducedMotionEnabled() then
 		task.spawn(function()
 			for i = 1, 10 do
 				if not card.Parent then return end

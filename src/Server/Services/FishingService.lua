@@ -332,6 +332,12 @@ function FishingService.Client:ClaimCast(player: Player, castId: string, marker:
 		return { result = "miss" }
 	end
 
+	-- Detect whether the marker landed inside the inner perfect zone. We use
+	-- the *display* center/size (what the player saw), not the possibly-wider
+	-- validation zone, so the check matches what the UI showed.
+	local perfHalf = (pending.displaySize * GameConfig.Fishing.FeelTuning.PerfectZoneFraction) / 2
+	pending.castPerfect = math.abs(marker - pending.displayCenter) <= perfHalf
+
 	-- HIT → transition to reel. Weight & tier travel to the client via
 	-- BiteStarted; fish identity stays server-side until CastResolved.
 	pending.phase = "reeling"
@@ -387,6 +393,7 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 
 	local fish = fishById[pending.fishId]
 	local weight = pending.weightKg
+	local castPerfect = pending.castPerfect == true  -- capture before clearing
 	self._pendingCasts[player] = nil
 	if not fish then
 		return { success = false, reason = "internal_no_fish" }
@@ -394,9 +401,22 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 
 	local FT = GameConfig.Fishing.FeelTuning
 	local perfect = perfectFraction >= FT.PerfectThreshold
+
+	-- Perfect cast: the marker landed in the gold inner strip → heavier fish.
+	if castPerfect then
+		local boosted = math.floor(weight * (1 + FT.PerfectCastWeightBonus) * 10 + 0.5) / 10
+		weight = math.min(boosted, fish.weightRange[2] * 1.5)
+	end
+
 	local xpAward = fish.xp
+	local perfectCoins = 0
 	if perfect then
 		xpAward = math.floor(xpAward * FT.PerfectBonusMultiplier)
+		-- Perfect reel: award an instant coin bonus on top of the normal sell value.
+		perfectCoins = math.floor((fish.basePrice or 0) * FT.PerfectReelCoinFraction)
+		if perfectCoins > 0 then
+			PlayerDataService:AddCoins(player, perfectCoins, "perfect_catch")
+		end
 	end
 
 	local item: Types.FishItem = {
@@ -427,9 +447,10 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 		success = true,
 		fish = fish,
 		weightKg = weight,
-		coinsEarned = 0,
+		coinsEarned = perfectCoins,
 		xpGained = xpAward,
 		perfect = perfect,
+		castPerfect = castPerfect,
 	}
 	self.Client.CastResolved:Fire(player, result)
 	return { success = true, perfect = perfect }
