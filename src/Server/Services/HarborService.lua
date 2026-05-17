@@ -63,20 +63,26 @@ function HarborService:KnitStart()
 	-- We need PlayerDataService loaded before we can hand out plots.
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 
-	Players.PlayerAdded:Connect(function(player)
-		-- Wait for the profile so we know what buildings to spawn.
+	local function setupPlayer(player: Player)
 		local data = PlayerDataService:WaitForProfile(player, 30)
 		if not data then return end
 		self:_assignPlot(player)
 		self:_spawnExistingBuildings(player)
+		-- Teleport to their plot on every spawn so they land on the dock
+		-- plate rather than falling into the water.
+		player.CharacterAdded:Connect(function(character)
+			task.spawn(function() self:_spawnOnPlot(player, character) end)
+		end)
+		if player.Character then
+			task.spawn(function() self:_spawnOnPlot(player, player.Character) end)
+		end
+	end
+
+	Players.PlayerAdded:Connect(function(player)
+		task.spawn(setupPlayer, player)
 	end)
 	for _, player in ipairs(Players:GetPlayers()) do
-		task.spawn(function()
-			local data = PlayerDataService:WaitForProfile(player, 30)
-			if not data then return end
-			self:_assignPlot(player)
-			self:_spawnExistingBuildings(player)
-		end)
+		task.spawn(setupPlayer, player)
 	end
 
 	Players.PlayerRemoving:Connect(function(player)
@@ -91,6 +97,27 @@ function HarborService:KnitStart()
 			self:_payAllPassiveIncome()
 		end
 	end)
+end
+
+-- ====================================================================
+-- SPAWN HELPER
+-- ====================================================================
+function HarborService:_spawnOnPlot(player: Player, character: Model)
+	local origin = self._plotOrigins[player]
+	if not origin then return end
+	-- WaitForChild handles the brief window between CharacterAdded firing
+	-- and the HumanoidRootPart being parented into the character model.
+	local hrp = character:WaitForChild("HumanoidRootPart", 5) :: BasePart?
+	if not hrp then return end
+	-- Small yield so the physics engine has registered the plate before we
+	-- move the character onto it; without it the character can fall through.
+	task.wait(0.1)
+	if not player.Parent then return end  -- player left during yield
+	hrp.CFrame = origin * CFrame.new(
+		GameConfig.Harbor.PlotSizeStuds / 2,
+		6,
+		GameConfig.Harbor.PlotSizeStuds / 2
+	)
 end
 
 -- ====================================================================

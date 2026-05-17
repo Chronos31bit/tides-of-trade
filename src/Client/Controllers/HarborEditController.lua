@@ -333,12 +333,11 @@ function HarborEditController:_raycastForAnchor(): BasePart?
 	local screenRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
 	local exclude: { Instance } = {}
 	if Players.LocalPlayer.Character then table.insert(exclude, Players.LocalPlayer.Character) end
-	for _, child in ipairs(Workspace:GetChildren()) do
-		local name = child.Name
-		if name:sub(1, #"HarborVisuals_Client_") == "HarborVisuals_Client_" then
-			table.insert(exclude, child)
-		end
-	end
+	-- Exclude the entire client-visual hierarchy so the ray lands on the
+	-- invisible server anchor (which carries the "kind" attribute) rather
+	-- than the decorative placeholder model on top of it.
+	local visualRoot = Workspace:FindFirstChild("HarborVisuals")
+	if visualRoot then table.insert(exclude, visualRoot) end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = exclude
