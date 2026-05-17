@@ -134,6 +134,22 @@ GameConfig.Harbor = {
 }
 
 -- ====================================================================
+-- BUILDINGS — all coin costs live here so designers can tune the build
+-- economy in one place without touching BuildingCatalog's structural
+-- data (footprints, behavior flags, description text).
+-- tierCosts[1] = placement cost; [2]/[3] = upgrade costs into that tier.
+-- ====================================================================
+GameConfig.Buildings = {
+	Dock        = { tierCosts = { 0,     40,     9000  } },
+	MarketStall = { tierCosts = { 800,   3500,   12000 } },
+	Smokehouse  = { tierCosts = { 1500,  6000,   18000 } },
+	Lighthouse  = { tierCosts = { 2000,  7500,   22000 } },
+	BaitShop    = { tierCosts = { 600,   2400,   8000  } },
+	Aquarium    = { tierCosts = { 1200,  5000,   16000 } },
+	Guildhall   = { tierCosts = { 5000,  15000,  40000 } },
+}
+
+-- ====================================================================
 -- FISHING
 -- ====================================================================
 GameConfig.Fishing = {

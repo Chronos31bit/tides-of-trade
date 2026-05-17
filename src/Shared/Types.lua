@@ -124,6 +124,10 @@ export type Profile = {
 	-- Inventory & buildings
 	inventory: {InventoryItem},
 	buildings: {PlacedBuilding},
+	-- World-plot slot index assigned on first join. Persisted so the same
+	-- player always returns to the same patch of coastline, even across
+	-- server restarts. nil until the first assignment.
+	plotIndex: number?,
 	-- Aquarium contents keyed by aquarium building uid. Fish here aren't in
 	-- the main inventory — they're "displayed" and grant passive trickle.
 	aquariumStock: {[string]: {FishItem}},

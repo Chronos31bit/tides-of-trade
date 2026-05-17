@@ -111,25 +111,35 @@ local function indexToOrigin(index: number): CFrame
 end
 
 function HarborService:_assignPlot(player: Player)
-	-- Find a free slot. With at most a few dozen players we just linear-scan.
-	local taken: {[number]: boolean} = {}
-	for _, origin in pairs(self._plotOrigins) do
-		-- Convert origin back to index for the taken set.
-		local col = math.floor(origin.X / PLOT_SPACING_STUDS + 0.5)
-		local row = math.floor(origin.Z / PLOT_SPACING_STUDS + 0.5)
-		taken[row * PLOT_GRID_DIM + col] = true
-	end
-	local assigned = -1
-	for i = 0, PLOT_GRID_DIM * PLOT_GRID_DIM - 1 do
-		if not taken[i] then
-			assigned = i
-			break
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player)
+
+	local assigned: number
+	if data and data.plotIndex then
+		-- Returning player: restore their saved slot so the same player always
+		-- gets the same patch of coastline, even across server restarts.
+		assigned = data.plotIndex
+	else
+		-- First join: find a free slot with a linear scan. With StreamingEnabled,
+		-- far-away plots are dormant so the cap rarely matters in practice.
+		local taken: {[number]: boolean} = {}
+		for _, origin in pairs(self._plotOrigins) do
+			local col = math.floor(origin.X / PLOT_SPACING_STUDS + 0.5)
+			local row = math.floor(origin.Z / PLOT_SPACING_STUDS + 0.5)
+			taken[row * PLOT_GRID_DIM + col] = true
+		end
+		assigned = #Players:GetPlayers() + 100  -- overflow default if grid is full
+		for i = 0, PLOT_GRID_DIM * PLOT_GRID_DIM - 1 do
+			if not taken[i] then
+				assigned = i
+				break
+			end
+		end
+		if data then
+			data.plotIndex = assigned
 		end
 	end
-	if assigned < 0 then
-		-- Server is full of harbors. Fall back to overflow row beyond the grid.
-		assigned = #Players:GetPlayers() + 100
-	end
+
 	local origin = indexToOrigin(assigned)
 	self._plotOrigins[player] = origin
 
@@ -215,11 +225,16 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	-- World CFrame at the footprint bottom-center (shared math with the client).
 	local worldCF = GridUtil.gridToWorld(origin, building.gridX, building.gridZ, def.footprint, building.rotation)
 
+	-- TODO: replace this invisible stub with a cloned Model from
+	-- ReplicatedStorage.Assets.Buildings[building.kind] (one Model per tier,
+	-- or a single Model whose PrimaryPart is scaled/recolored per tier).
+	-- Each tier's visual must be obviously different from 30 studs away
+	-- (pillar 3) — minimum 1.5× Scale per tier on the PrimaryPart.
 	local anchor = Instance.new("Part")
 	anchor.Name = building.uid
 	anchor.Anchored = true
 	anchor.CanCollide = false
-	anchor.CanQuery = false
+	anchor.CanQuery = true   -- must be true so _raycastForAnchor (demolish/upgrade hover) can hit it
 	anchor.CanTouch = false
 	anchor.Transparency = 1
 	anchor.Size = Vector3.new(1, 1, 1)
@@ -339,7 +354,9 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 	if not ok then return { ok = false, reason = reason } end
 
 	local def = BuildingCatalog[kind] :: any
-	local tier1Cost = def.tiers[1].cost
+	local bldCfg = GameConfig.Buildings[kind]
+	if not bldCfg then return { ok = false, reason = "unknown_building" } end
+	local tier1Cost = bldCfg.tierCosts[1]
 
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	if tier1Cost > 0 and not PlayerDataService:TrySpendCoins(player, tier1Cost) then
@@ -374,9 +391,14 @@ function HarborService.Client:Upgrade(player: Player, uid: string): {ok: boolean
 			local def = BuildingCatalog[b.kind]
 			if not def then return { ok = false, reason = "unknown_building" } end
 			local nextTierIdx = b.tier + 1
-			local nextTier = def.tiers[nextTierIdx]
-			if not nextTier then return { ok = false, reason = "max_tier" } end
-			if not PlayerDataService:TrySpendCoins(player, nextTier.cost) then
+			-- Gate on the catalog tier first (it defines behavior; GameConfig
+			-- only stores costs, so both must agree a tier exists).
+			if not def.tiers[nextTierIdx] then return { ok = false, reason = "max_tier" } end
+			local bldCfg = GameConfig.Buildings[b.kind]
+			if not bldCfg then return { ok = false, reason = "unknown_building" } end
+			local nextCost = bldCfg.tierCosts[nextTierIdx]
+			if not nextCost then return { ok = false, reason = "max_tier" } end
+			if not PlayerDataService:TrySpendCoins(player, nextCost) then
 				return { ok = false, reason = "not_enough_coins" }
 			end
 			local oldTier = b.tier

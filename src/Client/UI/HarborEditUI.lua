@@ -4,7 +4,9 @@
 -- horizontal palette at the bottom. All solid panels — no gradients, no
 -- transparency, big readable text.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UIUtil = require(script.Parent.UIUtil)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local P = UIUtil.Palette
 
@@ -153,7 +155,11 @@ function HarborEditUI.show(
 	for kind, def in pairs(catalog) do
 		table.insert(sorted, { kind = kind, def = def })
 	end
-	table.sort(sorted, function(a, b) return a.def.tiers[1].cost < b.def.tiers[1].cost end)
+	table.sort(sorted, function(a, b)
+		local aCost = (GameConfig.Buildings[a.kind] and GameConfig.Buildings[a.kind].tierCosts[1]) or 0
+		local bCost = (GameConfig.Buildings[b.kind] and GameConfig.Buildings[b.kind].tierCosts[1]) or 0
+		return aCost < bCost
+	end)
 
 	for i, entry in ipairs(sorted) do
 		local def = entry.def
@@ -203,7 +209,8 @@ function HarborEditUI.show(
 		cost.TextSize = 16
 		cost.TextColor3 = P.Gold
 		cost.TextXAlignment = Enum.TextXAlignment.Left
-		cost.Text = (def.tiers[1].cost == 0) and "FREE" or (("%d coins"):format(def.tiers[1].cost))
+		local tier1Cost = (GameConfig.Buildings[entry.kind] and GameConfig.Buildings[entry.kind].tierCosts[1]) or 0
+		cost.Text = (tier1Cost == 0) and "FREE" or (("%d coins"):format(tier1Cost))
 		cost.Parent = card
 
 		-- Hover/press feedback.

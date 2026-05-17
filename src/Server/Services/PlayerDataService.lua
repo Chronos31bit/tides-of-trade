@@ -31,6 +31,7 @@ local PROFILE_TEMPLATE: Profile = {
 	xp = 0,
 	inventory = {},
 	buildings = {},         -- starter dock is granted on first load (see :_grantStarterAssets)
+	plotIndex = nil,        -- world-plot slot index; set on first join, stable forever
 	aquariumStock = {},     -- [aquariumUid] -> { FishItem, ... }
 	cosmetics = {},
 	rodTier = 1,

@@ -107,7 +107,7 @@ function HarborVisualController:_neutralPlaceholder(footprint: {number}): Model
 	local model = Instance.new("Model")
 	model.Name = "FallbackVisual"
 	local base = Instance.new("Part")
-	base.Anchored = true; base.CanCollide = false
+	base.Anchored = true; base.CanCollide = true
 	base.Color = Color3.fromRGB(220, 60, 200)
 	base.Material = Enum.Material.Neon
 	base.Size = Vector3.new(footprint[1] * GridUtil.CELL, 4, footprint[2] * GridUtil.CELL)

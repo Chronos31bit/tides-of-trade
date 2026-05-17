@@ -6,8 +6,11 @@
 
 export type BuildingKind = "Dock" | "MarketStall" | "Smokehouse" | "Lighthouse" | "BaitShop" | "Guildhall" | "Aquarium"
 
+-- Placement and upgrade costs are NOT stored here — they live in
+-- GameConfig.Buildings[kind].tierCosts so all economy numbers stay in
+-- one designer-editable place. HarborService reads from there; this type
+-- covers only the structural / behavioural data per tier.
 export type BuildingTier = {
-	cost: number,            -- coins to upgrade INTO this tier (tier 1 cost = build cost)
 	incomePerTick: number,   -- coins produced per IncomeTickSeconds (see GameConfig.Harbor)
 	-- Optional behaviour switches — services check these. nil means "no effect".
 	smokehouseSlots: number?,        -- how many fish can be preserved at once
@@ -36,13 +39,11 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {4, 6},
 		description = "Lets you cast in deeper water. Higher tiers reach Trench biome.",
 		tiers = {
-			{ cost = 0,    incomePerTick = 0  },               -- starter dock, free
-			-- Tier 2 is the tutorial's "first repair" — kept cheap (40c) so
-			-- a brand-new player can afford it after a handful of catches,
-			-- matching GameConfig.Tutorial.RepairCostCoins. Tier 3 stays
-			-- expensive (longer-game sink).
-			{ cost = 40,   incomePerTick = 5  },
-			{ cost = 9000, incomePerTick = 15 },
+			{ incomePerTick = 0  },               -- starter dock (free — see GameConfig.Buildings)
+			-- Tier 2 is the tutorial's "first repair" — see GameConfig.Tutorial.RepairCostCoins
+			-- and GameConfig.Buildings.Dock.tierCosts[2] for the coin cost.
+			{ incomePerTick = 5  },
+			{ incomePerTick = 15 },
 		},
 	},
 
@@ -52,9 +53,9 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {3, 3},
 		description = "Sells passive trickle of catch and unlocks extra global listings.",
 		tiers = {
-			{ cost = 800,  incomePerTick = 8,  marketStallExtraListings = 0 },
-			{ cost = 3500, incomePerTick = 20, marketStallExtraListings = 3 },
-			{ cost = 12000,incomePerTick = 50, marketStallExtraListings = 7 },
+			{ incomePerTick = 8,  marketStallExtraListings = 0 },
+			{ incomePerTick = 20, marketStallExtraListings = 3 },
+			{ incomePerTick = 50, marketStallExtraListings = 7 },
 		},
 	},
 
@@ -64,9 +65,9 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {3, 4},
 		description = "Preserves raw fish into goods worth 3x. Limited slots per tier.",
 		tiers = {
-			{ cost = 1500, incomePerTick = 0, smokehouseSlots = 2 },
-			{ cost = 6000, incomePerTick = 0, smokehouseSlots = 5 },
-			{ cost = 18000,incomePerTick = 0, smokehouseSlots = 10 },
+			{ incomePerTick = 0, smokehouseSlots = 2  },
+			{ incomePerTick = 0, smokehouseSlots = 5  },
+			{ incomePerTick = 0, smokehouseSlots = 10 },
 		},
 	},
 
@@ -76,9 +77,9 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {3, 3},
 		description = "Lures fish near your harbor. Buffs catch rate within radius.",
 		tiers = {
-			{ cost = 2000, incomePerTick = 0, lighthouseLureRadiusStuds = 30 },
-			{ cost = 7500, incomePerTick = 0, lighthouseLureRadiusStuds = 55 },
-			{ cost = 22000,incomePerTick = 0, lighthouseLureRadiusStuds = 90 },
+			{ incomePerTick = 0, lighthouseLureRadiusStuds = 30 },
+			{ incomePerTick = 0, lighthouseLureRadiusStuds = 55 },
+			{ incomePerTick = 0, lighthouseLureRadiusStuds = 90 },
 		},
 	},
 
@@ -88,9 +89,9 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {2, 3},
 		description = "Discounts bait costs and produces small passive income.",
 		tiers = {
-			{ cost = 600,  incomePerTick = 4,  baitDiscountPct = 0.10 },
-			{ cost = 2400, incomePerTick = 12, baitDiscountPct = 0.20 },
-			{ cost = 8000, incomePerTick = 30, baitDiscountPct = 0.35 },
+			{ incomePerTick = 4,  baitDiscountPct = 0.10 },
+			{ incomePerTick = 12, baitDiscountPct = 0.20 },
+			{ incomePerTick = 30, baitDiscountPct = 0.35 },
 		},
 	},
 
@@ -100,9 +101,9 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {3, 4},
 		description = "Display your catches. Each fish trickles passive XP + coins by rarity.",
 		tiers = {
-			{ cost = 1200, incomePerTick = 0, aquariumCapacity = 4  },
-			{ cost = 5000, incomePerTick = 0, aquariumCapacity = 10 },
-			{ cost = 16000,incomePerTick = 0, aquariumCapacity = 24 },
+			{ incomePerTick = 0, aquariumCapacity = 4  },
+			{ incomePerTick = 0, aquariumCapacity = 10 },
+			{ incomePerTick = 0, aquariumCapacity = 24 },
 		},
 	},
 
@@ -112,9 +113,9 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		footprint = {5, 5},
 		description = "Required for crews. Higher tiers expand crew capacity.",
 		tiers = {
-			{ cost = 5000, incomePerTick = 10, guildhallCrewBonus = 0 },
-			{ cost = 15000,incomePerTick = 25, guildhallCrewBonus = 2 },
-			{ cost = 40000,incomePerTick = 60, guildhallCrewBonus = 4 },
+			{ incomePerTick = 10, guildhallCrewBonus = 0 },
+			{ incomePerTick = 25, guildhallCrewBonus = 2 },
+			{ incomePerTick = 60, guildhallCrewBonus = 4 },
 		},
 	},
 }
