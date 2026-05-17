@@ -433,6 +433,23 @@ GameConfig.AntiExploit = {
 }
 
 -- ====================================================================
+-- BAIT
+-- ====================================================================
+-- Tunable knobs for the bait-shop purchase flow. Catalog data (names,
+-- costs, rarityBoost values, maxStack) lives in BaitCatalog.lua so
+-- designers can edit it without touching this file.
+GameConfig.Bait = {
+	-- RateLimiter window for BuyBait: at most RateLimitMax purchases in
+	-- RateLimitWindowSec seconds per player.
+	RateLimitMax       = 1,
+	RateLimitWindowSec = 1,
+
+	-- Maximum qty a player may request in a single BuyBait call.
+	-- Prevents one-click drain exploits; also caps the UI "Buy" step.
+	MaxBuyQty = 10,
+}
+
+-- ====================================================================
 -- DATASTORE KEYS
 -- ====================================================================
 GameConfig.DataStores = {

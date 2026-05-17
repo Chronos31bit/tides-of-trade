@@ -156,6 +156,13 @@ export type Profile = {
 		rareWeightMultiplier: number,   -- how much to boost Uncommon/Rare/Mythic weights
 	}?,
 
+	-- Bait inventory: baitId -> unit count. Populated by BaitService;
+	-- never stored inside the general inventory array because bait is
+	-- stackable, consumed per-cast, and looked up by id frequently.
+	baitStash: {[string]: number},
+	-- The bait the player has equipped (nil = no bait active on next cast).
+	equippedBaitId: string?,
+
 	-- Stats (for analytics + Captain's Log gamepass)
 	stats: {
 		totalCatches: number,
