@@ -158,25 +158,28 @@ local function shakeCamera()
 end
 
 -- ====================================================================
--- CAST POINT — best-guess world position where the line lands.
+-- CAST POINT — world position where the line lands, or nil if the
+-- cursor is not aimed at terrain water.
 -- ====================================================================
-local function inferCastPoint(): Vector3
+local function inferCastPoint(): Vector3?
 	local cam = Workspace.CurrentCamera
-	if cam then
-		local mouse = Players.LocalPlayer:GetMouse()
-		if mouse and mouse.Hit then
-			local p = mouse.Hit.Position
-			return Vector3.new(p.X, 0, p.Z)
-		end
+	if not cam then return nil end
+	local mouse = Players.LocalPlayer:GetMouse()
+	if not mouse then return nil end
+
+	-- Cast a ray from the camera through the mouse/touch position.
+	-- Filter to Terrain only so player parts, harbor buildings, etc.
+	-- don't satisfy the check.
+	local unitRay = cam:ViewportPointToRay(mouse.X, mouse.Y)
+	local params  = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { Workspace.Terrain }
+	local result = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, params)
+
+	if not result or result.Material ~= Enum.Material.Water then
+		return nil  -- cursor is over land, a building, the sky, etc.
 	end
-	local char = Players.LocalPlayer.Character
-	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if hrp then
-		local fwd = hrp.CFrame.LookVector
-		local p = hrp.Position + fwd * 12
-		return Vector3.new(p.X, 0, p.Z)
-	end
-	return Vector3.new(0, 0, 0)
+	return Vector3.new(result.Position.X, 0, result.Position.Z)
 end
 
 -- ====================================================================
@@ -364,6 +367,12 @@ function FishingController:_disposeCast()
 end
 
 function FishingController:_startCast()
+	-- Validate the cast target before touching the server. If the cursor
+	-- isn't aimed at terrain water, do nothing — no feedback needed; the
+	-- player will quickly learn to aim at the sea.
+	local castPoint = inferCastPoint()
+	if not castPoint then return end
+
 	local FishingService = Knit.GetService("FishingService")
 	FishingService:StartCast():andThen(function(window)
 		if not window then
@@ -375,7 +384,8 @@ function FishingController:_startCast()
 		local trove = self:_ensureCastTrove()
 
 		-- ---- Cast feedback (the *thunk*) ----
-		local castPoint = inferCastPoint()
+		-- castPoint was validated before the async call; use the same value
+		-- so the ripple lands exactly where the player aimed.
 		shakeCamera()
 		spawnRipple(castPoint, trove)
 		local beam = spawnBeam(castPoint, trove)
