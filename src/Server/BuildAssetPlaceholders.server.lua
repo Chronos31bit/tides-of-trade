@@ -76,7 +76,7 @@ local function buildModel(kind: string, tier: number, footprint: {number}): Mode
 	local base = Instance.new("Part")
 	base.Name = "Base"
 	base.Anchored = true
-	base.CanCollide = style.walkable == true
+	base.CanCollide = true
 	base.Material = style.material
 	base.Color = color
 	base.Size = Vector3.new(widthStuds, heightStuds, depthStuds)

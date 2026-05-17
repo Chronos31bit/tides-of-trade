@@ -326,26 +326,47 @@ end
 -- Encapsulates the raycast used by both demolish hover and demolish click.
 -- Excludes the HarborVisuals_Client_* folders (decorative cloned visuals)
 -- so the ray always lands on the invisible server anchor or terrain/plate.
+-- Walk up from a hit instance to find a building anchor or building model,
+-- then return the server anchor Part (Name=uid, "kind" attribute set).
+-- Raycasting against the visible model (full-size, easy to aim at) is
+-- more reliable than hunting the 1×1×1 invisible server anchor directly.
 function HarborEditController:_raycastForAnchor(): BasePart?
 	local camera = Workspace.CurrentCamera
 	if not camera then return nil end
 	local mouse = Players.LocalPlayer:GetMouse()
 	local screenRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-	local exclude: { Instance } = {}
-	if Players.LocalPlayer.Character then table.insert(exclude, Players.LocalPlayer.Character) end
-	-- Exclude the entire client-visual hierarchy so the ray lands on the
-	-- invisible server anchor (which carries the "kind" attribute) rather
-	-- than the decorative placeholder model on top of it.
-	local visualRoot = Workspace:FindFirstChild("HarborVisuals")
-	if visualRoot then table.insert(exclude, visualRoot) end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = exclude
+	params.FilterDescendantsInstances = Players.LocalPlayer.Character
+		and { Players.LocalPlayer.Character } or {}
 	local result = Workspace:Raycast(screenRay.Origin, screenRay.Direction.Unit * 1000, params)
 	if not result then return nil end
-	local part = result.Instance
-	if not part:GetAttribute("kind") then return nil end
-	return part
+
+	-- Walk up the hit instance until we find something with a "kind" attribute.
+	-- The attribute lives on the server anchor Part OR on the visual Model.
+	local inst: Instance? = result.Instance
+	while inst and inst ~= Workspace do
+		if inst:GetAttribute("kind") then
+			if inst:IsA("BasePart") then
+				-- Hit the server anchor directly.
+				return inst
+			elseif inst:IsA("Model") then
+				-- Hit a visual model — find its corresponding server anchor by uid.
+				local uid = inst.Name
+				for _, folder in ipairs(Workspace:GetChildren()) do
+					if folder.Name:sub(1, 5) == "Plot_" then
+						local anchor = folder:FindFirstChild(uid)
+						if anchor and anchor:IsA("BasePart") then
+							return anchor
+						end
+					end
+				end
+				return nil
+			end
+		end
+		inst = inst.Parent
+	end
+	return nil
 end
 
 -- Ghost positioning. Same logic as before, plus a client-side overlap

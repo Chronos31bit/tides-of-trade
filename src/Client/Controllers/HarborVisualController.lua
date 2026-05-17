@@ -554,6 +554,33 @@ function HarborVisualController:_clearDebrisForBuilding(plotOwnerId: number, bui
 end
 
 -- ====================================================================
+-- PUBLIC QUERIES — used by HarborEditController for hover highlight and
+-- ghost overlap-check.
+-- ====================================================================
+
+-- Returns the live visual Model for a building uid, or nil if not spawned yet.
+function HarborVisualController:GetVisualModel(uid: string): Model?
+	for _, state in pairs(self._plots) do
+		local entry = state.buildings[uid]
+		if entry then return entry.model end
+	end
+	return nil
+end
+
+-- Returns the building data tables for every building owned by userId,
+-- in the same shape as profile.buildings so GridUtil.buildOccupancy works.
+function HarborVisualController:GetBuildingsForOwner(userId: number): {any}
+	local key = tostring(userId)
+	local state = self._plots[key]
+	if not state then return {} end
+	local out = {}
+	for _, entry in pairs(state.buildings) do
+		table.insert(out, entry.building)
+	end
+	return out
+end
+
+-- ====================================================================
 -- LIFECYCLE
 -- ====================================================================
 function HarborVisualController:KnitStart()
