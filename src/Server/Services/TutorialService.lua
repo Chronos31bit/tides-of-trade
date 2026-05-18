@@ -193,7 +193,25 @@ function TutorialService:_onBeatEnter(player: Player, beatName: string)
 		self._stuckTimers[player] = {
 			beat5LastNudge = os.clock(),
 		}
+		-- Guard against stuck state: if the player already repaired the dock
+		-- (e.g. the signal fired while a bug prevented the beat advancing),
+		-- advance immediately rather than leaving them with no prompt to click.
+		self:_checkRepairAlreadyDone(player)
 		self:_checkBeat5Affordable(player)
+	end
+end
+
+-- Advance first_repair if the dock is already tier ≥ 2 (handles re-joins
+-- after a prior repair that failed to advance the tutorial).
+function TutorialService:_checkRepairAlreadyDone(player: Player)
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player); if not data then return end
+	if data.tutorial and data.tutorial.state ~= "first_repair" then return end
+	for _, b in ipairs(data.buildings) do
+		if b.kind == "Dock" and b.tier >= 2 then
+			self:_advanceBeat(player)
+			return
+		end
 	end
 end
 
@@ -459,6 +477,11 @@ function TutorialService:_bootstrapPlayer(player: Player)
 		-- client picks up dialogue at t.lineIndex (which we don't reset
 		-- so the player resumes mid-line if they logged out
 		-- mid-conversation).
+		-- Catch desynced first_repair state (dock repaired but beat never
+		-- advanced due to prior signal bug).
+		if t.state == "first_repair" then
+			self:_checkRepairAlreadyDone(player)
+		end
 		self:_pushState(player)
 	end
 
