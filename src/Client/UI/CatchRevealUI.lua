@@ -19,17 +19,47 @@ local FT = GameConfig.Fishing.FeelTuning
 
 -- ====================================================================
 -- TIER COLORS — single source of truth for the rarity → color mapping.
--- Used by the border, badge fill, and (for mythic) the color cycle.
+-- Used by the border, badge fill, and the animated color cycle.
 -- ====================================================================
 local TIER_COLORS = {
-	Common   = Color3.fromRGB(180, 180, 180),
-	Uncommon = Color3.fromRGB( 70, 200, 110),
-	Rare     = Color3.fromRGB( 60, 140, 240),
-	Mythic   = Color3.fromRGB(240, 160,  40),
+	Common    = Color3.fromRGB(180, 180, 180),
+	Uncommon  = Color3.fromRGB( 70, 200, 110),
+	Rare      = Color3.fromRGB( 60, 140, 240),
+	Epic      = Color3.fromRGB(160,  80, 240),
+	Legendary = Color3.fromRGB(255, 165,  30),
+	Mythic    = Color3.fromRGB(220,  60,  80),
+	Divine    = Color3.fromRGB(200, 220, 255),
 }
--- Mythic cycle target — the *other* color the border lerps to when on a
--- mythic catch. Coral pairs with amber for a fire/treasure vibe.
-local MYTHIC_CYCLE_TARGET = Color3.fromRGB(240, 100, 100)
+-- Border ping-pong targets for Legendary, Mythic, and Divine cards.
+-- Key must be a rarity string; absence means no cycle for that tier.
+local TIER_CYCLE_TARGETS = {
+	Mythic    = Color3.fromRGB(240, 100, 100),  -- crimson ↔ coral
+	Legendary = Color3.fromRGB(255, 220,  80),  -- gold ↔ bright amber
+	Divine    = Color3.fromRGB(255, 200, 255),  -- icy blue ↔ lavender
+}
+
+-- ====================================================================
+-- MODIFIER COLORS + DISPLAY NAMES
+-- ====================================================================
+local MOD_COLORS: {[string]: Color3} = {
+	shiny        = Color3.fromRGB(255, 220,  60),
+	giant        = Color3.fromRGB(120, 200, 120),
+	glowing      = Color3.fromRGB(100, 180, 255),
+	lucky        = Color3.fromRGB(200, 120, 255),
+	ancient      = Color3.fromRGB(210, 140,  60),
+	prismatic    = Color3.fromRGB(255, 100, 160),
+	elder        = Color3.fromRGB(255, 240, 180),
+	cursed       = Color3.fromRGB(120,  40, 160),
+	magnetic     = Color3.fromRGB( 80, 200, 220),
+	barnacled    = Color3.fromRGB(140, 180, 100),
+	tide_kissed  = Color3.fromRGB( 60, 200, 220),
+	storm_forged = Color3.fromRGB(180,  80, 255),
+	moon_touched = Color3.fromRGB(200, 200, 255),
+	dawn_blessed = Color3.fromRGB(255, 200, 120),
+	fog_shrouded = Color3.fromRGB(160, 180, 200),
+}
+local _modDisplayNames: {[string]: string} = {}
+for _, m in ipairs(GameConfig.FishModifiers) do _modDisplayNames[m.id] = m.displayName end
 
 export type CatchPayload = {
 	fish: { displayName: string, rarity: string, basePrice: number, id: string? },
@@ -38,6 +68,7 @@ export type CatchPayload = {
 	xpGained: number?,
 	perfect: boolean?,      -- reel was perfect-zone (triggers coin bonus)
 	castPerfect: boolean?,  -- cast marker hit the inner gold strip (triggers weight bonus)
+	modifiers: {string}?,   -- modifier ids applied at catch time
 }
 
 export type RevealHandle = {
@@ -56,7 +87,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 
 	local rarity = payload.fish.rarity or "Common"
 	local tierColor = TIER_COLORS[rarity] or TIER_COLORS.Common
-	local perfectColor = TIER_COLORS.Mythic  -- prompt says perfect always uses mythic amber
+	local perfectColor = TIER_COLORS.Legendary  -- gold for perfect catch indicators
 
 	-- ----------------------------------------------------------------
 	-- CARD — solid teal panel, tier-colored stroke, rounded.
@@ -172,6 +203,76 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	coinLbl.Parent = card
 
 	-- ----------------------------------------------------------------
+	-- MODIFIER PILLS — one pill per modifier id, below the weight label.
+	-- Staggered fade-in (0.08s per pill). Capped at 4 visible; "+N" label.
+	-- Skipped entirely if no modifiers.
+	-- ----------------------------------------------------------------
+	local mods = payload.modifiers or {}
+	if #mods > 0 then
+		local pillRow = Instance.new("Frame")
+		pillRow.BackgroundTransparency = 1
+		pillRow.Position = UDim2.new(0, 108, 0, nameTopY + 52)
+		pillRow.Size = UDim2.new(1, -120, 0, 18)
+		pillRow.Parent = card
+		local rowLayout = Instance.new("UIListLayout")
+		rowLayout.FillDirection = Enum.FillDirection.Horizontal
+		rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		rowLayout.Padding = UDim.new(0, 4)
+		rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		rowLayout.Parent = pillRow
+
+		local reduced = MotionUtil.reducedMotionEnabled()
+		local maxVisible = math.min(#mods, 4)
+		for i = 1, maxVisible do
+			local modId = mods[i]
+			local color = MOD_COLORS[modId] or Color3.fromRGB(160, 160, 160)
+			local pill = Instance.new("Frame")
+			pill.Size = UDim2.fromOffset(0, 18)
+			pill.AutomaticSize = Enum.AutomaticSize.X
+			pill.BackgroundColor3 = color
+			pill.BackgroundTransparency = 1
+			pill.BorderSizePixel = 0
+			pill.LayoutOrder = i
+			local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 9); pc.Parent = pill
+			local pp = Instance.new("UIPadding")
+			pp.PaddingLeft  = UDim.new(0, 8)
+			pp.PaddingRight = UDim.new(0, 8)
+			pp.Parent = pill
+			local pillLbl = Instance.new("TextLabel")
+			pillLbl.BackgroundTransparency = 1
+			pillLbl.Size = UDim2.fromScale(1, 1)
+			pillLbl.Font = Enum.Font.GothamBold
+			pillLbl.TextSize = 10
+			pillLbl.TextColor3 = Color3.new(1, 1, 1)
+			pillLbl.TextTransparency = 1
+			pillLbl.Text = _modDisplayNames[modId] or modId
+			pillLbl.Parent = pill
+			pill.Parent = pillRow
+			if reduced then
+				MotionUtil.tween(pill,    TweenInfo.new(0.2), { BackgroundTransparency = 0.25 })
+				MotionUtil.tween(pillLbl, TweenInfo.new(0.2), { TextTransparency = 0 })
+			else
+				task.delay((i - 1) * 0.08, function()
+					if not pill.Parent then return end
+					MotionUtil.tween(pill,    TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.25 })
+					MotionUtil.tween(pillLbl, TweenInfo.new(0.18), { TextTransparency = 0 })
+				end)
+			end
+		end
+		if #mods > 4 then
+			local overflowLbl = Instance.new("TextLabel")
+			overflowLbl.BackgroundTransparency = 1
+			overflowLbl.Size = UDim2.fromOffset(28, 18)
+			overflowLbl.Font = Enum.Font.Gotham
+			overflowLbl.TextSize = 10
+			overflowLbl.TextColor3 = P.CreamSoft
+			overflowLbl.Text = "+" .. (#mods - 4)
+			overflowLbl.LayoutOrder = 5
+			overflowLbl.Parent = pillRow
+		end
+	end
+
+	-- ----------------------------------------------------------------
 	-- RARITY BADGE — small tier-tinted pill in the bottom-right corner.
 	-- ----------------------------------------------------------------
 	local badge = Instance.new("Frame")
@@ -188,27 +289,43 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	badgeLbl.Size = UDim2.fromScale(1, 1)
 	badgeLbl.Font = Enum.Font.GothamBold
 	badgeLbl.TextSize = 12
-	-- Pick text color for contrast — dark on uncommon/mythic, light on rare/common.
-	badgeLbl.TextColor3 = (rarity == "Rare" or rarity == "Common") and P.Cream or P.Ink
+	-- Dark text on light/gold backgrounds; light text on saturated dark backgrounds.
+	local needsDarkText = rarity == "Common" or rarity == "Uncommon" or rarity == "Legendary" or rarity == "Divine"
+	badgeLbl.TextColor3 = needsDarkText and P.Ink or P.Cream
 	badgeLbl.Text = rarity:upper()
 	badgeLbl.Parent = badge
 
 	-- ----------------------------------------------------------------
-	-- MYTHIC BORDER CYCLE — slow color tween between amber and coral.
-	-- Runs for as long as the card exists; killed in dismiss().
+	-- ANIMATED BORDER CYCLE — color ping-pong for Legendary, Mythic, Divine.
+	-- Divine additionally oscillates stroke Thickness (3px ↔ 5px over 2s).
+	-- Both tasks run for the card's lifetime and are killed in dismiss().
 	-- ----------------------------------------------------------------
 	local cycleTask: thread? = nil
-	if rarity == "Mythic" and not MotionUtil.reducedMotionEnabled() then
+	local thickTask: thread? = nil
+	local cycleTarget = TIER_CYCLE_TARGETS[rarity]
+	if cycleTarget and not MotionUtil.reducedMotionEnabled() then
 		cycleTask = task.spawn(function()
-			local toCoral = true
+			local toTarget = true
 			while card.Parent do
-				local target = toCoral and MYTHIC_CYCLE_TARGET or tierColor
+				local target = toTarget and cycleTarget or tierColor
 				local tween = MotionUtil.tween(stroke, TweenInfo.new(FT.MythicBorderCycleDuration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Color = target })
 				tween.Completed:Wait()
 				tween:Destroy()
-				toCoral = not toCoral
+				toTarget = not toTarget
 			end
 		end)
+		if rarity == "Divine" then
+			thickTask = task.spawn(function()
+				local toThick = true
+				while card.Parent do
+					local target = toThick and 5 or 3
+					local tween = MotionUtil.tween(stroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = target })
+					tween.Completed:Wait()
+					tween:Destroy()
+					toThick = not toThick
+				end
+			end)
+		end
 	end
 
 	-- ----------------------------------------------------------------
@@ -263,7 +380,8 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	local function dismiss()
 		if dismissed then return end
 		dismissed = true
-		if cycleTask then task.cancel(cycleTask); cycleTask = nil end
+		if cycleTask  then task.cancel(cycleTask);  cycleTask  = nil end
+		if thickTask  then task.cancel(thickTask);  thickTask  = nil end
 		if MotionUtil.reducedMotionEnabled() then
 			local fade = MotionUtil.tween(card, TweenInfo.new(0.2), { BackgroundTransparency = 1 })
 			fade.Completed:Connect(function() fade:Destroy(); gui:Destroy() end)
