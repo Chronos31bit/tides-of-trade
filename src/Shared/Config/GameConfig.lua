@@ -433,6 +433,44 @@ GameConfig.AntiExploit = {
 }
 
 -- ====================================================================
+-- RODS — XP thresholds to unlock each named rod tier.
+-- Display data (castWindowBonus, catchWeightBonus, color) lives in
+-- RodCatalog.lua. Thresholds live here so designers can tune the
+-- progression curve without touching the catalog.
+-- Keys must match RodCatalog rod ids exactly.
+-- ====================================================================
+GameConfig.Rods = {
+	UnlockXp = {
+		driftwood = 0,      -- starter rod, always available
+		bamboo    = 200,    -- ~10-20 fish caught
+		ironwood  = 800,    -- ~40-60 fish caught
+		coral     = 2500,   -- solid mid-game milestone
+		abyssal   = 7000,   -- dedicated long-term players
+	},
+}
+
+-- ====================================================================
+-- FISH MODIFIERS — rare mutations that spawn on caught fish.
+-- Each modifier rolls independently per catch (dropChance = per-catch
+-- probability). Multiple modifiers can stack on one fish.
+-- Effect fields (all optional):
+--   weightMul    : multiply resolved weight by this value
+--   xpMul        : multiply XP award by this value
+--   coinInstant  : grant fish.basePrice × this as instant coins on catch
+--   lureBonus    : immediately grant this many extra lure tokens
+-- Modifiers are stored on FishItem.modifiers for display in inventory
+-- and future market-price integration. Stable ids — never rename.
+-- ====================================================================
+GameConfig.FishModifiers = {
+	{ id = "shiny",     displayName = "Shiny",     dropChance = 0.015, coinInstant = 1.0                       },
+	{ id = "giant",     displayName = "Giant",     dropChance = 0.050,              weightMul = 1.4             },
+	{ id = "glowing",   displayName = "Glowing",   dropChance = 0.060,                           xpMul = 1.5   },
+	{ id = "lucky",     displayName = "Lucky",     dropChance = 0.030,                                           lureBonus = 1 },
+	{ id = "ancient",   displayName = "Ancient",   dropChance = 0.020,                           xpMul = 3.0   },
+	{ id = "prismatic", displayName = "Prismatic", dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0 },
+}
+
+-- ====================================================================
 -- BAIT
 -- ====================================================================
 -- Tunable knobs for the bait-shop purchase flow. Catalog data (names,

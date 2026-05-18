@@ -36,6 +36,7 @@ local RateLimiter  = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Signal       = require(ReplicatedStorage.Packages.Signal)
 
 local FishCatalog = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local RodCatalog  = require(ReplicatedStorage.Shared.Config.RodCatalog)
 
 type Fish = {
 	id: string,
@@ -155,6 +156,57 @@ local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string,
 end
 
 -- ====================================================================
+-- FISH MODIFIERS
+-- ====================================================================
+
+-- Build a modifier lookup keyed by id once at load time.
+local modifierById: {[string]: {id:string, displayName:string, dropChance:number, weightMul:number?, xpMul:number?, coinInstant:number?, lureBonus:number?}} = {}
+for _, mod in ipairs(GameConfig.FishModifiers) do
+	modifierById[mod.id] = mod
+end
+
+-- Roll which modifiers (if any) apply to a single catch. Each modifier
+-- rolls its dropChance independently so multiple can land on one fish.
+local function rollModifiers(): {string}
+	local result: {string} = {}
+	for _, mod in ipairs(GameConfig.FishModifiers) do
+		if math.random() < mod.dropChance then
+			table.insert(result, mod.id)
+		end
+	end
+	return result
+end
+
+-- Aggregate the numeric effects of a set of modifier ids. All multipliers
+-- compound; bonuses are summed. Called in ReleaseReel after weight is set.
+local function applyModifierEffects(
+	modifiers: {string},
+	weight: number,
+	xpAward: number,
+	fishBasePrice: number
+): (number, number, number, number) -- weight, xp, instantCoins, lureBonus
+	local weightMul    = 1.0
+	local xpMul        = 1.0
+	local coinInstant  = 0.0
+	local lureBonus    = 0
+
+	for _, id in ipairs(modifiers) do
+		local mod = modifierById[id]
+		if mod then
+			weightMul   = weightMul * (mod.weightMul   or 1.0)
+			xpMul       = xpMul    * (mod.xpMul        or 1.0)
+			coinInstant = coinInstant + (mod.coinInstant or 0.0)
+			lureBonus   = lureBonus  + (mod.lureBonus   or 0)
+		end
+	end
+
+	local finalWeight     = math.floor(weight * weightMul * 10 + 0.5) / 10
+	local finalXp         = math.floor(xpAward * xpMul)
+	local finalCoins      = math.floor(fishBasePrice * coinInstant)
+	return finalWeight, finalXp, finalCoins, lureBonus
+end
+
+-- ====================================================================
 -- LIFECYCLE
 -- ====================================================================
 
@@ -189,7 +241,7 @@ end
 -- ====================================================================
 -- CONTEXT
 -- ====================================================================
-function FishingService:_getContext(player: Player): {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number, rareMultiplier: number}?
+function FishingService:_getContext(player: Player): {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number, rareMultiplier: number, equippedRodId: string}?
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local TideService       = Knit.GetService("TideService")
 	local WeatherService    = Knit.GetService("WeatherService")
@@ -226,6 +278,7 @@ function FishingService:_getContext(player: Player): {biome: string, timeOfDay: 
 		tide = TideService:GetTide(),
 		rodTier = data.rodTier,
 		rareMultiplier = rareMul,
+		equippedRodId = data.equippedRodId or "driftwood",
 	}
 end
 
@@ -262,9 +315,13 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 	local castId = UidUtil.new("cast")
 	local displaySize = fish.greenZoneSize
 	local center = displaySize / 2 + math.random() * (1 - displaySize)
-	-- Validation zone: widened by tutorial assist without changing the display.
+	-- Validation zone: widened by the equipped rod's castWindowBonus (additive
+	-- to the display size) and then by the tutorial assist multiplier. The
+	-- display zone is unchanged — the player sees the same visual bar.
+	local rod = RodCatalog.byId[ctx.equippedRodId]
+	local rodWindowBonus = rod and rod.castWindowBonus or 0
 	local assistMul = self._assistMultiplier[player] or 1.0
-	local validationSize = math.min(1.0, displaySize * assistMul)
+	local validationSize = math.min(1.0, (displaySize + rodWindowBonus) * assistMul)
 	local half = validationSize / 2
 	local validationCenter = math.clamp(center, half, 1 - half)
 
@@ -280,6 +337,7 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 		startedAt = os.clock(),
 		reelStartedAt = nil,
 		phase = "casting",
+		equippedRodId = ctx.equippedRodId,  -- snapshot at cast time; immutable for this cast
 	}
 
 	-- Cast-phase timeout (no claim within CastTimeoutSeconds → fail).
@@ -404,6 +462,7 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 	local fish = fishById[pending.fishId]
 	local weight = pending.weightKg
 	local castPerfect = pending.castPerfect == true  -- capture before clearing
+	local snapRodId = pending.equippedRodId or "driftwood"
 	self._pendingCasts[player] = nil
 	if not fish then
 		return { success = false, reason = "internal_no_fish" }
@@ -418,26 +477,46 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 		weight = math.min(boosted, fish.weightRange[2] * 1.5)
 	end
 
+	-- Rod catchWeightBonus: flat kg added after catalog roll and perfect-cast boost.
+	local equippedRod = RodCatalog.byId[snapRodId]
+	local rodWeightBonus = equippedRod and equippedRod.catchWeightBonus or 0
+	weight = math.floor((weight + rodWeightBonus) * 10 + 0.5) / 10
+
 	local xpAward = fish.xp
 	local perfectCoins = 0
 	if perfect then
 		xpAward = math.floor(xpAward * FT.PerfectBonusMultiplier)
 		-- Perfect reel: award an instant coin bonus on top of the normal sell value.
 		perfectCoins = math.floor((fish.basePrice or 0) * FT.PerfectReelCoinFraction)
-		if perfectCoins > 0 then
-			PlayerDataService:AddCoins(player, perfectCoins, "perfect_catch")
-		end
+	end
+
+	-- Fish modifiers: each rolls independently; effects compound.
+	local modifiers = rollModifiers()
+	local modCoins = 0
+	local modLureBonus = 0
+	if #modifiers > 0 then
+		local modXp: number
+		weight, modXp, modCoins, modLureBonus = applyModifierEffects(modifiers, weight, xpAward, fish.basePrice or 0)
+		xpAward = modXp
+	end
+
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+
+	-- Coin grants (perfect + modifier) in one call to minimise signal churn.
+	local totalInstantCoins = perfectCoins + modCoins
+	if totalInstantCoins > 0 then
+		PlayerDataService:AddCoins(player, totalInstantCoins, "catch_bonus")
 	end
 
 	local item: Types.FishItem = {
-		uid = UidUtil.new("fish"),
-		kind = "Fish",
+		uid       = UidUtil.new("fish"),
+		kind      = "Fish",
 		speciesId = fish.id,
-		weightKg = weight,
-		caughtAt = os.time(),
+		weightKg  = weight,
+		caughtAt  = os.time(),
+		modifiers = #modifiers > 0 and modifiers or nil,
 	}
 
-	local PlayerDataService = Knit.GetService("PlayerDataService")
 	PlayerDataService:AddItem(player, item)
 	PlayerDataService:AddXP(player, xpAward)
 
@@ -447,20 +526,25 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 		data.stats.caughtSpecies[fish.id] = (data.stats.caughtSpecies[fish.id] or 0) + 1
 	end
 
+	-- Base lure token drop chance + any modifier lure bonus.
 	if math.random() < GameConfig.Fishing.LureTokenDropChance then
-		PlayerDataService:AddLureTokens(player, 1)
+		modLureBonus += 1
+	end
+	if modLureBonus > 0 then
+		PlayerDataService:AddLureTokens(player, modLureBonus)
 	end
 
 	self.CaughtServer:Fire(player, fish, weight, perfect)
 
 	local result = {
-		success = true,
-		fish = fish,
-		weightKg = weight,
-		coinsEarned = perfectCoins,
-		xpGained = xpAward,
-		perfect = perfect,
-		castPerfect = castPerfect,
+		success      = true,
+		fish         = fish,
+		weightKg     = weight,
+		coinsEarned  = totalInstantCoins,
+		xpGained     = xpAward,
+		perfect      = perfect,
+		castPerfect  = castPerfect,
+		modifiers    = #modifiers > 0 and modifiers or nil,
 	}
 	self.Client.CastResolved:Fire(player, result)
 	return { success = true, perfect = perfect }

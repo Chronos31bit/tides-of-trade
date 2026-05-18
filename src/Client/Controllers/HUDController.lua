@@ -437,38 +437,21 @@ function HUDController:_wireRodChip()
 		self._rodCatalog = catalog
 	end)
 
-	-- Tap / click toggles the tooltip.
+	-- Tap / click opens the rod-rack selection panel (RodSelectController).
+	-- On PC, hover still shows the tier-info tooltip (read-only). Touch devices
+	-- use the panel exclusively — long-press tooltip is intentionally removed
+	-- in favour of the more useful equip panel.
 	self._hud.rodChip.Activated:Connect(function()
-		self:_toggleRodTooltip()
+		Knit.GetController("RodSelectController"):Toggle()
 	end)
 
-	-- PC: hover opens (open-only — the full-screen dismiss backdrop would
-	-- otherwise fight a leave-to-close handler and flicker). Dismiss is via
-	-- tap-outside / Escape / inactivity / re-tapping the chip. Touch:
-	-- long-press opens (tap already toggles via Activated above).
+	-- PC: hover opens the tier-info tooltip (read-only reference panel).
+	-- Touch: Activated (above) already opens the rod-rack; no long-press needed.
 	if not UIUtil.isTouchDevice() then
 		self._hud.rodChip.MouseEnter:Connect(function()
 			if not (self._rodTooltip and self._rodTooltip.isOpen()) then
 				self:_toggleRodTooltip()
 			end
-		end)
-	else
-		local cfg = GameConfig.UI.RodTierChip
-		local pressThread: thread? = nil
-		self._hud.rodChip.InputBegan:Connect(function(input)
-			if input.UserInputType ~= Enum.UserInputType.Touch then return end
-			pressThread = task.delay(cfg.LongPressSeconds, function()
-				pressThread = nil
-				if not (self._rodTooltip and self._rodTooltip.isOpen()) then
-					self:_toggleRodTooltip()
-				end
-			end)
-		end)
-		local function cancelPress()
-			if pressThread then task.cancel(pressThread); pressThread = nil end
-		end
-		self._hud.rodChip.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch then cancelPress() end
 		end)
 	end
 

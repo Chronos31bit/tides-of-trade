@@ -12,6 +12,8 @@ local Knit             = require(ReplicatedStorage.Packages.Knit)
 local GameConfig       = require(ReplicatedStorage.Shared.Config.GameConfig)
 local RodTierUtil      = require(ReplicatedStorage.Shared.Util.RodTierUtil)
 
+local RodCatalog = require(ReplicatedStorage.Shared.Config.RodCatalog)
+
 local RodService = Knit.CreateService({
 	Name = "RodService",
 	Client = {
@@ -189,6 +191,35 @@ function RodService:KnitInit()
 	else
 		print("[RodService] All fish have an explicit rodMinTier.")
 	end
+end
+
+-- ====================================================================
+-- CLIENT API — rod equip
+-- ====================================================================
+
+-- Client requests to equip a named rod. Server validates:
+--   1. rodId exists in RodCatalog
+--   2. player.xp >= rod.unlockXp (XP gate; never trust client)
+-- On success, PlayerDataService:SetEquippedRod syncs equippedRodId + rodTier.
+function RodService.Client:EquipRod(player: Player, rodId: string): {ok: boolean, reason: string?}
+	local rod = RodCatalog.byId[rodId]
+	if not rod then
+		return { ok = false, reason = "unknown_rod" }
+	end
+
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player)
+	if not data then
+		return { ok = false, reason = "no_profile" }
+	end
+
+	local requiredXp = GameConfig.Rods.UnlockXp[rodId] or 0
+	if data.xp < requiredXp then
+		return { ok = false, reason = "xp_too_low" }
+	end
+
+	PlayerDataService:SetEquippedRod(player, rodId)
+	return { ok = true }
 end
 
 function RodService:KnitStart()

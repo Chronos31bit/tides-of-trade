@@ -58,6 +58,12 @@ local PROFILE_TEMPLATE: Profile = {
 	baitStash = {},
 	equippedBaitId = nil,
 
+	-- Rod selection. equippedRodId is the named rod the player has chosen;
+	-- it drives castWindowBonus / catchWeightBonus in FishingService and also
+	-- sets rodTier for fish species access. "driftwood" is the safe default
+	-- for all existing profiles via ProfileService:Reconcile().
+	equippedRodId = "driftwood",
+
 	-- Tutorial state machine. New fields are picked up by profile:Reconcile()
 	-- on load, so existing saves get a default-not_started slot — but the
 	-- TutorialService:_isReturningVet check below force-completes any profile
@@ -93,6 +99,7 @@ local PlayerDataService = Knit.CreateService({
 		CoinsChanged      = Knit.CreateSignal(),  -- (newCoins, newLureTokens)
 		XPChanged         = Knit.CreateSignal(),  -- (newLevel, newXp, xpForNextLevel)
 		RodTierChanged    = Knit.CreateSignal(),  -- (newTier)
+		EquippedRodChanged = Knit.CreateSignal(), -- (rodId)
 		InventoryChanged  = Knit.CreateSignal(),  -- (snapshot)
 		BuildingsChanged  = Knit.CreateSignal(),  -- (snapshot)
 		QuestsChanged     = Knit.CreateSignal(),  -- (snapshot)
@@ -286,6 +293,20 @@ function PlayerDataService:SetRodTier(player: Player, tier: number)
 	local data = self:GetProfile(player); if not data then return end
 	data.rodTier = tier
 	self.Client.RodTierChanged:Fire(player, tier)
+end
+
+-- Single writer for the equipped named rod. Validates the rodId exists in
+-- RodCatalog, then syncs rodTier so fish species access stays consistent.
+-- Called by RodService:EquipRod after XP validation.
+function PlayerDataService:SetEquippedRod(player: Player, rodId: string)
+	local data = self:GetProfile(player); if not data then return end
+	local RodCatalog = require(ReplicatedStorage.Shared.Config.RodCatalog)
+	local rod = RodCatalog.byId[rodId]
+	if not rod then return end
+	data.equippedRodId = rodId
+	data.rodTier = rod.tier
+	self.Client.EquippedRodChanged:Fire(player, rodId)
+	self.Client.RodTierChanged:Fire(player, rod.tier)
 end
 
 -- ============ Inventory ============

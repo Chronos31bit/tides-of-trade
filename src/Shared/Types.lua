@@ -18,6 +18,7 @@ export type FishItem = {
 	speciesId: string,  -- matches FishCatalog id
 	weightKg: number,
 	caughtAt: number,   -- os.time() of catch, used for spoilage / display
+	modifiers: {string}?, -- e.g. {"shiny", "giant"}; nil when unmodified
 }
 
 export type GoodItem = {
@@ -133,6 +134,10 @@ export type Profile = {
 	aquariumStock: {[string]: {FishItem}},
 	cosmetics: Cosmetics,
 	rodTier: number,
+	-- The named rod the player has selected. Defaults to "driftwood".
+	-- Drives castWindowBonus and catchWeightBonus in FishingService.
+	-- Setting this also syncs rodTier for fish species access.
+	equippedRodId: string?,
 
 	-- Daily systems
 	streak: Streak,
