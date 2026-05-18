@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 -- HarborService.lua
 -- Owns plot allocation and building placement / upgrade / removal. All grid
 -- math is shared with the client (GridUtil) but only the server's answer is
