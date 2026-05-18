@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 -- ShopController.lua
 -- Opens the rod-tier shop when the Dock ProximityPrompt fires.
 -- Bait shop is handled by BaitShopController.
