@@ -308,6 +308,23 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	elseif building.kind == "BaitShop" then
 		makePrompt("Open Bait Shop", "Bait Shop")
 	end
+
+	-- "Upgrade" prompt for every building that hasn't reached max tier, except
+	-- Dock at tier 1 which already has "Repair Dock" for the same action.
+	-- After an upgrade the anchor is destroyed and respawned, so the prompt
+	-- disappears when a building hits max tier without any extra bookkeeping.
+	local maxTier = #def.tiers
+	local isDockTier1 = building.kind == "Dock" and building.tier == 1
+	if building.tier < maxTier and not isDockTier1 then
+		local upgradePrompt = Instance.new("ProximityPrompt")
+		upgradePrompt.ActionText    = "Upgrade"
+		upgradePrompt.ObjectText    = def.displayName
+		upgradePrompt.HoldDuration  = 0
+		upgradePrompt.MaxActivationDistance = 12
+		upgradePrompt.RequiresLineOfSight   = false
+		upgradePrompt:SetAttribute("buildingUid", building.uid)
+		upgradePrompt.Parent = anchor
+	end
 end
 
 function HarborService:_spawnExistingBuildings(player: Player)

@@ -70,30 +70,28 @@ function HUDController:KnitStart()
 	local function refreshRodButton()
 		local char = Players.LocalPlayer.Character
 		local equipped = char and char:FindFirstChild("Fishing Rod") ~= nil
-		-- Visual cue: bright when equipped, muted when in backpack.
 		self._hud.rodButton.BackgroundColor3 = equipped
 			and UIUtil.Palette.Sunset
 			or UIUtil.Palette.SunsetDeep
 	end
 
-	self._hud.rodButton.Activated:Connect(function()
+	local function toggleRod()
 		local char = Players.LocalPlayer.Character
 		if not char then return end
 		local humanoid = char:FindFirstChildOfClass("Humanoid")
 		if not humanoid then return end
 		local equippedRod = char:FindFirstChild("Fishing Rod")
 		if equippedRod then
-			-- Currently equipped — put it away.
 			humanoid:UnequipTools()
 		else
-			-- Pull rod from backpack and equip.
 			local bp = Players.LocalPlayer:FindFirstChildOfClass("Backpack")
 			local rod = bp and bp:FindFirstChild("Fishing Rod")
 			if rod and rod:IsA("Tool") then humanoid:EquipTool(rod) end
 		end
-		-- Tools take a frame to reparent; defer the visual refresh.
 		task.defer(refreshRodButton)
-	end)
+	end
+
+	self._hud.rodButton.Activated:Connect(toggleRod)
 
 	-- Also update the button when respawns / tool grants reshuffle things.
 	Players.LocalPlayer.CharacterAdded:Connect(function() task.wait(0.5); refreshRodButton() end)
@@ -104,22 +102,36 @@ function HUDController:KnitStart()
 	self._hud.harborButton.Activated:Connect(function() HarborEditController:Toggle() end)
 	self._hud.aquariumButton.Activated:Connect(function() AquariumController:OpenFirstOwned() end)
 	self._hud.socialButton.Activated:Connect(function() SocialController:Open() end)
-	-- HOME button: server-authoritative teleport back to player's plot.
 	self._hud.homeButton.Activated:Connect(function()
 		Knit.GetService("HarborService"):GoHome():andThen(function(res)
 			if not res.ok then warn("[HUD] GoHome:", res.reason) end
 		end)
 	end)
 
-	-- Keyboard shortcuts for PC players.
+	-- Keyboard shortcuts. Number keys 1–7 map to the action bar left-to-right;
+	-- legacy letter shortcuts preserved so existing muscle memory still works.
+	local keyActions: {[Enum.KeyCode]: () -> ()} = {
+		[Enum.KeyCode.One]   = toggleRod,
+		[Enum.KeyCode.Two]   = function() InventoryController:Open() end,
+		[Enum.KeyCode.Three] = function() MarketController:Open() end,
+		[Enum.KeyCode.Four]  = function() AquariumController:OpenFirstOwned() end,
+		[Enum.KeyCode.Five]  = function() HarborEditController:Toggle() end,
+		[Enum.KeyCode.Six]   = function() SocialController:Open() end,
+		[Enum.KeyCode.Seven] = function()
+			Knit.GetService("HarborService"):GoHome():andThen(function(res)
+				if not res.ok then warn("[HUD] GoHome:", res.reason) end
+			end)
+		end,
+		[Enum.KeyCode.I] = function() InventoryController:Open() end,
+		[Enum.KeyCode.M] = function() MarketController:Open() end,
+		[Enum.KeyCode.B] = function() HarborEditController:Toggle() end,
+		[Enum.KeyCode.C] = function() SocialController:Open() end,
+	}
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end
 		if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-		if input.KeyCode == Enum.KeyCode.I then InventoryController:Open()
-		elseif input.KeyCode == Enum.KeyCode.M then MarketController:Open()
-		elseif input.KeyCode == Enum.KeyCode.B then HarborEditController:Toggle()
-		elseif input.KeyCode == Enum.KeyCode.C then SocialController:Open()
-		end
+		local action = keyActions[input.KeyCode]
+		if action then action() end
 	end)
 
 	-- ----------------------------------------------------------------

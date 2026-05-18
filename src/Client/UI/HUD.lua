@@ -105,7 +105,7 @@ end
 
 -- Action-bar tile: vertical stack of glyph + label, fully opaque. Returns
 -- a TextButton so HUDController can hook .Activated on it.
-local function actionTile(glyph: string, label: string, tint: Color3): TextButton
+local function actionTile(glyph: string, label: string, tint: Color3, keybind: string?): TextButton
 	local btn = Instance.new("TextButton")
 	btn.AutoButtonColor = false
 	btn.BackgroundColor3 = tint
@@ -144,6 +144,20 @@ local function actionTile(glyph: string, label: string, tint: Color3): TextButto
 	n.TextXAlignment = Enum.TextXAlignment.Center
 	n.Text = label
 	n.Parent = btn
+
+	-- Small key-hint badge in the top-right corner (PC only hint).
+	if keybind then
+		local kb = Instance.new("TextLabel")
+		kb.BackgroundTransparency = 1
+		kb.AnchorPoint = Vector2.new(1, 0)
+		kb.Position = UDim2.new(1, -4, 0, 4)
+		kb.Size = UDim2.fromOffset(14, 14)
+		kb.Font = Enum.Font.GothamBold
+		kb.TextSize = 9
+		kb.TextColor3 = P.Cream:Lerp(Color3.new(0, 0, 0), 0.35)
+		kb.Text = keybind
+		kb.Parent = btn
+	end
 
 	-- Tactile click feedback derived from the tile's tint.
 	local TweenService = game:GetService("TweenService")
@@ -326,13 +340,13 @@ function HUD.create(): HUDController
 	-- 7 tiles total. Home goes last (rightmost) so it's a clear "go back" position.
 	-- Named so TutorialController and any future tooltip system can target
 	-- specific tiles via FindFirstChild without coupling to layout order.
-	local rodBtn  = actionTile("⌇",  "ROD",      P.Sunset);     rodBtn.Name  = "RodButton"
-	local invBtn  = actionTile("▤",  "BAG",      P.Wood);       invBtn.Name  = "InventoryButton"
-	local mktBtn  = actionTile("$",  "MARKET",   P.TealLight);  mktBtn.Name  = "MarketButton"
-	local aquaBtn = actionTile("◉",  "AQUARIUM", P.Rare);       aquaBtn.Name = "AquariumButton"
-	local hrbBtn  = actionTile("▣",  "BUILD",    P.SunsetDeep); hrbBtn.Name  = "HarborButton"
-	local socBtn  = actionTile("♥",  "CREW",     P.Lure);       socBtn.Name  = "SocialButton"
-	local homeBtn = actionTile("⌂",  "HOME",     P.Uncommon);   homeBtn.Name = "HomeButton"
+	local rodBtn  = actionTile("⌇",  "ROD",      P.Sunset,     "1"); rodBtn.Name  = "RodButton"
+	local invBtn  = actionTile("▤",  "BAG",      P.Wood,       "2"); invBtn.Name  = "InventoryButton"
+	local mktBtn  = actionTile("$",  "MARKET",   P.TealLight,  "3"); mktBtn.Name  = "MarketButton"
+	local aquaBtn = actionTile("◉",  "AQUARIUM", P.Rare,       "4"); aquaBtn.Name = "AquariumButton"
+	local hrbBtn  = actionTile("▣",  "BUILD",    P.SunsetDeep, "5"); hrbBtn.Name  = "HarborButton"
+	local socBtn  = actionTile("♥",  "CREW",     P.Lure,       "6"); socBtn.Name  = "SocialButton"
+	local homeBtn = actionTile("⌂",  "HOME",     P.Uncommon,   "7"); homeBtn.Name = "HomeButton"
 	rodBtn.LayoutOrder = 1; rodBtn.Parent = actionBar
 	invBtn.LayoutOrder = 2; invBtn.Parent = actionBar
 	mktBtn.LayoutOrder = 3; mktBtn.Parent = actionBar
