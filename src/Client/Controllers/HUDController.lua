@@ -15,7 +15,6 @@ local UIUtil = require(script.Parent.Parent.UI.UIUtil)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local RodTierUtil = require(ReplicatedStorage.Shared.Util.RodTierUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local RodCatalog = require(ReplicatedStorage.Shared.Config.RodCatalog)
 
 local HUDController = Knit.CreateController({
 	Name = "HUDController",
@@ -212,9 +211,6 @@ function HUDController:_apply(profile: any)
 	self._hud.levelLabel.Text = ("Lv %d"):format(profile.level or 1)
 	-- Initial paint (no pulse) — RodTierChanged handles later live changes.
 	self:_applyRodTier(profile.rodTier or 1, false)
-	-- Paint rarity pill to match the initially equipped rod.
-	local rod = RodCatalog.byId[profile.equippedRodId or "driftwood"]
-	if rod then self:_applyRodRank(rod.rank, rod.rankColor) end
 end
 
 -- ====================================================================
@@ -277,16 +273,6 @@ function HUDController:_applyRodTier(tier: number, animate: boolean)
 		t.Completed:Connect(function() t:Destroy() end)
 		t:Play()
 	end
-end
-
--- Recolour the rarity pill in the top strip for the newly equipped rod's rank.
-function HUDController:_applyRodRank(rank: string, rankColor: Color3)
-	local hud = self._hud
-	if not hud then return end
-	hud.rodRankPill.BackgroundColor3 = rankColor
-	local s = hud.rodRankPill:FindFirstChildOfClass("UIStroke")
-	if s then s.Color = rankColor end
-	hud.rodRankLabel.Text = rank:upper()
 end
 
 -- Build (fresh each open — content depends on current tier) the tooltip body.
@@ -474,12 +460,6 @@ function HUDController:_wireRodChip()
 	-- way). Pulse on real changes, not the initial paint.
 	PlayerDataService.RodTierChanged:Connect(function(tier)
 		self:_applyRodTier(tier, true)
-	end)
-
-	-- Keep rarity pill current whenever the player equips a different rod.
-	PlayerDataService.EquippedRodChanged:Connect(function(rodId)
-		local rod = RodCatalog.byId[rodId]
-		if rod then self:_applyRodRank(rod.rank, rod.rankColor) end
 	end)
 end
 

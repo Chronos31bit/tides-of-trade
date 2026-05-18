@@ -1,24 +1,24 @@
 --!strict
 -- RodSelectUI.lua
--- Horizontal rod rack panel (380px portrait).
--- One card per rod, left-to-right by tier. Locked rods show XP requirement
--- and are non-interactive. The equipped rod gets a gold border.
+-- Vertical list of horizontal rod rows inside a bottom-sheet panel.
+-- Each row: coloured left strip (tier) | name + rank pill | stats | equip btn.
+-- Locked rods are dimmed and non-interactive. Equipped rod has gold border.
 --
 -- Public API:
 --   RodSelectUI.show(rods, playerXp, equippedRodId, onEquip) -> Handle
 --   Handle.close()
---   Handle.refresh(equippedRodId, playerXp)  -- live update without a full rebuild
+--   Handle.refresh(equippedRodId, playerXp)
 
 local UIUtil = require(script.Parent.UIUtil)
 
 local P = UIUtil.Palette
 
 local HEADER_H = 54
-local CARD_W   = 140
-local CARD_H   = 224
-local STRIP_H  = 56
-local CARD_PAD = 10
-local RACK_PAD = 12
+local ROW_H    = 72   -- height of each rod row
+local ROW_PAD  = 10   -- inner horizontal padding
+local STRIP_W  = 52   -- coloured left strip width
+local BTN_W    = 82   -- equip button width
+local LIST_PAD = 8    -- top/bottom padding inside scroll list
 
 local RodSelectUI = {}
 
@@ -40,10 +40,10 @@ export type Handle = {
 }
 
 -- ====================================================================
--- CARD BUILDER
+-- ROW BUILDER
 -- ====================================================================
 
-local function buildCard(
+local function buildRow(
 	parent:   ScrollingFrame,
 	rod:      RodDef,
 	playerXp: number,
@@ -51,136 +51,106 @@ local function buildCard(
 	order:    number,
 	onEquip:  () -> ()
 ): Frame
-	local locked  = playerXp < rod.unlockXp
-	local rankTint = locked and P.CreamSoft or rod.rankColor
+	local locked = playerXp < rod.unlockXp
 
-	-- ── Card frame ──────────────────────────────────────────────────────
-	local card = Instance.new("Frame")
-	card.Name             = rod.id
-	card.Size             = UDim2.fromOffset(CARD_W, CARD_H)
-	card.BackgroundColor3 = locked and Color3.fromRGB(22, 48, 58) or P.Teal
-	card.BorderSizePixel  = 0
-	card.LayoutOrder      = order
-	local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0, 14); cc.Parent = card
+	-- ── Outer row frame ──────────────────────────────────────────────────
+	local row = Instance.new("Frame")
+	row.Name             = rod.id
+	row.Size             = UDim2.new(1, 0, 0, ROW_H)
+	row.BackgroundColor3 = locked and Color3.fromRGB(18, 40, 50) or P.TealDark
+	row.BorderSizePixel  = 0
+	row.LayoutOrder      = order
 
-	-- Border: gold for equipped, rarity glow for available, none for locked.
+	local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, 10); rc.Parent = row
+
+	-- Gold border for equipped; faint rarity border for available; none for locked.
 	if equipped then
 		local s = Instance.new("UIStroke")
 		s.Color       = P.Gold
-		s.Thickness   = 3
+		s.Thickness   = 2
 		s.Transparency = 0
-		s.Parent = card
+		s.Parent = row
 	elseif not locked then
 		local s = Instance.new("UIStroke")
 		s.Color       = rod.rankColor
 		s.Thickness   = 1.5
-		s.Transparency = 0.55
-		s.Parent = card
+		s.Transparency = 0.6
+		s.Parent = row
 	end
-	card.Parent = parent
+	row.Parent = parent
 
-	-- ── Color header strip ───────────────────────────────────────────────
-	local stripColor = locked and P.WoodDark or rod.color
-	local stripAlpha = locked and 0.45 or 0
-
+	-- ── Left coloured strip ───────────────────────────────────────────────
 	local strip = Instance.new("Frame")
-	strip.Size                   = UDim2.new(1, 0, 0, STRIP_H)
-	strip.BackgroundColor3       = stripColor
-	strip.BackgroundTransparency = stripAlpha
+	strip.Size                   = UDim2.fromOffset(STRIP_W, ROW_H)
+	strip.BackgroundColor3       = locked and P.WoodDark or rod.color
+	strip.BackgroundTransparency = locked and 0.5 or 0
 	strip.BorderSizePixel        = 0
-	local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(0, 14); sc.Parent = strip
-	-- Square off bottom corners.
+
+	-- Round left corners to match the row, square off right side.
+	local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(0, 10); sc.Parent = strip
 	local scSq = Instance.new("Frame")
-	scSq.Size                   = UDim2.new(1, 0, 0.5, 0)
-	scSq.Position               = UDim2.new(0, 0, 0.5, 0)
-	scSq.BackgroundColor3       = stripColor
-	scSq.BackgroundTransparency = stripAlpha
+	scSq.Size                   = UDim2.new(0.5, 0, 1, 0)
+	scSq.Position               = UDim2.new(0.5, 0, 0, 0)
+	scSq.BackgroundColor3       = locked and P.WoodDark or rod.color
+	scSq.BackgroundTransparency = locked and 0.5 or 0
 	scSq.BorderSizePixel        = 0
 	scSq.Parent = strip
-	strip.Parent = card
 
-	-- Soft top-light highlight on the strip (depth, not garish).
+	-- Tier number centred in the strip.
+	local tierLbl = Instance.new("TextLabel")
+	tierLbl.BackgroundTransparency = 1
+	tierLbl.Size             = UDim2.fromScale(1, 1)
+	tierLbl.Font             = Enum.Font.GothamBold
+	tierLbl.TextSize         = 22
+	tierLbl.TextColor3       = Color3.new(1, 1, 1)
+	tierLbl.TextXAlignment   = Enum.TextXAlignment.Center
+	tierLbl.TextYAlignment   = Enum.TextYAlignment.Center
+	tierLbl.Text             = tostring(rod.tier)
+	tierLbl.ZIndex           = 2
 	if not locked then
-		local hl = Instance.new("Frame")
-		hl.BackgroundColor3       = Color3.new(1, 1, 1)
-		hl.BackgroundTransparency = 1  -- driven by UIGradient transparency
-		hl.BorderSizePixel        = 0
-		hl.Size                   = UDim2.fromScale(1, 1)
-		hl.ZIndex                 = 2
-		local hlGrad = Instance.new("UIGradient")
-		hlGrad.Rotation     = 270  -- bright at top, transparent at bottom
-		hlGrad.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.0),
-			NumberSequenceKeypoint.new(0.55, 0.85),
-			NumberSequenceKeypoint.new(1, 1),
-		})
-		hlGrad.Color  = ColorSequence.new(Color3.new(1, 1, 1))
-		hlGrad.Parent = hl
-		hl.Parent = strip
-	end
-
-	-- Tier number.
-	local tierLabel = Instance.new("TextLabel")
-	tierLabel.BackgroundTransparency = 1
-	tierLabel.Size             = UDim2.new(1, 0, 1, 0)
-	tierLabel.Font             = Enum.Font.GothamBold
-	tierLabel.TextSize         = 26
-	tierLabel.TextColor3       = Color3.new(1, 1, 1)
-	tierLabel.TextXAlignment   = Enum.TextXAlignment.Center
-	tierLabel.TextYAlignment   = Enum.TextYAlignment.Center
-	tierLabel.ZIndex           = 3
-	tierLabel.Text             = tostring(rod.tier)
-	tierLabel.Parent = strip
-	if not locked then
-		-- Dark outline keeps the number readable on any strip colour.
 		local ts = Instance.new("UIStroke")
 		ts.Color       = Color3.new(0, 0, 0)
 		ts.Thickness   = 2
-		ts.Transparency = 0.55
-		ts.Parent = tierLabel
+		ts.Transparency = 0.5
+		ts.Parent = tierLbl
 	end
+	tierLbl.Parent = strip
+	strip.Parent = row
 
-	-- ── Body content (Y cursor starts below strip) ───────────────────────
-	local Y = STRIP_H + 7
+	-- ── Centre text area ──────────────────────────────────────────────────
+	-- Sits between the strip and the button; all text stacked vertically.
+	local centerX = STRIP_W + ROW_PAD
+	local centerW = -STRIP_W - ROW_PAD * 2 - BTN_W - ROW_PAD
 
-	-- Rod name (tinted by rarity; glow stroke for unlocked rods).
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Position         = UDim2.new(0, 9, 0, Y)
-	nameLabel.Size             = UDim2.fromOffset(CARD_W - 18, 20)
-	nameLabel.Font             = Enum.Font.GothamBold
-	nameLabel.TextSize         = 13
-	nameLabel.TextColor3       = rankTint
-	nameLabel.TextTruncate     = Enum.TextTruncate.AtEnd
-	nameLabel.TextXAlignment   = Enum.TextXAlignment.Left
-	nameLabel.Text             = rod.displayName
-	nameLabel.Parent = card
-	if not locked then
-		local ns = Instance.new("UIStroke")
-		ns.Color       = rod.rankColor
-		ns.Thickness   = 1
-		ns.Transparency = 0.45
-		ns.Parent = nameLabel
-	end
-	Y += 23
+	-- Rod name: bold, rarity-coloured for unlocked rods.
+	local nameLbl = Instance.new("TextLabel")
+	nameLbl.BackgroundTransparency = 1
+	nameLbl.Position         = UDim2.new(0, centerX, 0, 9)
+	nameLbl.Size             = UDim2.new(1, centerW, 0, 16)
+	nameLbl.Font             = Enum.Font.GothamBold
+	nameLbl.TextSize         = 13
+	nameLbl.TextColor3       = locked and P.CreamSoft or rod.rankColor
+	nameLbl.TextXAlignment   = Enum.TextXAlignment.Left
+	nameLbl.TextTruncate     = Enum.TextTruncate.AtEnd
+	nameLbl.Text             = rod.displayName
+	nameLbl.Parent = row
 
-	-- Rank pill badge: rounded tag with tinted background + matching border.
+	-- Rank pill: dark background + rarity-coloured border + rarity-coloured text.
 	local pill = Instance.new("Frame")
-	pill.BackgroundColor3       = locked and P.TealDark or rod.rankColor
-	pill.BackgroundTransparency = locked and 0.3 or 0.72
+	pill.BackgroundColor3       = locked and P.TealDark or P.TealDeeper
+	pill.BackgroundTransparency = locked and 0.2 or 0.3
 	pill.BorderSizePixel        = 0
 	pill.AutomaticSize          = Enum.AutomaticSize.X
-	pill.Size                   = UDim2.new(0, 0, 0, 18)
-	pill.Position               = UDim2.new(0, 9, 0, Y)
+	pill.Size                   = UDim2.new(0, 0, 0, 16)
+	pill.Position               = UDim2.new(0, centerX, 0, 28)
 	local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(1, 0); pc.Parent = pill
 	local ps = Instance.new("UIStroke")
 	ps.Color       = locked and P.CreamSoft or rod.rankColor
 	ps.Thickness   = 1
-	ps.Transparency = locked and 0.65 or 0.15
+	ps.Transparency = locked and 0.7 or 0.2
 	ps.Parent = pill
 	local pp = Instance.new("UIPadding")
-	pp.PaddingLeft  = UDim.new(0, 7)
-	pp.PaddingRight = UDim.new(0, 7)
+	pp.PaddingLeft = UDim.new(0, 6); pp.PaddingRight = UDim.new(0, 6)
 	pp.Parent = pill
 	local pillText = Instance.new("TextLabel")
 	pillText.BackgroundTransparency = 1
@@ -188,73 +158,54 @@ local function buildCard(
 	pillText.AutomaticSize    = Enum.AutomaticSize.X
 	pillText.Font             = Enum.Font.GothamBold
 	pillText.TextSize         = 9
-	pillText.TextColor3       = locked and P.CreamSoft or Color3.new(1, 1, 1)
+	pillText.TextColor3       = locked and P.CreamSoft or rod.rankColor
 	pillText.Text             = rod.rank:upper()
 	pillText.Parent = pill
-	pill.Parent = card
-	Y += 25
+	pill.Parent = row
 
-	-- Thin rarity-coloured separator.
-	local sep = Instance.new("Frame")
-	sep.BackgroundColor3       = locked and P.TealDeeper or rod.rankColor
-	sep.BackgroundTransparency = locked and 0.6 or 0.7
-	sep.BorderSizePixel        = 0
-	sep.Position               = UDim2.new(0, 9, 0, Y)
-	sep.Size                   = UDim2.new(1, -18, 0, 1)
-	sep.Parent = card
-	Y += 8
-
-	-- Cast window stat.
-	local cwLabel = Instance.new("TextLabel")
-	cwLabel.BackgroundTransparency = 1
-	cwLabel.Position       = UDim2.new(0, 9, 0, Y)
-	cwLabel.Size           = UDim2.fromOffset(CARD_W - 18, 15)
-	cwLabel.Font           = Enum.Font.Gotham
-	cwLabel.TextSize       = 10
-	cwLabel.TextColor3     = locked and P.WoodLight or P.TealLight
-	cwLabel.TextXAlignment = Enum.TextXAlignment.Left
-	cwLabel.Text = rod.castWindowBonus > 0
+	-- Stats line: cast window + weight, on one line.
+	local windowStr = rod.castWindowBonus > 0
 		and ("+%.0f%% window"):format(rod.castWindowBonus * 100)
 		or "Base window"
-	cwLabel.Parent = card
-	Y += 17
+	local weightStr = rod.catchWeightBonus > 0
+		and ("+%.1f kg"):format(rod.catchWeightBonus)
+		or "Base wt"
+	local statsLbl = Instance.new("TextLabel")
+	statsLbl.BackgroundTransparency = 1
+	statsLbl.Position       = UDim2.new(0, centerX, 0, 47)
+	statsLbl.Size           = UDim2.new(1, centerW, 0, 13)
+	statsLbl.Font           = Enum.Font.Gotham
+	statsLbl.TextSize       = 10
+	statsLbl.TextColor3     = locked and P.WoodLight or P.TealLight
+	statsLbl.TextXAlignment = Enum.TextXAlignment.Left
+	statsLbl.Text           = windowStr .. "  ·  " .. weightStr
+	statsLbl.Parent = row
 
-	-- Weight stat.
-	local wbLabel = Instance.new("TextLabel")
-	wbLabel.BackgroundTransparency = 1
-	wbLabel.Position       = UDim2.new(0, 9, 0, Y)
-	wbLabel.Size           = UDim2.fromOffset(CARD_W - 18, 15)
-	wbLabel.Font           = Enum.Font.Gotham
-	wbLabel.TextSize       = 10
-	wbLabel.TextColor3     = locked and P.WoodLight or P.TealLight
-	wbLabel.TextXAlignment = Enum.TextXAlignment.Left
-	wbLabel.Text = rod.catchWeightBonus > 0
-		and ("+%.1f kg weight"):format(rod.catchWeightBonus)
-		or "Base weight"
-	wbLabel.Parent = card
-	Y += 17
-
-	-- XP / unlock status.
-	local xpLabel = Instance.new("TextLabel")
-	xpLabel.BackgroundTransparency = 1
-	xpLabel.Position       = UDim2.new(0, 9, 0, Y)
-	xpLabel.Size           = UDim2.fromOffset(CARD_W - 18, 15)
-	xpLabel.Font           = Enum.Font.Gotham
-	xpLabel.TextSize       = 10
-	xpLabel.TextXAlignment = Enum.TextXAlignment.Left
+	-- XP status line (below stats, small).
+	local xpStr: string
+	local xpColor: Color3
 	if locked then
-		xpLabel.TextColor3 = P.Danger
-		xpLabel.Text = ("%d XP needed"):format(rod.unlockXp)
+		xpStr   = ("%d XP to unlock"):format(rod.unlockXp)
+		xpColor = P.Danger
 	elseif rod.unlockXp == 0 then
-		xpLabel.TextColor3 = P.CreamSoft
-		xpLabel.Text = "Starter rod"
+		xpStr   = "Starter rod"
+		xpColor = P.CreamSoft
 	else
-		xpLabel.TextColor3 = P.Success
-		xpLabel.Text = "Unlocked"
+		xpStr   = "Unlocked"
+		xpColor = P.Success
 	end
-	xpLabel.Parent = card
+	local xpLbl = Instance.new("TextLabel")
+	xpLbl.BackgroundTransparency = 1
+	xpLbl.Position       = UDim2.new(0, centerX, 0, 58)
+	xpLbl.Size           = UDim2.new(1, centerW, 0, 12)
+	xpLbl.Font           = Enum.Font.Gotham
+	xpLbl.TextSize       = 9
+	xpLbl.TextColor3     = xpColor
+	xpLbl.TextXAlignment = Enum.TextXAlignment.Left
+	xpLbl.Text           = xpStr
+	xpLbl.Parent = row
 
-	-- ── Equip button — anchored to card bottom ───────────────────────────
+	-- ── Equip button (right-anchored) ─────────────────────────────────────
 	local btnText, btnColor
 	if equipped then
 		btnText = "Equipped"; btnColor = P.GoldDeep
@@ -267,9 +218,9 @@ local function buildCard(
 	local equipBtn = UIUtil.makeButton(btnText, function()
 		if not locked and not equipped then onEquip() end
 	end, {
-		AnchorPoint      = Vector2.new(0.5, 1),
-		Position         = UDim2.new(0.5, 0, 1, -9),
-		Size             = UDim2.fromOffset(CARD_W - 18, 38),
+		AnchorPoint      = Vector2.new(1, 0.5),
+		Position         = UDim2.new(1, -ROW_PAD, 0.5, 0),
+		Size             = UDim2.fromOffset(BTN_W, 42),
 		BackgroundColor3 = btnColor,
 		variant          = (equipped or locked) and "secondary" or "primary",
 	})
@@ -277,9 +228,9 @@ local function buildCard(
 		equipBtn.TextColor3 = P.CreamSoft
 		equipBtn.Active     = false
 	end
-	equipBtn.Parent = card
+	equipBtn.Parent = row
 
-	return card
+	return row
 end
 
 -- ====================================================================
@@ -305,10 +256,15 @@ function RodSelectUI.show(
 	backdrop.Size                  = UDim2.fromScale(1, 1)
 	backdrop.Parent                = gui
 
+	-- Panel height: header + up to 5 rows visible before scrolling.
+	local maxVisible   = 5
+	local listH        = LIST_PAD + #rods * (ROW_H + 8) - 8 + LIST_PAD
+	local panelH       = HEADER_H + math.min(listH, maxVisible * (ROW_H + 8) + LIST_PAD * 2)
+
 	local panel = UIUtil.makePanel({
 		AnchorPoint      = Vector2.new(0.5, 1),
 		Position         = UDim2.new(0.5, 0, 1, -16),
-		Size             = UDim2.new(0.96, 0, 0, HEADER_H + RACK_PAD * 2 + CARD_H + 10),
+		Size             = UDim2.new(0.94, 0, 0, panelH),
 		ClipsDescendants = true,
 	})
 	local cap = Instance.new("UISizeConstraint")
@@ -345,44 +301,49 @@ function RodSelectUI.show(
 	divider.Size                   = UDim2.new(1, 0, 0, 1)
 	divider.Parent                 = panel
 
-	-- Horizontal rod rack
-	local totalCards = #rods
-	local canvasWidth = RACK_PAD + totalCards * (CARD_W + CARD_PAD) - CARD_PAD + RACK_PAD
-
-	local rack = Instance.new("ScrollingFrame")
-	rack.BackgroundTransparency = 1
-	rack.BorderSizePixel        = 0
-	rack.Position               = UDim2.new(0, 0, 0, HEADER_H + 2)
-	rack.Size                   = UDim2.new(1, 0, 1, -(HEADER_H + 2))
-	rack.ScrollBarThickness     = 4
-	rack.ScrollBarImageColor3   = P.TealDeeper
-	rack.ScrollingDirection     = Enum.ScrollingDirection.X
-	rack.CanvasSize             = UDim2.fromOffset(canvasWidth, 0)
-	rack.AutomaticCanvasSize    = Enum.AutomaticSize.None
-	rack.Parent                 = panel
+	-- Vertical scroll list
+	local list = Instance.new("ScrollingFrame")
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel        = 0
+	list.Position               = UDim2.new(0, 0, 0, HEADER_H + 2)
+	list.Size                   = UDim2.new(1, 0, 1, -(HEADER_H + 2))
+	list.ScrollBarThickness     = 4
+	list.ScrollBarImageColor3   = P.TealDeeper
+	list.ScrollingDirection     = Enum.ScrollingDirection.Y
+	list.CanvasSize             = UDim2.new(0, 0, 0, listH)
+	list.AutomaticCanvasSize    = Enum.AutomaticSize.None
+	list.Parent                 = panel
 
 	local layout = Instance.new("UIListLayout")
-	layout.FillDirection    = Enum.FillDirection.Horizontal
-	layout.Padding          = UDim.new(0, CARD_PAD)
+	layout.FillDirection    = Enum.FillDirection.Vertical
+	layout.Padding          = UDim.new(0, 8)
 	layout.SortOrder        = Enum.SortOrder.LayoutOrder
-	layout.VerticalAlignment = Enum.VerticalAlignment.Center
-	layout.Parent           = rack
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Parent           = layout.Parent  -- assigned below
 
-	local leftPad = Instance.new("UIPadding")
-	leftPad.PaddingLeft  = UDim.new(0, RACK_PAD)
-	leftPad.PaddingRight = UDim.new(0, RACK_PAD)
-	leftPad.PaddingTop   = UDim.new(0, RACK_PAD + 4)
-	leftPad.Parent       = rack
+	local lp = Instance.new("UIPadding")
+	lp.PaddingLeft   = UDim.new(0, 10)
+	lp.PaddingRight  = UDim.new(0, 10)
+	lp.PaddingTop    = UDim.new(0, LIST_PAD)
+	lp.PaddingBottom = UDim.new(0, LIST_PAD)
+	lp.Parent = list
+
+	layout.Parent = list
 
 	local function buildAll(curEquipped: string, curXp: number)
-		for _, c in ipairs(rack:GetChildren()) do
+		for _, c in ipairs(list:GetChildren()) do
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for i, rod in ipairs(rods) do
-			buildCard(rack, rod, curXp, rod.id == curEquipped, i, function()
+			buildRow(list, rod, curXp, rod.id == curEquipped, i, function()
 				onEquip(rod.id)
 			end)
 		end
+		-- Recalculate canvas height based on actual layout.
+		task.defer(function()
+			local content = layout.AbsoluteContentSize
+			list.CanvasSize = UDim2.fromOffset(0, content.Y + LIST_PAD * 2)
+		end)
 	end
 
 	buildAll(equippedRodId, playerXp)
