@@ -334,6 +334,7 @@ function HUD.create(): HUDController
 	local abl = Instance.new("UIListLayout")
 	abl.FillDirection = Enum.FillDirection.Horizontal
 	abl.VerticalAlignment = Enum.VerticalAlignment.Center
+	abl.SortOrder = Enum.SortOrder.LayoutOrder
 	abl.Padding = UDim.new(0, 8)
 	abl.Parent = actionBar
 

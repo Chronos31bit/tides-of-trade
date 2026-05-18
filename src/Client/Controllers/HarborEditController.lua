@@ -66,6 +66,10 @@ function HarborEditController:Toggle()
 	if self._active then self:_close() else self:_open() end
 end
 
+function HarborEditController:Close()
+	if self._active then self:_close() end
+end
+
 function HarborEditController:_open()
 	local HarborService = Knit.GetService("HarborService")
 	HarborService:GetBuildingCatalog():andThen(function(catalog)

@@ -81,4 +81,8 @@ function SocialController:_close()
 	if self._gui then self._gui:Destroy(); self._gui = nil end
 end
 
+function SocialController:Close()
+	if self._open then self:_close() end
+end
+
 return SocialController

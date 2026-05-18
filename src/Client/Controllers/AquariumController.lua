@@ -177,4 +177,8 @@ function AquariumController:OpenFirstOwned()
 	print("[Aquarium] You don't own an aquarium yet. Build one in Build mode (B).")
 end
 
+function AquariumController:Close()
+	if self._handle then self._handle.close(); self._handle = nil end
+end
+
 return AquariumController

@@ -73,4 +73,8 @@ function InventoryController:Open()
 	)
 end
 
+function InventoryController:Close()
+	if self._handle then self._handle.close(); self._handle = nil end
+end
+
 return InventoryController

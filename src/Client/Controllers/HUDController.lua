@@ -97,35 +97,83 @@ function HUDController:KnitStart()
 	Players.LocalPlayer.CharacterAdded:Connect(function() task.wait(0.5); refreshRodButton() end)
 	refreshRodButton()
 
-	self._hud.inventoryButton.Activated:Connect(function() InventoryController:Open() end)
-	self._hud.marketButton.Activated:Connect(function() MarketController:Open() end)
-	self._hud.harborButton.Activated:Connect(function() HarborEditController:Toggle() end)
-	self._hud.aquariumButton.Activated:Connect(function() AquariumController:OpenFirstOwned() end)
-	self._hud.socialButton.Activated:Connect(function() SocialController:Open() end)
+	-- ----------------------------------------------------------------
+	-- Exclusive panel management
+	-- Only one of the five "page" panels (Inventory / Market / Aquarium /
+	-- Build / Social) may be open at a time. Pressing the same key or
+	-- button a second time closes the active panel; pressing a different
+	-- one closes the old panel before opening the new one.
+	-- Rod (key 1) and Home (key 7) are not exclusive panels — they are
+	-- kept outside this system.
+	-- ----------------------------------------------------------------
+	local activePanelKey: number? = nil
+	local activePanelClose: (() -> ())? = nil
+
+	local function openExclusive(key: number, openFn: () -> (), closeFn: () -> ())
+		if activePanelKey == key then
+			-- Same key / button pressed again → close.
+			closeFn()
+			activePanelKey  = nil
+			activePanelClose = nil
+		else
+			-- Different panel → close whatever is open first, then open new one.
+			if activePanelClose then activePanelClose() end
+			openFn()
+			activePanelKey  = key
+			activePanelClose = closeFn
+		end
+	end
+
+	self._hud.inventoryButton.Activated:Connect(function()
+		openExclusive(2,
+			function() InventoryController:Open() end,
+			function() InventoryController:Close() end)
+	end)
+	self._hud.marketButton.Activated:Connect(function()
+		openExclusive(3,
+			function() MarketController:Open() end,
+			function() MarketController:Close() end)
+	end)
+	self._hud.aquariumButton.Activated:Connect(function()
+		openExclusive(4,
+			function() AquariumController:OpenFirstOwned() end,
+			function() AquariumController:Close() end)
+	end)
+	self._hud.harborButton.Activated:Connect(function()
+		openExclusive(5,
+			function() HarborEditController:Toggle() end,
+			function() HarborEditController:Close() end)
+	end)
+	self._hud.socialButton.Activated:Connect(function()
+		openExclusive(6,
+			function() SocialController:Open() end,
+			function() SocialController:Close() end)
+	end)
 	self._hud.homeButton.Activated:Connect(function()
 		Knit.GetService("HarborService"):GoHome():andThen(function(res)
 			if not res.ok then warn("[HUD] GoHome:", res.reason) end
 		end)
 	end)
 
-	-- Keyboard shortcuts. Number keys 1–7 map to the action bar left-to-right;
-	-- legacy letter shortcuts preserved so existing muscle memory still works.
+	-- Keyboard shortcuts. Number keys 1–7 map to the action bar left-to-right.
+	-- Letter shortcuts preserved for existing muscle memory; they share the same
+	-- exclusive-panel keys so I and 2 both track "inventory is open."
 	local keyActions: {[Enum.KeyCode]: () -> ()} = {
 		[Enum.KeyCode.One]   = toggleRod,
-		[Enum.KeyCode.Two]   = function() InventoryController:Open() end,
-		[Enum.KeyCode.Three] = function() MarketController:Open() end,
-		[Enum.KeyCode.Four]  = function() AquariumController:OpenFirstOwned() end,
-		[Enum.KeyCode.Five]  = function() HarborEditController:Toggle() end,
-		[Enum.KeyCode.Six]   = function() SocialController:Open() end,
+		[Enum.KeyCode.Two]   = function() openExclusive(2, function() InventoryController:Open() end, function() InventoryController:Close() end) end,
+		[Enum.KeyCode.Three] = function() openExclusive(3, function() MarketController:Open() end, function() MarketController:Close() end) end,
+		[Enum.KeyCode.Four]  = function() openExclusive(4, function() AquariumController:OpenFirstOwned() end, function() AquariumController:Close() end) end,
+		[Enum.KeyCode.Five]  = function() openExclusive(5, function() HarborEditController:Toggle() end, function() HarborEditController:Close() end) end,
+		[Enum.KeyCode.Six]   = function() openExclusive(6, function() SocialController:Open() end, function() SocialController:Close() end) end,
 		[Enum.KeyCode.Seven] = function()
 			Knit.GetService("HarborService"):GoHome():andThen(function(res)
 				if not res.ok then warn("[HUD] GoHome:", res.reason) end
 			end)
 		end,
-		[Enum.KeyCode.I] = function() InventoryController:Open() end,
-		[Enum.KeyCode.M] = function() MarketController:Open() end,
-		[Enum.KeyCode.B] = function() HarborEditController:Toggle() end,
-		[Enum.KeyCode.C] = function() SocialController:Open() end,
+		[Enum.KeyCode.I] = function() openExclusive(2, function() InventoryController:Open() end, function() InventoryController:Close() end) end,
+		[Enum.KeyCode.M] = function() openExclusive(3, function() MarketController:Open() end, function() MarketController:Close() end) end,
+		[Enum.KeyCode.B] = function() openExclusive(5, function() HarborEditController:Toggle() end, function() HarborEditController:Close() end) end,
+		[Enum.KeyCode.C] = function() openExclusive(6, function() SocialController:Open() end, function() SocialController:Close() end) end,
 	}
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end

@@ -52,4 +52,8 @@ function MarketController:Open()
 	end)
 end
 
+function MarketController:Close()
+	if self._handle then self._handle.close(); self._handle = nil end
+end
+
 return MarketController
