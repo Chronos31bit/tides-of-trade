@@ -25,7 +25,7 @@ type Profile = Types.Profile
 -- and merges any missing fields into existing profiles on load (so adding new
 -- fields here doesn't require a migration).
 local PROFILE_TEMPLATE: Profile = {
-	coins = 250,            -- starting coins for first rod and a stall
+	coins = 500,            -- starting coins for first rod and a stall
 	lureTokens = 0,
 	level = 1,
 	xp = 0,

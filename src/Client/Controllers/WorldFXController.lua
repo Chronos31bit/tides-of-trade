@@ -39,6 +39,7 @@ end
 function WorldFXController:KnitStart()
 	local TideService    = Knit.GetService("TideService")
 	local WeatherService = Knit.GetService("WeatherService")
+	local HarborService  = Knit.GetService("HarborService")
 	local ambient = findOrMakeAmbientSound()
 
 	-- Tide visual: lerp the WaterLevel attribute on workspace which the
@@ -64,6 +65,12 @@ function WorldFXController:KnitStart()
 		end
 		-- TODO: spawn rain ParticleEmitters under the camera when weather is
 		-- Rain or Storm. Out of scope for v1 since it needs art.
+	end)
+
+	-- Placement / upgrade effect stub. Replace the print with real world FX
+	-- (e.g. a ground shockwave, dust kick) once art is available.
+	HarborService.HarborVisualUpdate:Connect(function(uid: string, kind: string, tier: number, worldPos: Vector3)
+		print(("[WorldFX] HarborVisualUpdate uid=%s kind=%s tier=%d pos=%s"):format(uid, kind, tier, tostring(worldPos)))
 	end)
 end
 

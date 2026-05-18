@@ -31,6 +31,12 @@ local Signal       = require(ReplicatedStorage.Packages.Signal)
 local MARKET_INDEX_KEY = "market_index"  -- single key under MarketStore that holds the list
 local DEMAND_KEY = "current_demand"
 
+-- Modifier sell-price lookup built once at load so the sale handler stays fast.
+local _modSellMul: {[string]: number} = {}
+for _, m in ipairs(GameConfig.FishModifiers) do
+	if m.sellPriceMul then _modSellMul[m.id] = m.sellPriceMul end
+end
+
 local MarketService = Knit.CreateService({
 	Name = "MarketService",
 	Client = {
@@ -290,6 +296,7 @@ function MarketService.Client:Create(player: Player, itemUid: string, price: num
 				speciesId = (item :: any).speciesId,
 				goodId = (item :: any).goodId,
 				weightKg = (item :: any).weightKg,
+				modifiers = (item :: any).modifiers,
 				count = (item :: any).count or 1,
 				price = price,
 				listedAt = os.time(),
@@ -373,6 +380,14 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	local fee = math.floor(boughtListing.price * GameConfig.Economy.MarketFeePct)
 	local payoutBase = boughtListing.price - fee
 	local payout = math.floor(payoutBase * demandMul)
+	-- Apply per-modifier sell-price multipliers (compound multiplicatively).
+	if boughtListing.itemKind == "Fish" and boughtListing.modifiers then
+		local mul = 1.0
+		for _, modId in ipairs(boughtListing.modifiers) do
+			if _modSellMul[modId] then mul = mul * _modSellMul[modId] end
+		end
+		payout = math.floor(payout * mul)
+	end
 
 	-- Charge buyer.
 	if not PlayerDataService:TrySpendCoins(player, boughtListing.price) then

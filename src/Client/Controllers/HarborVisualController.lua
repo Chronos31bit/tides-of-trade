@@ -142,6 +142,7 @@ function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFr
 	model:SetAttribute("tier", building.tier)
 
 	model.Parent = self:_plotFolder(plotOwnerId)
+	CollectionService:AddTag(model, "HarborBuilding")
 	return model
 end
 

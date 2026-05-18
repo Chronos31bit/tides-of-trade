@@ -192,6 +192,7 @@ export type MarketListing = {
 	speciesId: string?,         -- for fish
 	goodId: string?,            -- for goods
 	weightKg: number?,          -- for fish
+	modifiers: {string}?,       -- for fish; copied from FishItem.modifiers at list time
 	count: number,              -- 1 for unique fish, N for goods
 	price: number,              -- TOTAL price for the whole listing
 	listedAt: number,

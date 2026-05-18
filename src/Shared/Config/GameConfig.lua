@@ -143,7 +143,7 @@ GameConfig.Buildings = {
 	Dock        = { tierCosts = { 0,     40,     9000  } },
 	MarketStall = { tierCosts = { 800,   3500,   12000 } },
 	Smokehouse  = { tierCosts = { 1500,  6000,   18000 } },
-	Lighthouse  = { tierCosts = { 2000,  7500,   22000 } },
+	Lighthouse  = { tierCosts = { 2000,  7500,   22000 }, RarityBumpChance = { 0.15, 0.28, 0.45 } },
 	BaitShop    = { tierCosts = { 600,   2400,   8000  } },
 	Aquarium    = { tierCosts = { 1200,  5000,   16000 } },
 	Guildhall   = { tierCosts = { 5000,  15000,  40000 } },
@@ -177,10 +177,13 @@ GameConfig.Fishing = {
 	-- Higher = more common. These are *post-filter* weights — only fish that
 	-- match the current biome/tide/weather/time get rolled at all.
 	RarityWeights = {
-		Common   = 60,
-		Uncommon = 25,
-		Rare     = 12,
-		Mythic   = 3,
+		Common    = 50,
+		Uncommon  = 25,
+		Rare      = 13,
+		Epic      =  7,
+		Legendary =  3,
+		Mythic    =  1.5,
+		Divine    =  0.5,
 	},
 
 	-- ----------------------------------------------------------------
@@ -362,7 +365,7 @@ GameConfig.Quests = {
 	-- these via a per-template "param scale" (e.g. larger N → closer to
 	-- the band max). Easy ≈ 5 min play, medium ≈ 15 min, hard ≈ 45 min.
 	DifficultyRewardScale = {
-		easy     = { coinsMin = 40,  coinsMax = 80,  xpMin = 20,  xpMax = 40  },
+		easy     = { coinsMin = 60,  coinsMax = 120, xpMin = 25,  xpMax = 50  },
 		medium   = { coinsMin = 100, coinsMax = 200, xpMin = 50,  xpMax = 100 },
 		hard     = { coinsMin = 250, coinsMax = 500, xpMin = 150, xpMax = 300 },
 		-- Tutorial seed is a special case — rewardFormula reads
@@ -468,12 +471,23 @@ GameConfig.Rods = {
 -- and future market-price integration. Stable ids — never rename.
 -- ====================================================================
 GameConfig.FishModifiers = {
-	{ id = "shiny",     displayName = "Shiny",     dropChance = 0.015, coinInstant = 1.0                       },
-	{ id = "giant",     displayName = "Giant",     dropChance = 0.050,              weightMul = 1.4             },
-	{ id = "glowing",   displayName = "Glowing",   dropChance = 0.060,                           xpMul = 1.5   },
-	{ id = "lucky",     displayName = "Lucky",     dropChance = 0.030,                                           lureBonus = 1 },
-	{ id = "ancient",   displayName = "Ancient",   dropChance = 0.020,                           xpMul = 3.0   },
-	{ id = "prismatic", displayName = "Prismatic", dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0 },
+	-- ── Random modifiers — rolled independently per catch ────────────────
+	{ id = "shiny",        displayName = "Shiny",        dropChance = 0.015, coinInstant = 1.0,               sellPriceMul = 1.25 },
+	{ id = "giant",        displayName = "Giant",        dropChance = 0.050, weightMul = 1.4                                      },
+	{ id = "glowing",      displayName = "Glowing",      dropChance = 0.060,               xpMul = 1.5                           },
+	{ id = "lucky",        displayName = "Lucky",        dropChance = 0.030, lureBonus = 1                                       },
+	{ id = "ancient",      displayName = "Ancient",      dropChance = 0.020,               xpMul = 3.0,       sellPriceMul = 1.50 },
+	{ id = "prismatic",    displayName = "Prismatic",    dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
+	{ id = "elder",        displayName = "Elder",        dropChance = 0.008,               xpMul = 5.0,       sellPriceMul = 1.80 },
+	{ id = "cursed",       displayName = "Cursed",       dropChance = 0.035,               xpMul = 3.0,       sellPriceMul = 0.50 },
+	{ id = "magnetic",     displayName = "Magnetic",     dropChance = 0.025, lureBonus = 3                                       },
+	{ id = "barnacled",    displayName = "Barnacled",    dropChance = 0.045, weightMul = 1.6                                     },
+	-- ── World-state modifiers — dropChance=0, assigned by world state ───
+	{ id = "tide_kissed",  displayName = "Tide-Kissed",  dropChance = 0,                    sellPriceMul = 1.25 },
+	{ id = "storm_forged", displayName = "Storm-Forged", dropChance = 0,                    sellPriceMul = 1.50 },
+	{ id = "moon_touched", displayName = "Moon-Touched", dropChance = 0,     xpMul = 1.25,  sellPriceMul = 1.15 },
+	{ id = "dawn_blessed", displayName = "Dawn-Blessed", dropChance = 0,     xpMul = 1.20,  sellPriceMul = 1.10 },
+	{ id = "fog_shrouded", displayName = "Fog-Shrouded", dropChance = 0,     lureBonus = 1, sellPriceMul = 1.20 },
 }
 
 -- ====================================================================
@@ -515,6 +529,19 @@ GameConfig.Topics = {
 	MarketSold     = "TidesMarket_Sold",
 	MarketCanceled = "TidesMarket_Canceled",
 	DemandRotated  = "TidesMarket_Demand",
+}
+
+-- ====================================================================
+-- ASSETS
+-- ====================================================================
+-- Canonical paths under ReplicatedStorage for art assets. All service and
+-- controller code that resolves building models sources the path from here
+-- so it can be updated in one place if the folder hierarchy changes.
+--
+-- Lookup convention used by HarborVisualController:
+--   Assets.Buildings[kind]["tier" .. N] / Visual   (Model instance)
+GameConfig.Assets = {
+	BuildingModels = "Assets.Buildings",
 }
 
 return GameConfig

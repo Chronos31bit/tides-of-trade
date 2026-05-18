@@ -10,11 +10,28 @@ local UserInputService = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
 local Workspace        = game:GetService("Workspace")
 local Players          = game:GetService("Players")
+local GuiService       = game:GetService("GuiService")
+local SoundService     = game:GetService("SoundService")
 
-local Knit = require(ReplicatedStorage.Packages.Knit)
-local GridUtil = require(ReplicatedStorage.Shared.Util.GridUtil)
+local Knit       = require(ReplicatedStorage.Packages.Knit)
+local GridUtil   = require(ReplicatedStorage.Shared.Util.GridUtil)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local HarborEditUI = require(script.Parent.Parent.UI.HarborEditUI)
 local UIUtil = require(script.Parent.Parent.UI.UIUtil)
+
+-- Finds or lazily creates the coin-clink Sound in SoundService.
+-- SoundId is intentionally blank until a real asset is uploaded; Play() on
+-- an empty SoundId is a silent no-op so the call site doesn't need to guard.
+local function findOrMakeCoinClinkSound(): Sound
+	local existing = SoundService:FindFirstChild("CoinClink")
+	if existing and existing:IsA("Sound") then return existing :: Sound end
+	local s = Instance.new("Sound")
+	s.Name     = "CoinClink"
+	s.SoundId  = ""   -- TODO: replace with real coin-clink rbxasset id
+	s.Volume   = 0.6
+	s.Parent   = SoundService
+	return s
+end
 
 local HarborEditController = Knit.CreateController({
 	Name = "HarborEditController",
@@ -37,6 +54,15 @@ function HarborEditController:KnitStart()
 	HarborService.PlotAssigned:Connect(function(origin, size)
 		self._plotOrigin = origin
 		self._plotSize = size
+	end)
+
+	-- Placement / upgrade confirmation FX. Coin-clink always plays; particle
+	-- burst is skipped when the player has ReducedMotionEnabled (accessibility).
+	HarborService.HarborVisualUpdate:Connect(function(_uid: string, _kind: string, _tier: number, worldPos: Vector3)
+		findOrMakeCoinClinkSound():Play()
+		if not GuiService.ReducedMotionEnabled then
+			self:_burstPlacementFX(worldPos)
+		end
 	end)
 
 	-- World-click handler. Branches by current mode:
@@ -420,6 +446,48 @@ function HarborEditController:_confirm()
 				warn("[Harbor] Place failed:", res.reason)
 			end
 		end
+	end)
+end
+
+-- Brief gold-sparkle burst at `worldPos`. Caller is responsible for checking
+-- ReducedMotionEnabled before calling — this function always emits particles.
+function HarborEditController:_burstPlacementFX(worldPos: Vector3)
+	local VT = GameConfig.Harbor.VisualTuning
+	local host = Instance.new("Part")
+	host.Anchored     = true
+	host.CanCollide   = false
+	host.CanQuery     = false
+	host.CanTouch     = false
+	host.Transparency = 1
+	host.Size         = Vector3.new(1, 1, 1)
+	host.Position     = worldPos + Vector3.new(0, 2, 0)
+	host.Parent       = Workspace
+
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 180)),
+	})
+	emitter.LightEmission   = 0.8
+	emitter.LightInfluence  = 0
+	emitter.Lifetime        = NumberRange.new(0.5, 1.0)
+	emitter.Speed           = NumberRange.new(8, 14)
+	emitter.SpreadAngle     = Vector2.new(45, 45)
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.4),
+		NumberSequenceKeypoint.new(1, 0.0),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.8, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Rate   = 0   -- emit on demand only
+	emitter.Parent = host
+	emitter:Emit(VT.ParticleBurstCount)
+	-- Destroy after the longest particle lifetime has drained.
+	task.delay(VT.ParticleBurstDuration + 1.0, function()
+		if host.Parent then host:Destroy() end
 	end)
 end
 
