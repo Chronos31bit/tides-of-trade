@@ -1,4 +1,4 @@
---!strict
+﻿--!strict
 -- ShopController.lua
 -- Opens the rod-tier shop when the Dock ProximityPrompt fires.
 -- Bait shop is handled by BaitShopController.
@@ -23,57 +23,8 @@ end
 -- the cost, future tiers are locked.
 -- ====================================================================
 function ShopController:OpenRodShop()
-	local ShopService = Knit.GetService("ShopService")
-	local PlayerDataService = Knit.GetService("PlayerDataService")
-
-	-- Fetch in parallel to keep open-time snappy.
-	local rodsP = ShopService:GetRodCatalog()
-	local snapP = PlayerDataService:GetSnapshot()
-	rodsP:andThen(function(rods)
-		snapP:andThen(function(snap)
-			local currentTier = (snap and snap.rodTier) or 1
-			local rows = {}
-			-- Walk tiers in order so the player sees a clear progression.
-			-- Lua iter over numeric keys isn't ordered; sort first.
-			local tiers = {}
-			for tier in pairs(rods) do table.insert(tiers, tier) end
-			table.sort(tiers)
-
-			for _, tier in ipairs(tiers) do
-				local rod = rods[tier]
-				local owned = tier <= currentTier
-				local isNext = tier == currentTier + 1
-				local label, priceStr, disabled
-				if owned then
-					label = "Owned"; priceStr = "Owned"; disabled = true
-				elseif isNext then
-					label = "Buy"; priceStr = priceText(rod.cost); disabled = false
-				else
-					label = "Locked"; priceStr = priceText(rod.cost); disabled = true
-				end
-				table.insert(rows, {
-					id = tier,
-					name = ("Tier %d — %s"):format(tier, rod.name),
-					description = rod.description,
-					priceText = priceStr,
-					disabled = disabled,
-					buyLabel = label,
-				})
-			end
-
-			if self._handle then self._handle.close() end
-			self._handle = ShopUI.show("Rod Shop", rows, function(tierId)
-				ShopService:BuyRodTier(tierId :: number):andThen(function(res)
-					if not res.ok then
-						warn("[Shop] BuyRodTier:", res.reason)
-					else
-						-- Re-open the shop to refresh rows with the new current tier.
-						self:OpenRodShop()
-					end
-				end)
-			end)
-		end)
-	end)
+	-- Rod shop replaced by XP-gated rod rack.
+	Knit.GetController("RodSelectController"):Toggle()
 end
 
 -- ====================================================================
@@ -82,7 +33,7 @@ end
 function ShopController:KnitStart()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, _player)
 		if prompt.ActionText == "Buy Rod Upgrade" then
-			self:OpenRodShop()
+			Knit.GetController("RodSelectController"):Toggle()
 		elseif prompt.ActionText == "Repair Dock" or prompt.ActionText == "Upgrade" then
 			local uid = prompt:GetAttribute("buildingUid")
 			if not uid then return end

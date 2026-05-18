@@ -308,7 +308,7 @@ function TutorialService:KnitStart()
 	MarketService.SoldServer:Connect(function(player, _payout, _kind)
 		self:_onSold(player)
 	end)
-	HarborService.BuildingUpgradedServer:Connect(function(player, building, oldTier, newTier)
+	HarborService.BuildingUpgradedServer.Event:Connect(function(player, building, oldTier, newTier)
 		self:_onBuildingUpgraded(player, building.kind, oldTier, newTier)
 	end)
 

@@ -440,12 +440,18 @@ GameConfig.AntiExploit = {
 -- Keys must match RodCatalog rod ids exactly.
 -- ====================================================================
 GameConfig.Rods = {
+	-- Keyed by rod id; ascends with RodCatalog tier (apex = abyssal).
 	UnlockXp = {
-		driftwood = 0,      -- starter rod, always available
-		bamboo    = 200,    -- ~10-20 fish caught
-		ironwood  = 800,    -- ~40-60 fish caught
-		coral     = 2500,   -- solid mid-game milestone
-		abyssal   = 7000,   -- dedicated long-term players
+		driftwood = 0,       -- t1  starter rod, always available
+		bamboo    = 200,     -- t2  ~10-20 fish caught
+		ironwood  = 800,     -- t3  ~40-60 fish caught
+		coral     = 2500,    -- t4  solid mid-game milestone
+		tempest   = 7000,    -- t5  dedicated long-term players
+		leviathan = 15000,   -- t6  late-game push
+		aurora    = 30000,   -- t7  prestige territory
+		celestial = 55000,   -- t8  months of play
+		eclipse   = 95000,   -- t9  veteran flex
+		abyssal   = 160000,  -- t10 apex — top of the rack
 	},
 }
 

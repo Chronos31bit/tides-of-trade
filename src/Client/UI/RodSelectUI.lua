@@ -25,6 +25,8 @@ export type RodDef = {
 	id: string,
 	displayName: string,
 	tier: number,
+	rank: string,
+	rankColor: Color3,
 	unlockXp: number,
 	castWindowBonus: number,
 	catchWeightBonus: number,
@@ -99,24 +101,40 @@ local function buildCard(
 	tierLabel.TextYAlignment = Enum.TextYAlignment.Center
 	tierLabel.Parent       = strip
 
-	-- ── Rod name ──
+	-- Locked cards desaturate the rank tint so the rarity colour doesn't
+	-- compete with the "Locked" treatment; unlocked cards show it at full.
+	local rankTint = locked and P.CreamSoft or rod.rankColor
+
+	-- ── Rod name ── (tinted by rarity rank when unlocked)
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.BackgroundTransparency = 1
-	nameLabel.Position   = UDim2.new(0, 8, 0, 50)
-	nameLabel.Size       = UDim2.fromOffset(CARD_W - 16, 32)
+	nameLabel.Position   = UDim2.new(0, 8, 0, 48)
+	nameLabel.Size       = UDim2.fromOffset(CARD_W - 16, 20)
 	nameLabel.Font       = Enum.Font.GothamBold
 	nameLabel.TextSize   = 13
-	nameLabel.TextColor3 = locked and P.CreamSoft or P.Cream
-	nameLabel.TextWrapped = true
+	nameLabel.TextColor3 = rankTint
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
 	nameLabel.Text       = rod.displayName
 	nameLabel.Parent     = card
 
+	-- ── Rarity rank badge ──
+	local rankLabel = Instance.new("TextLabel")
+	rankLabel.BackgroundTransparency = 1
+	rankLabel.Position   = UDim2.new(0, 8, 0, 68)
+	rankLabel.Size       = UDim2.fromOffset(CARD_W - 16, 16)
+	rankLabel.Font       = Enum.Font.GothamBold
+	rankLabel.TextSize   = 11
+	rankLabel.TextColor3 = rankTint
+	rankLabel.TextXAlignment = Enum.TextXAlignment.Left
+	rankLabel.Text       = rod.rank:upper()
+	rankLabel.Parent     = card
+
 	-- ── Cast window bonus ──
 	local cwLabel = Instance.new("TextLabel")
 	cwLabel.BackgroundTransparency = 1
-	cwLabel.Position   = UDim2.new(0, 8, 0, 86)
-	cwLabel.Size       = UDim2.fromOffset(CARD_W - 16, 18)
+	cwLabel.Position   = UDim2.new(0, 8, 0, 88)
+	cwLabel.Size       = UDim2.fromOffset(CARD_W - 16, 16)
 	cwLabel.Font       = Enum.Font.Gotham
 	cwLabel.TextSize   = 11
 	cwLabel.TextColor3 = locked and P.WoodLight or P.TealLight
@@ -130,7 +148,7 @@ local function buildCard(
 	local wbLabel = Instance.new("TextLabel")
 	wbLabel.BackgroundTransparency = 1
 	wbLabel.Position   = UDim2.new(0, 8, 0, 106)
-	wbLabel.Size       = UDim2.fromOffset(CARD_W - 16, 18)
+	wbLabel.Size       = UDim2.fromOffset(CARD_W - 16, 16)
 	wbLabel.Font       = Enum.Font.Gotham
 	wbLabel.TextSize   = 11
 	wbLabel.TextColor3 = locked and P.WoodLight or P.TealLight
@@ -143,8 +161,8 @@ local function buildCard(
 	-- ── XP status line ──
 	local xpLabel = Instance.new("TextLabel")
 	xpLabel.BackgroundTransparency = 1
-	xpLabel.Position   = UDim2.new(0, 8, 0, 126)
-	xpLabel.Size       = UDim2.fromOffset(CARD_W - 16, 18)
+	xpLabel.Position   = UDim2.new(0, 8, 0, 124)
+	xpLabel.Size       = UDim2.fromOffset(CARD_W - 16, 16)
 	xpLabel.Font       = Enum.Font.Gotham
 	xpLabel.TextSize   = 10
 	xpLabel.TextXAlignment = Enum.TextXAlignment.Left
