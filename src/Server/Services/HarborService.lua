@@ -1,4 +1,4 @@
---!strict
+﻿--!strict
 -- HarborService.lua
 -- Owns plot allocation and building placement / upgrade / removal. All grid
 -- math is shared with the client (GridUtil) but only the server's answer is
@@ -301,10 +301,6 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 			repairPrompt.Parent = anchor
 		end
 		makePrompt("Buy Rod Upgrade", "Rod Shop")
-		-- Bait shop is also accessible from the Dock so players can buy bait
-		-- from day one without placing a separate BaitShop building. Dock tier
-		-- controls the discount (baitDiscountPct in BuildingCatalog.Dock.tiers).
-		makePrompt("Buy Bait", "Bait Shop")
 	elseif building.kind == "BaitShop" then
 		makePrompt("Open Bait Shop", "Bait Shop")
 	end

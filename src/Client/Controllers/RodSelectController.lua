@@ -9,6 +9,15 @@ local Knit              = require(ReplicatedStorage.Packages.Knit)
 local RodCatalog        = require(ReplicatedStorage.Shared.Config.RodCatalog)
 local RodSelectUI       = require(script.Parent.Parent.UI.RodSelectUI)
 
+-- Guard: Rojo can sync two ModuleScript instances under Controllers when a
+-- file is renamed/moved; AddControllersDeep would require both and the second
+-- Knit.CreateController call crashes with "already exists". Return the already-
+-- registered controller on the second require so startup doesn't blow up.
+do
+	local ok, existing = pcall(Knit.GetController, "RodSelectController")
+	if ok and existing then return existing end
+end
+
 local RodSelectController = Knit.CreateController({
 	Name = "RodSelectController",
 	_handle             = nil :: any,  -- RodSelectUI.Handle while open, nil when closed
