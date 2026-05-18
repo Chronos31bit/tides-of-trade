@@ -517,4 +517,17 @@ GameConfig.Topics = {
 	DemandRotated  = "TidesMarket_Demand",
 }
 
+-- ====================================================================
+-- ASSETS
+-- ====================================================================
+-- Canonical paths under ReplicatedStorage for art assets. All service and
+-- controller code that resolves building models sources the path from here
+-- so it can be updated in one place if the folder hierarchy changes.
+--
+-- Lookup convention used by HarborVisualController:
+--   Assets.Buildings[kind]["tier" .. N] / Visual   (Model instance)
+GameConfig.Assets = {
+	BuildingModels = "Assets.Buildings",
+}
+
 return GameConfig

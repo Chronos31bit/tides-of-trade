@@ -29,10 +29,14 @@ local BUILDING_ANCHOR_TAG = "BuildingAnchor"
 local HarborService = Knit.CreateService({
 	Name = "HarborService",
 	Client = {
-		PlotAssigned    = Knit.CreateSignal(),  -- (originCFrame, sizeStuds)
-		BuildingPlaced  = Knit.CreateSignal(),  -- (building)
-		BuildingRemoved = Knit.CreateSignal(),  -- (uid)
-		BuildingUpgraded = Knit.CreateSignal(), -- (uid, newTier)
+		PlotAssigned     = Knit.CreateSignal(),  -- (originCFrame, sizeStuds)
+		BuildingPlaced   = Knit.CreateSignal(),  -- (building)
+		BuildingRemoved  = Knit.CreateSignal(),  -- (uid)
+		BuildingUpgraded = Knit.CreateSignal(),  -- (uid, newTier)
+		-- Fires to the placing/upgrading player only. Carries enough context
+		-- for WorldFXController/HarborEditController to play placement FX.
+		-- (uid: string, kind: string, tier: number, worldPos: Vector3)
+		HarborVisualUpdate = Knit.CreateSignal(),
 	},
 
 	-- Server-only BindableEvents for sibling services.
@@ -433,6 +437,11 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 	self:_spawnBuildingVisual(player, building)
 	self.Client.BuildingPlaced:Fire(player, building)
 	self.BuildingPlacedServer:Fire(player, building)
+	local origin = self._plotOrigins[player]
+	if origin then
+		local worldCF = GridUtil.gridToWorld(origin, building.gridX, building.gridZ, def.footprint, building.rotation)
+		self.Client.HarborVisualUpdate:Fire(player, building.uid, building.kind, 1, worldCF.Position)
+	end
 	return { ok = true, building = building }
 end
 
@@ -468,6 +477,11 @@ function HarborService.Client:Upgrade(player: Player, uid: string): {ok: boolean
 			PlayerDataService.Client.BuildingsChanged:Fire(player, data.buildings)
 			self.Client.BuildingUpgraded:Fire(player, uid, nextTierIdx)
 			self.BuildingUpgradedServer:Fire(player, b, oldTier, nextTierIdx)
+			local origin = self._plotOrigins[player]
+			if origin then
+				local worldCF = GridUtil.gridToWorld(origin, b.gridX, b.gridZ, def.footprint, b.rotation)
+				self.Client.HarborVisualUpdate:Fire(player, uid, b.kind, nextTierIdx, worldCF.Position)
+			end
 			return { ok = true, newTier = nextTierIdx }
 		end
 	end
