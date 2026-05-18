@@ -24,9 +24,10 @@
 -- The client only ever sends `perfectFraction` — a scalar. The fish identity,
 -- weight, and rewards are all set on the server before the client knew them.
 
-local Players          = game:GetService("Players")
+local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService      = game:GetService("HttpService")
+local HttpService       = game:GetService("HttpService")
+local CollectionService = game:GetService("CollectionService")
 
 local Knit         = require(ReplicatedStorage.Packages.Knit)
 local GameConfig   = require(ReplicatedStorage.Shared.Config.GameConfig)
@@ -35,8 +36,11 @@ local UidUtil      = require(ReplicatedStorage.Shared.Util.UidUtil)
 local RateLimiter  = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local Signal       = require(ReplicatedStorage.Packages.Signal)
 
-local FishCatalog = require(ReplicatedStorage.Shared.Config.FishCatalog)
-local RodCatalog  = require(ReplicatedStorage.Shared.Config.RodCatalog)
+local FishCatalog     = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local RodCatalog      = require(ReplicatedStorage.Shared.Config.RodCatalog)
+local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+
+local BUILDING_ANCHOR_TAG = "BuildingAnchor"
 
 type Fish = {
 	id: string,
@@ -66,7 +70,8 @@ local FishingService = Knit.CreateService({
 		CastResolved = Knit.CreateSignal(),
 	},
 
-	_pendingCasts = {},  -- [Player] -> pending cast state (see _newPending)
+	_pendingCasts = {},      -- [Player] -> pending cast state (see _newPending)
+	_lighthouseCache = {},   -- [userId: number] -> { uid: string, position: Vector3, tier: number }
 	_castLimiter = nil :: any,
 	_lastCastAt = {},
 	-- Server-internal signals for cross-service hooks (QuestService, TutorialService).
@@ -122,8 +127,8 @@ local function fishMatches(fish: Fish, ctx: {biome: string, timeOfDay: string, w
 	return true
 end
 
-local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number, rareMultiplier: number}): Fish?
-	local buckets: {[string]: {Fish}} = { Common = {}, Uncommon = {}, Rare = {}, Mythic = {} }
+local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string, tide: string, rodTier: number, rareMultiplier: number, lighthouseBumpChance: number?}): Fish?
+	local buckets: {[string]: {Fish}} = { Common = {}, Uncommon = {}, Rare = {}, Epic = {}, Legendary = {}, Mythic = {}, Divine = {} }
 	for _, f in ipairs(FishCatalog.fish) do
 		if fishMatches(f, ctx) then
 			table.insert(buckets[f.rarity], f)
@@ -150,6 +155,22 @@ local function rollFish(ctx: {biome: string, timeOfDay: string, weather: string,
 		end
 	end
 	if not chosenRarity then return nil end
+
+	-- Lighthouse rarity bump: flat additive chance to upgrade one rarity tier.
+	-- Only bumps if the higher-rarity bucket has eligible fish for this context.
+	local bump = ctx.lighthouseBumpChance or 0
+	if bump > 0 and math.random() < bump then
+		local rarityOrder = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Divine" }
+		for i, r in ipairs(rarityOrder) do
+			if r == chosenRarity and i < #rarityOrder then
+				local nextRarity = rarityOrder[i + 1]
+				if buckets[nextRarity] and #buckets[nextRarity] > 0 then
+					chosenRarity = nextRarity
+				end
+				break
+			end
+		end
+	end
 
 	local pool = buckets[chosenRarity]
 	return pool[math.random(1, #pool)]
@@ -219,7 +240,75 @@ function FishingService:KnitStart()
 		self._pendingCasts[player] = nil
 		self._lastCastAt[player] = nil
 		self._assistMultiplier[player] = nil
+		self._lighthouseCache[player.UserId] = nil
 		self._castLimiter:reset(player)
+	end)
+
+	-- Populate cache for players who already have a lighthouse from a prior session.
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local function seedLighthouseCache(player: Player)
+		task.spawn(function()
+			local data = PlayerDataService:WaitForProfile(player, 30)
+			if not data then return end
+			for _, b in ipairs(data.buildings) do
+				if b.kind == "Lighthouse" then
+					self:_rebuildLighthouseCache(player, b)
+					break
+				end
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(seedLighthouseCache)
+	for _, player in ipairs(Players:GetPlayers()) do
+		seedLighthouseCache(player)
+	end
+
+	local HarborService = Knit.GetService("HarborService")
+
+	HarborService.BuildingPlacedServer.Event:Connect(function(player, building)
+		if building.kind ~= "Lighthouse" then return end
+		self:_rebuildLighthouseCache(player, building)
+	end)
+
+	HarborService.BuildingUpgradedServer.Event:Connect(function(player, building, _oldTier, _newTier)
+		if building.kind ~= "Lighthouse" then return end
+		self:_rebuildLighthouseCache(player, building)
+	end)
+
+	HarborService.OnBuildingRemoved.Event:Connect(function(player, uid)
+		local entry = self._lighthouseCache[player.UserId]
+		if entry and entry.uid == uid then
+			self._lighthouseCache[player.UserId] = nil
+		end
+	end)
+end
+
+-- ====================================================================
+-- LIGHTHOUSE CACHE
+-- ====================================================================
+-- Rebuilds the cached lighthouse entry for a player. Called whenever a
+-- Lighthouse is placed or upgraded so the cast-time proximity check always
+-- uses the current position and tier.
+function FishingService:_rebuildLighthouseCache(player: Player, building: {uid: string, kind: string, tier: number})
+	local uid, tier = building.uid, building.tier
+	for _, part in ipairs(CollectionService:GetTagged(BUILDING_ANCHOR_TAG)) do
+		if part.Name == uid then
+			self._lighthouseCache[player.UserId] = { uid = uid, position = part.Position, tier = tier }
+			print(("[LH] cache SET for %s: tier=%d pos=%s (immediate scan)"):format(player.Name, tier, tostring(part.Position)))
+			return
+		end
+	end
+	-- Anchor not spawned yet (join-time race with HarborService) — wait for it.
+	print(("[LH] anchor not found yet for %s uid=%s — waiting on signal"):format(player.Name, uid))
+	local conn
+	conn = CollectionService:GetInstanceAddedSignal(BUILDING_ANCHOR_TAG):Connect(function(part)
+		if part.Name == uid then
+			conn:Disconnect()
+			if player.Parent then
+				self._lighthouseCache[player.UserId] = { uid = uid, position = part.Position, tier = tier }
+				print(("[LH] cache SET for %s: tier=%d pos=%s (signal)"):format(player.Name, tier, tostring(part.Position)))
+			end
+		end
 	end)
 end
 
@@ -300,8 +389,27 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 	if os.clock() - last < GameConfig.Fishing.CastCooldownSeconds then return nil end
 	self._lastCastAt[player] = os.clock()
 
+	local hrp = char:FindFirstChildOfClass("HumanoidRootPart")
+	local castPosition: Vector3? = hrp and hrp.Position or nil
+
 	local ctx = self:_getContext(player)
 	if not ctx then return nil end
+
+	local lhEntry = self._lighthouseCache[player.UserId]
+	local bumpChance = 0.0
+	if lhEntry and castPosition then
+		local radius = BuildingCatalog.Lighthouse.tiers[lhEntry.tier].lighthouseLureRadiusStuds
+		local dist = (lhEntry.position - castPosition).Magnitude
+		if dist <= radius then
+			bumpChance = GameConfig.Buildings.Lighthouse.RarityBumpChance[lhEntry.tier]
+			print(("[LH] bump ACTIVE for %s: tier=%d dist=%.1f radius=%d bumpChance=%.2f"):format(player.Name, lhEntry.tier, dist, radius, bumpChance))
+		else
+			print(("[LH] out of range for %s: dist=%.1f radius=%d"):format(player.Name, dist, radius))
+		end
+	elseif not lhEntry then
+		-- No lighthouse in cache — either not built yet or cache miss.
+	end
+	ctx.lighthouseBumpChance = bumpChance
 
 	local fish = rollFish(ctx)
 	if not fish then return nil end
@@ -338,6 +446,7 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 		reelStartedAt = nil,
 		phase = "casting",
 		equippedRodId = ctx.equippedRodId,  -- snapshot at cast time; immutable for this cast
+		castPosition = castPosition,
 	}
 
 	-- Cast-phase timeout (no claim within CastTimeoutSeconds → fail).
@@ -492,6 +601,19 @@ function FishingService.Client:ReleaseReel(player: Player, castId: string, perfe
 
 	-- Fish modifiers: each rolls independently; effects compound.
 	local modifiers = rollModifiers()
+	-- World-state modifiers: assigned based on server conditions at catch time.
+	do
+		local TideService_    = Knit.GetService("TideService")
+		local WeatherService_ = Knit.GetService("WeatherService")
+		local tide    = TideService_:GetTide()
+		local weather = WeatherService_:GetWeather()
+		local tod     = WeatherService_:GetTimeOfDay()
+		if tide    == "High"    then table.insert(modifiers, "tide_kissed")  end
+		if weather == "Storm"   then table.insert(modifiers, "storm_forged") end
+		if tod     == "Night"   then table.insert(modifiers, "moon_touched") end
+		if tod     == "Morning" then table.insert(modifiers, "dawn_blessed") end
+		if weather == "Fog"     then table.insert(modifiers, "fog_shrouded") end
+	end
 	local modCoins = 0
 	local modLureBonus = 0
 	if #modifiers > 0 then
