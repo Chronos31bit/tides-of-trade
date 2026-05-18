@@ -544,4 +544,38 @@ GameConfig.Assets = {
 	BuildingModels = "Assets.Buildings",
 }
 
+-- ====================================================================
+-- BIOME TEST HUB — Studio-only. Values consumed by BiomeTestService and
+-- BiomeDebugController. Guard: RunService:IsStudio() in each file.
+-- ====================================================================
+GameConfig.BiomeTest = {
+	HubCenter      = Vector3.new(-300, 0, 300),
+	PlatformHeight = 4,
+	PlatformSizeX  = 200,
+	PlatformSizeZ  = 40,
+	PadSize        = 16,
+	PadHeight      = 0.5,
+	PadSpacing     = 34,
+
+	LabelStudsOffset = Vector3.new(0, 6, 0),
+
+	-- Teleport destinations for each biome's sensor zone centre.
+	-- Pier has no sensor zone so it will still resolve as Shoreline.
+	TeleportTargets = {
+		Shoreline = Vector3.new(600, 2, 550),
+		Pier      = Vector3.new(520, 2, 660),
+		Reef      = Vector3.new(600, 2, 1020),
+		DeepWater = Vector3.new(600, 2, 1160),
+		Trench    = Vector3.new(600, 2, 1400),
+	},
+
+	PadColors = {
+		Shoreline = Color3.fromRGB(210, 190, 130),
+		Pier      = Color3.fromRGB(160, 120,  80),
+		Reef      = Color3.fromRGB( 70, 200, 200),
+		DeepWater = Color3.fromRGB( 20,  60, 130),
+		Trench    = Color3.fromRGB( 10,  20,  50),
+	},
+}
+
 return GameConfig
