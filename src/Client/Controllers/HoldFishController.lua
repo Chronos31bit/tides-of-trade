@@ -84,12 +84,16 @@ function HoldFishController:HoldFish(
 		end
 	end
 
-	-- Unanchor everything and disable collisions so it doesn't interfere with movement.
+	-- Unanchor, no collision, massless — fish is purely cosmetic and must not
+	-- push the holding player or obstruct other players' movement.
 	for _, d in ipairs(clone:GetDescendants()) do
 		if d:IsA("BasePart") then
 			local bp = d :: BasePart
-			bp.Anchored = false
-			bp.CanCollide = false
+			bp.Anchored    = false
+			bp.CanCollide  = false
+			bp.CanTouch    = false
+			bp.Massless    = true
+			bp.CastShadow  = false
 		end
 	end
 

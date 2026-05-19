@@ -6,11 +6,13 @@
 -- amber↔coral color cycle for the duration of the card's life.
 
 local TweenService = game:GetService("TweenService")
+local RunService   = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local UIUtil      = require(script.Parent.UIUtil)
-local MotionUtil  = require(ReplicatedStorage.Shared.Util.MotionUtil)
-local GameConfig  = require(ReplicatedStorage.Shared.Config.GameConfig)
+local UIUtil        = require(script.Parent.UIUtil)
+local MotionUtil    = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local GameConfig    = require(ReplicatedStorage.Shared.Config.GameConfig)
+local FishParticles = require(ReplicatedStorage.Shared.Util.FishParticles)
 
 local CatchRevealUI = {}
 
@@ -59,7 +61,30 @@ local MOD_COLORS: {[string]: Color3} = {
 	fog_shrouded = Color3.fromRGB(160, 180, 200),
 }
 local _modDisplayNames: {[string]: string} = {}
-for _, m in ipairs(GameConfig.FishModifiers) do _modDisplayNames[m.id] = m.displayName end
+local _modData: {[string]: any} = {}
+for _, m in ipairs(GameConfig.FishModifiers) do
+	_modDisplayNames[m.id] = m.displayName
+	_modData[m.id] = m
+end
+
+local function _modEffectText(modId: string): string
+	local m = _modData[modId]
+	if not m then return "" end
+	-- Priority: sellPriceMul > xpMul > weightMul > coinInstant > lureBonus
+	if m.sellPriceMul then
+		local pct = math.round((m.sellPriceMul - 1) * 100)
+		return (pct >= 0 and "+" or "") .. pct .. "% sell"
+	elseif m.xpMul then
+		return "×" .. m.xpMul .. " XP"
+	elseif m.weightMul then
+		return "×" .. m.weightMul .. " wt"
+	elseif m.coinInstant then
+		return "+" .. m.coinInstant .. "× gold"
+	elseif m.lureBonus then
+		return "+" .. m.lureBonus .. " lure"
+	end
+	return ""
+end
 
 export type CatchPayload = {
 	fish: { displayName: string, rarity: string, basePrice: number, id: string? },
@@ -89,6 +114,10 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	local tierColor = TIER_COLORS[rarity] or TIER_COLORS.Common
 	local perfectColor = TIER_COLORS.Legendary  -- gold for perfect catch indicators
 
+	-- Expand card height by 24 px when modifiers are present so pills don't crowd the coin label.
+	local mods = payload.modifiers or {}
+	local cardExtraH = #mods > 0 and 24 or 0
+
 	-- ----------------------------------------------------------------
 	-- CARD — solid teal panel, tier-colored stroke, rounded.
 	-- ----------------------------------------------------------------
@@ -97,7 +126,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	card.AnchorPoint = Vector2.new(0.5, 1)
 	-- Starts offscreen below; positioned to slide in.
 	card.Position = UDim2.new(0.5, 0, 1, 240)
-	card.Size = UDim2.fromOffset(360, 132)
+	card.Size = UDim2.fromOffset(360, 132 + cardExtraH)
 	card.BackgroundColor3 = P.TealDark
 	card.BorderSizePixel = 0
 	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 14); corner.Parent = card
@@ -119,18 +148,83 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	tapCatcher.Parent = card
 
 	-- ----------------------------------------------------------------
-	-- ICON PLACEHOLDER — 80x80 dark square in the top-left.
-	-- TODO: when AssetIds.Images.FishIconSheet is populated, set the
-	-- ImageRectOffset/Size to the species' slot in the sheet.
+	-- FISH MODEL VIEWPORT — 80×80 ViewportFrame rendering the species'
+	-- 3D model from ReplicatedStorage.Assets.Fish.<id>.
+	-- Camera auto-frames the bounding box from a slight angle.
+	-- Falls back to a plain dark square if the model is missing.
 	-- ----------------------------------------------------------------
-	local icon = Instance.new("Frame")
-	icon.Name = "IconPlaceholder"
-	icon.Position = UDim2.new(0, 16, 0, 16)
-	icon.Size = UDim2.fromOffset(80, 80)
-	icon.BackgroundColor3 = P.TealDeeper
-	icon.BorderSizePixel = 0
-	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(0, 10); ic.Parent = icon
-	icon.Parent = card
+	local vpf = Instance.new("ViewportFrame")
+	vpf.Name = "FishViewport"
+	vpf.Position = UDim2.new(0, 16, 0, 16)
+	vpf.Size = UDim2.fromOffset(80, 80)
+	vpf.BackgroundColor3 = P.TealDeeper
+	vpf.BorderSizePixel = 0
+	vpf.LightColor = Color3.fromRGB(210, 225, 255)
+	vpf.LightDirection = Vector3.new(-1, -2, -1)
+	local vc = Instance.new("UICorner"); vc.CornerRadius = UDim.new(0, 10); vc.Parent = vpf
+	vpf.Parent = card
+
+	local rotTask: thread? = nil
+
+	local _fishId = payload.fish.id
+	local _fishAssets = ReplicatedStorage:FindFirstChild("Assets")
+		and ReplicatedStorage.Assets:FindFirstChild("Fish")
+	local _template = _fishAssets and _fishId and _fishAssets:FindFirstChild(_fishId)
+	if _template then
+		local wm = Instance.new("WorldModel")
+		wm.Parent = vpf
+		local clone = _template:Clone()
+		clone.Parent = wm
+		-- Attach prefix particles at reduced rate for the reveal viewport.
+		if #mods > 0 then
+			for _, d in ipairs(clone:GetDescendants()) do
+				if d:IsA("BasePart") then
+					FishParticles.attach(d :: BasePart, mods, 0.35)
+					break
+				end
+			end
+		end
+
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 40
+		vpf.CurrentCamera = cam
+		cam.Parent = vpf
+
+		-- Auto-frame: calculate bounding box and step camera back enough to fit.
+		local ok, pivotCF, extents = pcall(function(): (CFrame, Vector3)
+			return clone:GetBoundingBox()
+		end)
+		if ok and pivotCF then
+			local maxDim = math.max(extents.X, extents.Y, extents.Z)
+			local dist   = math.max(maxDim * 1.5, 4)
+			local height = dist * 0.4
+			local pivot  = pivotCF.Position
+			local angle  = 0
+
+			if MotionUtil.reducedMotionEnabled() then
+				-- Static angle under reduced motion.
+				cam.CFrame = CFrame.lookAt(
+					pivot + Vector3.new(dist * 0.7, height, dist * 0.7), pivot
+				)
+			else
+				-- Orbit 60 °/s; cancelled in dismiss().
+				rotTask = task.spawn(function()
+					local last = os.clock()
+					while vpf.Parent do
+						local now = os.clock()
+						angle = (angle + 60 * (now - last)) % 360
+						last = now
+						local rad = math.rad(angle)
+						cam.CFrame = CFrame.lookAt(
+							pivot + Vector3.new(math.cos(rad) * dist, height, math.sin(rad) * dist),
+							pivot
+						)
+						RunService.Heartbeat:Wait()
+					end
+				end)
+			end
+		end
+	end
 
 	-- ----------------------------------------------------------------
 	-- TEXT BLOCK
@@ -204,10 +298,10 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 
 	-- ----------------------------------------------------------------
 	-- MODIFIER PILLS — one pill per modifier id, below the weight label.
-	-- Staggered fade-in (0.08s per pill). Capped at 4 visible; "+N" label.
+	-- Staggered fade-in (0.08s per pill). Capped at 3 visible; "+N" label.
+	-- Each pill shows "Name • effect" (e.g. "Shiny • +25% sell").
 	-- Skipped entirely if no modifiers.
 	-- ----------------------------------------------------------------
-	local mods = payload.modifiers or {}
 	if #mods > 0 then
 		local pillRow = Instance.new("Frame")
 		pillRow.BackgroundTransparency = 1
@@ -222,10 +316,12 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		rowLayout.Parent = pillRow
 
 		local reduced = MotionUtil.reducedMotionEnabled()
-		local maxVisible = math.min(#mods, 4)
+		local maxVisible = math.min(#mods, 3)
 		for i = 1, maxVisible do
 			local modId = mods[i]
 			local color = MOD_COLORS[modId] or Color3.fromRGB(160, 160, 160)
+			local effectText = _modEffectText(modId)
+			local labelText = (_modDisplayNames[modId] or modId) .. (effectText ~= "" and (" • " .. effectText) or "")
 			local pill = Instance.new("Frame")
 			pill.Size = UDim2.fromOffset(0, 18)
 			pill.AutomaticSize = Enum.AutomaticSize.X
@@ -245,7 +341,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 			pillLbl.TextSize = 10
 			pillLbl.TextColor3 = Color3.new(1, 1, 1)
 			pillLbl.TextTransparency = 1
-			pillLbl.Text = _modDisplayNames[modId] or modId
+			pillLbl.Text = labelText
 			pillLbl.Parent = pill
 			pill.Parent = pillRow
 			if reduced then
@@ -259,15 +355,15 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 				end)
 			end
 		end
-		if #mods > 4 then
+		if #mods > 3 then
 			local overflowLbl = Instance.new("TextLabel")
 			overflowLbl.BackgroundTransparency = 1
 			overflowLbl.Size = UDim2.fromOffset(28, 18)
 			overflowLbl.Font = Enum.Font.Gotham
 			overflowLbl.TextSize = 10
 			overflowLbl.TextColor3 = P.CreamSoft
-			overflowLbl.Text = "+" .. (#mods - 4)
-			overflowLbl.LayoutOrder = 5
+			overflowLbl.Text = "+" .. (#mods - 3)
+			overflowLbl.LayoutOrder = 4
 			overflowLbl.Parent = pillRow
 		end
 	end
@@ -361,7 +457,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	-- SLIDE IN — Back/Out for a satisfying overshoot. Reduced motion =
 	-- fade in only.
 	-- ----------------------------------------------------------------
-	local restPosition = UDim2.new(0.5, 0, 1, -110)
+	local restPosition = UDim2.new(0.5, 0, 1, -(110 + cardExtraH))
 	if MotionUtil.reducedMotionEnabled() then
 		card.Position = restPosition
 		card.BackgroundTransparency = 1
@@ -380,6 +476,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	local function dismiss()
 		if dismissed then return end
 		dismissed = true
+		if rotTask    then task.cancel(rotTask);    rotTask    = nil end
 		if cycleTask  then task.cancel(cycleTask);  cycleTask  = nil end
 		if thickTask  then task.cancel(thickTask);  thickTask  = nil end
 		if MotionUtil.reducedMotionEnabled() then
