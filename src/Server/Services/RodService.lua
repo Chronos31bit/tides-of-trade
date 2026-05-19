@@ -199,7 +199,7 @@ end
 
 -- Client requests to equip a named rod. Server validates:
 --   1. rodId exists in RodCatalog
---   2. player.xp >= rod.unlockXp (XP gate; never trust client)
+--   2. player.level >= rod.unlockLevel (level gate; never trust client)
 -- On success, PlayerDataService:SetEquippedRod syncs equippedRodId + rodTier.
 function RodService.Client:EquipRod(player: Player, rodId: string): {ok: boolean, reason: string?}
 	local rod = RodCatalog.byId[rodId]
@@ -213,9 +213,9 @@ function RodService.Client:EquipRod(player: Player, rodId: string): {ok: boolean
 		return { ok = false, reason = "no_profile" }
 	end
 
-	local requiredXp = GameConfig.Rods.UnlockXp[rodId] or 0
-	if data.xp < requiredXp then
-		return { ok = false, reason = "xp_too_low" }
+	local requiredLevel = GameConfig.Rods.UnlockLevel[rodId] or 1
+	if data.level < requiredLevel then
+		return { ok = false, reason = "level_too_low" }
 	end
 
 	PlayerDataService:SetEquippedRod(player, rodId)

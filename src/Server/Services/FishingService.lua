@@ -60,10 +60,10 @@ type Fish = {
 local FishingService = Knit.CreateService({
 	Name = "FishingService",
 	Client = {
-		-- Server -> client: bite confirmed. Sends the WEIGHT and weight TIER
-		-- (light/medium/heavy/legendary) so the client can scale reel-mini-game
-		-- difficulty visuals. We do NOT send fish id/rarity — the reveal still
-		-- belongs to CastResolved.
+		-- Server -> client: bite confirmed. Sends the WEIGHT, tension TIER
+		-- (light/medium/heavy/legendary — derived from rarity), and RARITY string
+		-- so the client can theme the reel-mini-game visuals. Fish id/species name
+		-- are still withheld here — the reveal belongs to CastResolved.
 		BiteStarted = Knit.CreateSignal(),
 		-- Final result of a cast (miss, escape, or catch).
 		-- Shape: { success, reason?, fish?, weightKg?, coinsEarned?, xpGained?, perfect? }
@@ -91,20 +91,19 @@ for _, f in ipairs(FishCatalog.fish) do
 end
 
 -- ====================================================================
--- WEIGHT → TENSION TIER. Used by the client for reel-mini-game scaling.
--- Mirror the tier table in FishingController; keep the boundaries here
--- so the server is the source of truth.
+-- RARITY → TENSION TIER. Primary difficulty axis is rarity; weight is a
+-- secondary modifier on zone oscillation speed only (via ReelZoneSpeedPerKg).
 -- ====================================================================
-local function weightToTier(weightKg: number): string
-	if weightKg < 2 then return "light"
-	elseif weightKg < 10 then return "medium"
-	elseif weightKg < 40 then return "heavy"
-	else return "legendary" end
+local function rarityToTier(rarity: string): string
+	return GameConfig.Fishing.RarityTierMap[rarity] or "light"
 end
 
--- 0..1 difficulty hint. Clamped so the lightest fish still feels alive.
-local function difficultyFor(weightKg: number): number
-	return math.clamp(weightKg / 50, 0.1, 1.0)
+-- 0..1 difficulty scalar. Rarity provides the base; weight adds a small
+-- continuous nudge so a heavy Epic still feels slightly harder than a light one.
+local function difficultyFor(rarity: string, weightKg: number): number
+	local base = GameConfig.Fishing.RarityDifficultyBase[rarity] or 0.1
+	local weightNudge = math.clamp(weightKg / 200, 0, 0.10)
+	return math.clamp(base + weightNudge, 0.0, 1.0)
 end
 
 -- ====================================================================
@@ -411,6 +410,10 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 	end
 	ctx.lighthouseBumpChance = bumpChance
 
+	-- Rod rarity boost: higher-tier rods increase odds of non-Common fish.
+	local rod = RodCatalog.byId[ctx.equippedRodId]
+	ctx.rareMultiplier = (ctx.rareMultiplier or 1.0) * (rod and rod.rarityMultiplier or 1.0)
+
 	local fish = rollFish(ctx)
 	if not fish then return nil end
 
@@ -421,15 +424,14 @@ function FishingService.Client:StartCast(player: Player): {castId: string, green
 	weight = math.floor(weight * 10 + 0.5) / 10
 
 	local castId = UidUtil.new("cast")
-	local displaySize = fish.greenZoneSize
+	-- Scale the green zone up globally so catches stay comfortable without
+	-- a hidden per-rod validation expansion.
+	local displaySize = math.min(fish.greenZoneSize * (GameConfig.Fishing.FeelTuning.BaseGreenZoneScale or 1.0), 0.80)
 	local center = displaySize / 2 + math.random() * (1 - displaySize)
-	-- Validation zone: widened by the equipped rod's castWindowBonus (additive
-	-- to the display size) and then by the tutorial assist multiplier. The
-	-- display zone is unchanged — the player sees the same visual bar.
-	local rod = RodCatalog.byId[ctx.equippedRodId]
-	local rodWindowBonus = rod and rod.castWindowBonus or 0
+	-- Validation zone: rod no longer secretly widens it. What the player sees
+	-- is what the server checks (tutorial assist multiplier still applies).
 	local assistMul = self._assistMultiplier[player] or 1.0
-	local validationSize = math.min(1.0, (displaySize + rodWindowBonus) * assistMul)
+	local validationSize = math.min(1.0, displaySize * assistMul)
 	local half = validationSize / 2
 	local validationCenter = math.clamp(center, half, 1 - half)
 
@@ -515,13 +517,13 @@ function FishingService.Client:ClaimCast(player: Player, castId: string, marker:
 		Knit.GetService("BaitService"):ConsumeEquippedBait(player)
 	end)
 
-	-- HIT → transition to reel. Weight & tier travel to the client via
-	-- BiteStarted; fish identity stays server-side until CastResolved.
+	-- HIT → transition to reel. Tier (rarity-derived) and rarity travel to
+	-- the client via BiteStarted; fish species identity stays server-side until CastResolved.
 	pending.phase = "reeling"
 	pending.reelStartedAt = os.clock()
 
-	local tier = weightToTier(pending.weightKg)
-	local difficulty = difficultyFor(pending.weightKg)
+	local tier = rarityToTier(fish.rarity)
+	local difficulty = difficultyFor(fish.rarity, pending.weightKg)
 
 	-- Reel-phase timeout. Independent of the cast-phase timer.
 	task.delay(GameConfig.Fishing.ReelTimeoutSeconds, function()
@@ -533,10 +535,11 @@ function FishingService.Client:ClaimCast(player: Player, castId: string, marker:
 	end)
 
 	self.Client.BiteStarted:Fire(player, {
-		castId = castId,
-		weightKg = pending.weightKg,
-		tier = tier,
+		castId     = castId,
+		weightKg   = pending.weightKg,
+		tier       = tier,
 		difficulty = difficulty,
+		rarity     = fish.rarity,
 	})
 	return { result = "bite" }
 end

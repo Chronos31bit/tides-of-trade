@@ -34,7 +34,6 @@ local TweenService      = game:GetService("TweenService")
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local Trove      = require(ReplicatedStorage.Packages.Trove)
-local CastMeter  = require(script.Parent.Parent.UI.CastMeter)
 local CatchRevealUI = require(script.Parent.Parent.UI.CatchRevealUI)
 local AssetIds   = require(script.Parent.Parent.AssetIds)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
@@ -89,10 +88,11 @@ local TENSION_TIERS: {[string]: any} = {
 
 local FishingController = Knit.CreateController({
 	Name = "FishingController",
-	_pendingCastId = nil :: string?,
-	_phase = "idle",         -- "idle" | "casting" | "reeling"
-	_meter = nil :: any,
-	_castTrove = nil :: any, -- disposables for the *current* cast
+	_trove          = nil :: any,    -- controller-lifetime cleanup (KnitInit → KnitStop)
+	_pendingCastId  = nil :: string?,
+	_phase          = "idle",        -- "idle" | "casting" | "reeling"
+	_castMeterCtrl  = nil :: any,    -- CastMeterController reference, set in KnitStart
+	_castTrove      = nil :: any,    -- disposables for the *current* cast
 })
 
 -- ====================================================================
@@ -318,25 +318,46 @@ end
 -- ====================================================================
 -- LIFECYCLE
 -- ====================================================================
+function FishingController:KnitInit()
+	self._trove = Trove.new()
+end
+
+function FishingController:KnitStop()
+	if self._trove then
+		self._trove:Destroy()
+		self._trove = nil
+	end
+end
+
 function FishingController:KnitStart()
 	local FishingService = Knit.GetService("FishingService")
 	local RodService     = Knit.GetService("RodService")
+	self._castMeterCtrl  = Knit.GetController("CastMeterController")
 
 	-- Authoritative end-of-cast result (miss, escape, or success).
-	FishingService.CastResolved:Connect(function(result)
+	self._trove:Add(FishingService.CastResolved:Connect(function(result)
 		self:_onResolved(result)
-	end)
+	end))
 
 	-- Bite — server validated the cast marker and now wants the reel.
-	FishingService.BiteStarted:Connect(function(payload)
+	self._trove:Add(FishingService.BiteStarted:Connect(function(payload)
 		self:_onBite(payload)
-	end)
+	end))
 
 	-- Tool.Activated. Single entry point for first tap (cast) and second tap
 	-- (release-cast-meter). Ignored during the reel phase (which is hold-driven).
-	RodService.RodActivated:Connect(function()
+	self._trove:Add(RodService.RodActivated:Connect(function()
 		self:_onRodTap()
-	end)
+	end))
+
+	-- Reel-phase signals wired once at controller lifetime. They fire only while
+	-- a cast is active; idle fires are impossible (CastMeterController guards them).
+	self._trove:Add(self._castMeterCtrl.ReelComplete:Connect(function(pf: number)
+		self:_releaseReel(pf)
+	end))
+	self._trove:Add(self._castMeterCtrl.ReelEscaped:Connect(function()
+		self:_reportEscape()
+	end))
 end
 
 function FishingController:_onRodTap()
@@ -356,10 +377,7 @@ end
 function FishingController:_disposeCast()
 	self._phase = "idle"
 	self._pendingCastId = nil
-	if self._meter then
-		self._meter.stop()
-		self._meter = nil
-	end
+	self._castMeterCtrl:dismiss()
 	if self._castTrove then
 		self._castTrove:Destroy()
 		self._castTrove = nil
@@ -397,15 +415,14 @@ function FishingController:_startCast()
 		playSound(AssetIds.Sounds.CastSplash, 0.6, castPoint)
 
 		-- ---- Cast Meter (cast phase) ----
-		self._meter = CastMeter.show(window.greenCenter, window.greenSize, window.period)
+		-- CastMeterController owns the handle; reel signals are wired in KnitStart.
+		local castButton = self._castMeterCtrl:show(window.greenCenter, window.greenSize, window.period)
 
-		-- Wire reel-phase signals up front; they're inert until enterReel().
-		self._meter.onComplete:Connect(function(perfectFraction: number)
-			self:_releaseReel(perfectFraction)
-		end)
-		self._meter.onEscape:Connect(function()
-			self:_reportEscape()
-		end)
+		-- The cast button (80px circle, bottom-center) is an alternative to the
+		-- rod tap for releasing the marker. Both call _onRodTap which guards phase.
+		trove:Add(castButton.Activated:Connect(function()
+			self:_onRodTap()
+		end))
 	end):catch(function(err)
 		warn("[FishingController] StartCast failed:", err)
 	end)
@@ -413,9 +430,9 @@ end
 
 -- Second rod tap during cast phase: capture the marker and ship to server.
 function FishingController:_releaseCastMarker()
-	if not self._pendingCastId or not self._meter then return end
+	if not self._pendingCastId then return end
 	local castId = self._pendingCastId
-	local marker = self._meter.releaseCast()
+	local marker = self._castMeterCtrl:releaseCast()
 	-- Move to a wait-for-server state so additional taps don't spam ClaimCast.
 	-- The server will resolve us into "reeling" (via BiteStarted) or "idle"
 	-- (via CastResolved on miss/error).
@@ -441,13 +458,12 @@ function FishingController:_onBite(payload: any)
 	-- Snap line taut on bite — the visible cue that "you've got one".
 	snapBeamTaut(self._currentBeam)
 
-	-- Pick the tier params for the fish weight. Defensive fallback to medium.
+	-- Pick the tier params for this fish. Tier is now rarity-derived (server-side).
+	-- Defensive fallback to medium in case of an unexpected value.
 	local params = TENSION_TIERS[payload.tier] or TENSION_TIERS.medium
 
-	-- Transition the meter UI.
-	if self._meter then
-		self._meter.enterReel(payload.weightKg, payload.tier, params)
-	end
+	-- Transition the meter UI. Rarity forwarded for zone color theming.
+	self._castMeterCtrl:enterReel(payload.weightKg, payload.tier, params, payload.rarity or "Common")
 
 	-- Start the continuous gamepad rumble for the duration of the fight.
 	-- Stop function goes onto the trove so all cast-resolve paths kill it.
@@ -466,15 +482,12 @@ function FishingController:_onBite(payload: any)
 			or input.KeyCode == Enum.KeyCode.Space
 	end
 
-	local meter = self._meter
 	local beganConn = UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then return end
-		if not meter then return end
-		if isHoldInput(input) then meter.setHold(true) end
+		if isHoldInput(input) then self._castMeterCtrl:setHold(true) end
 	end)
 	local endedConn = UserInputService.InputEnded:Connect(function(input)
-		if not meter then return end
-		if isHoldInput(input) then meter.setHold(false) end
+		if isHoldInput(input) then self._castMeterCtrl:setHold(false) end
 	end)
 	if self._castTrove then
 		self._castTrove:Add(beganConn)

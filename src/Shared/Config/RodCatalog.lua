@@ -14,20 +14,22 @@
 -- rank / rankColor : cosmetic rarity badge ("Common"…"Divine"). The UI
 --   tints both the rank label and the rod name with rankColor so the rack
 --   reads as a rarity ladder at a glance. Purely presentational — rank has
---   no gameplay effect; progression is gated by unlockXp.
+--   no gameplay effect; progression is gated by unlockLevel.
 --
--- castWindowBonus : additive fraction widening the validation green zone.
---   Example: 0.05 adds 5pp to the green zone width before the assist
---   multiplier. The display zone is unchanged — the player sees the same
---   visual bar; the server just accepts a slightly wider hit region.
+-- castWindowBonus : kept for schema stability but no longer used by
+--   FishingService. Rods now affect rarity via rarityMultiplier instead.
+--
+-- rarityMultiplier : multiplier applied to all non-Common rarity weights
+--   during rollFish(). Driftwood = 1.0 (no bonus); Abyssal = 7.0
+--   (7× better odds at Uncommon–Divine fish).
 --
 -- catchWeightBonus : flat kg added to the resolved fish weight after the
 --   catalog weight range is rolled. Applied before modifier weightMul.
 --
 -- color : Color3 used in the rod rack UI for the tier strip / glow tint.
 --
--- unlockXp is populated at load time from GameConfig.Rods.UnlockXp — the
--- single source of truth for progression thresholds.
+-- unlockLevel is populated at load time from GameConfig.Rods.UnlockLevel —
+-- the single source of truth for progression thresholds.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
@@ -35,12 +37,13 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 export type RodDef = {
 	id: string,
 	displayName: string,
-	tier: number,             -- 1..10, sets data.rodTier on equip
-	rank: string,             -- cosmetic rarity badge, no gameplay effect
-	rankColor: Color3,        -- tint for rank label + rod name in the rack UI
-	unlockXp: number,         -- populated from GameConfig.Rods.UnlockXp
-	castWindowBonus: number,  -- additive fraction [0,1]
-	catchWeightBonus: number, -- additive kg
+	tier: number,              -- 1..10, sets data.rodTier on equip
+	rank: string,              -- cosmetic rarity badge, no gameplay effect
+	rankColor: Color3,         -- tint for rank label + rod name in the rack UI
+	unlockLevel: number,       -- populated from GameConfig.Rods.UnlockLevel
+	castWindowBonus: number,   -- unused post-rework; kept for schema stability
+	rarityMultiplier: number,  -- multiplier on non-Common rarity weights in rollFish
+	catchWeightBonus: number,  -- additive kg
 	color: Color3,
 }
 
@@ -66,8 +69,9 @@ local RodCatalog: {
 			tier             = 1,
 			rank             = "Common",
 			rankColor        = RANK.Common,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.00,
+			rarityMultiplier = 1.0,
 			catchWeightBonus = 0.0,
 			color            = Color3.fromRGB(160, 124, 88),
 		},
@@ -77,8 +81,9 @@ local RodCatalog: {
 			tier             = 2,
 			rank             = "Common",
 			rankColor        = RANK.Common,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.05,
+			rarityMultiplier = 1.3,
 			catchWeightBonus = 0.5,
 			color            = Color3.fromRGB(120, 200, 130),
 		},
@@ -88,8 +93,9 @@ local RodCatalog: {
 			tier             = 3,
 			rank             = "Uncommon",
 			rankColor        = RANK.Uncommon,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.10,
+			rarityMultiplier = 1.7,
 			catchWeightBonus = 1.5,
 			color            = Color3.fromRGB(160, 160, 200),
 		},
@@ -99,8 +105,9 @@ local RodCatalog: {
 			tier             = 4,
 			rank             = "Rare",
 			rankColor        = RANK.Rare,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.16,
+			rarityMultiplier = 2.2,
 			catchWeightBonus = 3.5,
 			color            = Color3.fromRGB(220, 130, 200),
 		},
@@ -110,8 +117,9 @@ local RodCatalog: {
 			tier             = 5,
 			rank             = "Epic",
 			rankColor        = RANK.Epic,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.22,
+			rarityMultiplier = 2.8,
 			catchWeightBonus = 6.5,
 			color            = Color3.fromRGB(120, 170, 230),
 		},
@@ -121,8 +129,9 @@ local RodCatalog: {
 			tier             = 6,
 			rank             = "Epic",
 			rankColor        = RANK.Epic,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.28,
+			rarityMultiplier = 3.5,
 			catchWeightBonus = 10.0,
 			color            = Color3.fromRGB(70, 110, 165),
 		},
@@ -132,8 +141,9 @@ local RodCatalog: {
 			tier             = 7,
 			rank             = "Legendary",
 			rankColor        = RANK.Legendary,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.34,
+			rarityMultiplier = 4.2,
 			catchWeightBonus = 15.0,
 			color            = Color3.fromRGB(150, 235, 210),
 		},
@@ -143,8 +153,9 @@ local RodCatalog: {
 			tier             = 8,
 			rank             = "Legendary",
 			rankColor        = RANK.Legendary,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.40,
+			rarityMultiplier = 5.0,
 			catchWeightBonus = 21.0,
 			color            = Color3.fromRGB(210, 165, 250),
 		},
@@ -154,8 +165,9 @@ local RodCatalog: {
 			tier             = 9,
 			rank             = "Mythic",
 			rankColor        = RANK.Mythic,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.47,
+			rarityMultiplier = 5.8,
 			catchWeightBonus = 30.0,
 			color            = Color3.fromRGB(120, 90, 160),
 		},
@@ -165,8 +177,9 @@ local RodCatalog: {
 			tier             = 10,
 			rank             = "Divine",
 			rankColor        = RANK.Divine,
-			unlockXp         = 0,
+			unlockLevel      = 1,
 			castWindowBonus  = 0.54,
+			rarityMultiplier = 7.0,
 			catchWeightBonus = 42.0,
 			color            = Color3.fromRGB(45, 80, 130),
 		},
@@ -176,7 +189,7 @@ local RodCatalog: {
 
 -- Inject unlock thresholds from GameConfig and build O(1) id index.
 for _, rod in ipairs(RodCatalog.rods) do
-	rod.unlockXp = GameConfig.Rods.UnlockXp[rod.id] or 0
+	rod.unlockLevel = GameConfig.Rods.UnlockLevel[rod.id] or 1
 	RodCatalog.byId[rod.id] = rod
 end
 

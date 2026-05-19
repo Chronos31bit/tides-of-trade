@@ -21,7 +21,7 @@ end
 local RodSelectController = Knit.CreateController({
 	Name = "RodSelectController",
 	_handle             = nil :: any,  -- RodSelectUI.Handle while open, nil when closed
-	_playerXp           = 0,
+	_playerLevel        = 1,
 	_equippedId         = "driftwood",
 	_playerDataService  = nil :: any,  -- set in KnitStart
 })
@@ -30,27 +30,37 @@ function RodSelectController:KnitStart()
 	local pds = Knit.GetService("PlayerDataService")
 	self._playerDataService = pds
 
-	-- Snapshot from profile load so the panel has correct data on first open.
-	pds:GetSnapshot():andThen(function(snap)
-		if snap then
-			self._playerXp   = snap.xp or 0
-			self._equippedId = snap.equippedRodId or "driftwood"
-		end
-	end)
-
-	-- Keep XP and equipped rod current so the panel reflects live progression
-	-- without needing a re-open.
-	pds.XPChanged:Connect(function(_level, xp, _next)
-		self._playerXp = xp
+	-- Apply a profile snapshot to the controller's cached fields and refresh
+	-- the panel if it's open. Called from both GetSnapshot (async) and
+	-- ProfileLoaded (signal) so whichever arrives first wins and the second
+	-- is a no-op on an already-correct state.
+	local function applySnap(snap)
+		if not snap then return end
+		self._playerLevel = snap.level or 1
+		self._equippedId  = snap.equippedRodId or "driftwood"
 		if self._handle then
-			self._handle.refresh(self._equippedId, self._playerXp)
+			self._handle.refresh(self._equippedId, self._playerLevel)
+		end
+	end
+
+	-- GetSnapshot covers the case where ProfileLoaded already fired before
+	-- this controller's KnitStart ran. ProfileLoaded covers the race where
+	-- the profile wasn't ready when GetSnapshot was called.
+	pds:GetSnapshot():andThen(applySnap)
+	pds.ProfileLoaded:Connect(applySnap)
+
+	-- Keep level and equipped rod current as the player progresses.
+	pds.XPChanged:Connect(function(level, _xp, _next)
+		self._playerLevel = level
+		if self._handle then
+			self._handle.refresh(self._equippedId, self._playerLevel)
 		end
 	end)
 
 	pds.EquippedRodChanged:Connect(function(rodId)
 		self._equippedId = rodId
 		if self._handle then
-			self._handle.refresh(self._equippedId, self._playerXp)
+			self._handle.refresh(self._equippedId, self._playerLevel)
 		end
 	end)
 end
@@ -64,13 +74,13 @@ function RodSelectController:Open()
 
 	self._handle = RodSelectUI.show(
 		RodCatalog.rods,
-		self._playerXp,
+		self._playerLevel,
 		self._equippedId,
 		function(rodId: string)
 			-- Optimistic local update so the panel feels instant.
 			self._equippedId = rodId
 			if self._handle then
-				self._handle.refresh(self._equippedId, self._playerXp)
+				self._handle.refresh(self._equippedId, self._playerLevel)
 			end
 
 			-- Server validation (XP gate). Rolls back the optimistic update on
@@ -84,7 +94,7 @@ function RodSelectController:Open()
 						if snap then
 							self._equippedId = snap.equippedRodId or "driftwood"
 							if self._handle then
-								self._handle.refresh(self._equippedId, self._playerXp)
+								self._handle.refresh(self._equippedId, self._playerLevel)
 							end
 						end
 					end)

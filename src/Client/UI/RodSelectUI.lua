@@ -5,9 +5,9 @@
 -- Locked rods are dimmed and non-interactive. Equipped rod has gold border.
 --
 -- Public API:
---   RodSelectUI.show(rods, playerXp, equippedRodId, onEquip) -> Handle
+--   RodSelectUI.show(rods, playerLevel, equippedRodId, onEquip) -> Handle
 --   Handle.close()
---   Handle.refresh(equippedRodId, playerXp)
+--   Handle.refresh(equippedRodId, playerLevel)
 
 local UIUtil = require(script.Parent.UIUtil)
 
@@ -28,7 +28,7 @@ export type RodDef = {
 	tier: number,
 	rank: string,
 	rankColor: Color3,
-	unlockXp: number,
+	unlockLevel: number,
 	castWindowBonus: number,
 	catchWeightBonus: number,
 	color: Color3,
@@ -36,7 +36,7 @@ export type RodDef = {
 
 export type Handle = {
 	close:   () -> (),
-	refresh: (equippedRodId: string, playerXp: number) -> (),
+	refresh: (equippedRodId: string, playerLevel: number) -> (),
 }
 
 -- ====================================================================
@@ -44,14 +44,14 @@ export type Handle = {
 -- ====================================================================
 
 local function buildRow(
-	parent:   ScrollingFrame,
-	rod:      RodDef,
-	playerXp: number,
-	equipped: boolean,
-	order:    number,
-	onEquip:  () -> ()
+	parent:       ScrollingFrame,
+	rod:          RodDef,
+	playerLevel:  number,
+	equipped:     boolean,
+	order:        number,
+	onEquip:      () -> ()
 ): Frame
-	local locked = playerXp < rod.unlockXp
+	local locked = playerLevel < rod.unlockLevel
 
 	-- ── Outer row frame ──────────────────────────────────────────────────
 	local row = Instance.new("Frame")
@@ -163,10 +163,10 @@ local function buildRow(
 	pillText.Parent = pill
 	pill.Parent = row
 
-	-- Stats line: cast window + weight, on one line.
-	local windowStr = rod.castWindowBonus > 0
-		and ("+%.0f%% window"):format(rod.castWindowBonus * 100)
-		or "Base window"
+	-- Stats line: rarity multiplier + weight, on one line.
+	local rarityStr = (rod.rarityMultiplier and rod.rarityMultiplier > 1.0)
+		and ("\xC3\x97%.1f rarity"):format(rod.rarityMultiplier)
+		or "Base rarity"
 	local weightStr = rod.catchWeightBonus > 0
 		and ("+%.1f kg"):format(rod.catchWeightBonus)
 		or "Base wt"
@@ -178,21 +178,21 @@ local function buildRow(
 	statsLbl.TextSize       = 10
 	statsLbl.TextColor3     = locked and P.WoodLight or P.TealLight
 	statsLbl.TextXAlignment = Enum.TextXAlignment.Left
-	statsLbl.Text           = windowStr .. "  ·  " .. weightStr
+	statsLbl.Text           = rarityStr .. "  ·  " .. weightStr
 	statsLbl.Parent = row
 
-	-- XP status line (below stats, small).
-	local xpStr: string
-	local xpColor: Color3
+	-- Level requirement line (below stats, small).
+	local lvlStr: string
+	local lvlColor: Color3
 	if locked then
-		xpStr   = ("%d XP to unlock"):format(rod.unlockXp)
-		xpColor = P.Danger
-	elseif rod.unlockXp == 0 then
-		xpStr   = "Starter rod"
-		xpColor = P.CreamSoft
+		lvlStr   = ("Level %d to unlock"):format(rod.unlockLevel)
+		lvlColor = P.Danger
+	elseif rod.unlockLevel <= 1 then
+		lvlStr   = "Starter rod"
+		lvlColor = P.CreamSoft
 	else
-		xpStr   = "Unlocked"
-		xpColor = P.Success
+		lvlStr   = "Unlocked"
+		lvlColor = P.Success
 	end
 	local xpLbl = Instance.new("TextLabel")
 	xpLbl.BackgroundTransparency = 1
@@ -200,9 +200,9 @@ local function buildRow(
 	xpLbl.Size           = UDim2.new(1, centerW, 0, 12)
 	xpLbl.Font           = Enum.Font.Gotham
 	xpLbl.TextSize       = 9
-	xpLbl.TextColor3     = xpColor
+	xpLbl.TextColor3     = lvlColor
 	xpLbl.TextXAlignment = Enum.TextXAlignment.Left
-	xpLbl.Text           = xpStr
+	xpLbl.Text           = lvlStr
 	xpLbl.Parent = row
 
 	-- ── Equip button (right-anchored) ─────────────────────────────────────
@@ -239,7 +239,7 @@ end
 
 function RodSelectUI.show(
 	rods:          {RodDef},
-	playerXp:      number,
+	playerLevel:   number,
 	equippedRodId: string,
 	onEquip:       (rodId: string) -> ()
 ): Handle
@@ -330,12 +330,12 @@ function RodSelectUI.show(
 
 	layout.Parent = list
 
-	local function buildAll(curEquipped: string, curXp: number)
+	local function buildAll(curEquipped: string, curLevel: number)
 		for _, c in ipairs(list:GetChildren()) do
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for i, rod in ipairs(rods) do
-			buildRow(list, rod, curXp, rod.id == curEquipped, i, function()
+			buildRow(list, rod, curLevel, rod.id == curEquipped, i, function()
 				onEquip(rod.id)
 			end)
 		end
@@ -346,14 +346,14 @@ function RodSelectUI.show(
 		end)
 	end
 
-	buildAll(equippedRodId, playerXp)
+	buildAll(equippedRodId, playerLevel)
 
 	backdrop.Activated:Connect(function() gui:Destroy() end)
 
 	return {
 		close = function() gui:Destroy() end,
-		refresh = function(newEquipped: string, newXp: number)
-			if gui.Parent then buildAll(newEquipped, newXp) end
+		refresh = function(newEquipped: string, newLevel: number)
+			if gui.Parent then buildAll(newEquipped, newLevel) end
 		end,
 	}
 end

@@ -153,8 +153,21 @@ GameConfig.Buildings = {
 -- FISHING
 -- ====================================================================
 GameConfig.Fishing = {
-	-- Cast meter oscillation period (seconds). Lower = harder.
+	-- Cast meter oscillation period (seconds). Lower = harder. Read by the server
+	-- to supply the timing window; client uses CastMeter.OscillationPeriod below.
 	CastMeterPeriod = 1.4,
+
+	-- Client-side cast meter layout and feel. All values the designer would tune.
+	CastMeter = {
+		OscillationPeriod  = 1.4,   -- seconds per full marker sweep
+		BarHeightPx        = 160,   -- logical px height of the vertical bar
+		BarWidthPx         = 20,    -- logical px width of the vertical bar
+		CastButtonSizePx   = 80,    -- diameter of the cast-release circle
+		-- Distance from screen bottom to the BOTTOM EDGE of the cast button.
+		-- Nav bar is 88px tall + 20px safe-area gap = 108px. 10px clearance → 118.
+		CastButtonBottomPx = 118,
+		BarButtonGapPx     = 8,     -- gap between top of button and bottom of bar
+	},
 
 	-- Minimum cooldown between casts (anti-spam, anti-exploit).
 	CastCooldownSeconds = 0.5,
@@ -186,6 +199,41 @@ GameConfig.Fishing = {
 		Divine    =  0.5,
 	},
 
+	-- Rarity → tension tier for the reel mini-game. Primary difficulty axis.
+	-- Weight still influences zone oscillation speed as a secondary modifier.
+	RarityTierMap = {
+		Common    = "light",
+		Uncommon  = "light",
+		Rare      = "medium",
+		Epic      = "medium",
+		Legendary = "heavy",
+		Mythic    = "heavy",
+		Divine    = "legendary",
+	},
+
+	-- 0..1 difficulty base per rarity. Weight adds a small nudge (+0.00–0.10).
+	RarityDifficultyBase = {
+		Common    = 0.10,
+		Uncommon  = 0.20,
+		Rare      = 0.38,
+		Epic      = 0.52,
+		Legendary = 0.70,
+		Mythic    = 0.85,
+		Divine    = 1.00,
+	},
+
+	-- Zone and label tint colors for the reel mini-game, keyed by rarity.
+	-- Matches the RANK palette in RodCatalog.lua so the visual language is consistent.
+	RarityColors = {
+		Common    = Color3.fromRGB(176, 182, 190),
+		Uncommon  = Color3.fromRGB(120, 205, 135),
+		Rare      = Color3.fromRGB( 95, 165, 240),
+		Epic      = Color3.fromRGB(185, 120, 235),
+		Legendary = Color3.fromRGB(245, 180,  75),
+		Mythic    = Color3.fromRGB(240,  95, 140),
+		Divine    = Color3.fromRGB(255, 225, 150),
+	},
+
 	-- ----------------------------------------------------------------
 	-- FEEL TUNING — every magic number for the cast/reel/reveal UI.
 	-- Designer-friendly: tweak these without hunting through controllers.
@@ -211,6 +259,7 @@ GameConfig.Fishing = {
 		PerfectBonusMultiplier    = 2.0,
 		PerfectThreshold          = 0.8,
 		-- Perfect-cast: marker lands in the inner gold strip → fish is heavier.
+		BaseGreenZoneScale        = 1.35,   -- global multiplier on fish.greenZoneSize; widens all zones without catalog edits
 		PerfectCastWeightBonus    = 0.15,   -- +15% weight, capped at 1.5× catalog max
 		-- Perfect-reel: award immediate coins = fraction of the fish's base market price.
 		PerfectReelCoinFraction   = 0.20,   -- 20% of fish.basePrice awarded on completion
@@ -436,25 +485,25 @@ GameConfig.AntiExploit = {
 }
 
 -- ====================================================================
--- RODS — XP thresholds to unlock each named rod tier.
--- Display data (castWindowBonus, catchWeightBonus, color) lives in
--- RodCatalog.lua. Thresholds live here so designers can tune the
--- progression curve without touching the catalog.
--- Keys must match RodCatalog rod ids exactly.
+-- RODS — level thresholds to unlock each named rod tier.
+-- Display data (catchWeightBonus, color) lives in RodCatalog.lua.
+-- Thresholds live here so designers can tune progression without
+-- touching the catalog. Keys must match RodCatalog rod ids exactly.
+-- Level curve: cumulative XP to reach level L = 50 * L^2 (PlayerDataService).
 -- ====================================================================
 GameConfig.Rods = {
 	-- Keyed by rod id; ascends with RodCatalog tier (apex = abyssal).
-	UnlockXp = {
-		driftwood = 0,       -- t1  starter rod, always available
-		bamboo    = 200,     -- t2  ~10-20 fish caught
-		ironwood  = 800,     -- t3  ~40-60 fish caught
-		coral     = 2500,    -- t4  solid mid-game milestone
-		tempest   = 7000,    -- t5  dedicated long-term players
-		leviathan = 15000,   -- t6  late-game push
-		aurora    = 30000,   -- t7  prestige territory
-		celestial = 55000,   -- t8  months of play
-		eclipse   = 95000,   -- t9  veteran flex
-		abyssal   = 160000,  -- t10 apex — top of the rack
+	UnlockLevel = {
+		driftwood = 1,   -- t1  starter rod, always available
+		bamboo    = 2,   -- t2  ~10-20 fish caught
+		ironwood  = 4,   -- t3  ~40-60 fish caught
+		coral     = 7,   -- t4  solid mid-game milestone
+		tempest   = 12,  -- t5  dedicated players
+		leviathan = 17,  -- t6  late-game push
+		aurora    = 24,  -- t7  prestige territory
+		celestial = 33,  -- t8  months of play
+		eclipse   = 43,  -- t9  veteran flex
+		abyssal   = 56,  -- t10 apex — top of the rack
 	},
 }
 
