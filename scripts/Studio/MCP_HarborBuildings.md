@@ -10,173 +10,110 @@ Prerequisites: [MCP_Setup.md](./MCP_Setup.md) (Studio MCP green, Cursor `Roblox_
 |------|---------|
 | `ReplicatedStorage.Assets.Buildings.<Kind>.tier<N>.Visual` | `Model` with mesh geometry |
 | `Visual.PrimaryPart` | Invisible part at bbox **bottom-center** |
-| `Visual.Footprint` | `StringValue`, e.g. `"4x6"` for Dock |
+| `Visual.Footprint` | `StringValue`, e.g. `"4x6"` |
 
-Footprints (grid cells × `GameConfig.Harbor.GridCellStuds` = 4 studs):
+**Orientation at `rotation = 0`:** width along world **X**, depth along **Z** (longer catalog axis → **+Z**). Shop fronts toward **−Z**; **Dock** pier extends toward **+Z**. AI meshes often bake ~45° yaw — always run [CommandBar_InstallHarborVisual.luau](./CommandBar_InstallHarborVisual.luau) (includes `alignVisualYaw`).
 
-| Kind | Cells | Stud pad (×0.9 fit target) |
-|------|-------|----------------------------|
+Footprints (grid cells × 4 studs; fit target = 90% of stud pad):
+
+| Kind | Cells | Stud pad |
+|------|-------|----------|
 | Dock | 4×6 | 16×24 |
 | MarketStall | 3×3 | 12×12 |
-| Smokehouse | 3×4 | 12×16 |
 | Lighthouse | 3×3 | 12×12 |
 | BaitShop | 2×3 | 8×12 |
+| Smokehouse | 3×4 | 12×16 |
 | Aquarium | 3×4 | 12×16 |
 | Guildhall | 5×5 | 20×20 |
 
-Tier read (cozy pillar): tier1 rundown → tier2 repaired → tier3 grand (height + detail + tier3 lights where appropriate).
+## Workflow per tier
 
-## 1. Clear old visuals
+1. Clear kind: [CommandBar_ClearHarborBuildings.luau](./CommandBar_ClearHarborBuildings.luau) (`KIND = "MarketStall"`)
+2. MCP `generate_mesh` (prompts below; add **axis-aligned, no diagonal rotation, longer side along Z**)
+3. Edit + run [CommandBar_InstallHarborVisual.luau](./CommandBar_InstallHarborVisual.luau) (`KIND`, `TIER`, footprint, `FACING_YAW_EXTRA`)
+4. Repeat tiers 2–3
+5. Save place
 
-Command Bar: run [CommandBar_ClearHarborBuildings.luau](./CommandBar_ClearHarborBuildings.luau) with `KIND = "Dock"` or `"*"` for all.
+`BuildAssetPlaceholders.server.lua` skips kinds that already have `tier1.Visual`.
 
-Or MCP `execute_luau`:
+## Prompt prefix (all kinds)
 
-```lua
-local kind = "Dock" -- or nil to clear all kinds
-local buildings = game.ReplicatedStorage.Assets.Buildings
-for _, kindFolder in buildings:GetChildren() do
-	if kind and kindFolder.Name ~= kind then continue end
-	for _, tierFolder in kindFolder:GetChildren() do
-		local v = tierFolder:FindFirstChild("Visual")
-		if v then v:Destroy() end
-	end
-end
-```
+> cozy Roblox harbor fishing game, low-poly stylized, axis-aligned to world grid, no diagonal rotation, longer side along Z axis
 
-`BuildAssetPlaceholders.server.lua` only refills kinds with **no** `tier1.Visual`.
+### Per-kind tier prompts (append to prefix)
 
-## 2. Generate mesh (MCP `generate_mesh`)
+**Dock** (4×6; `FACING_YAW_EXTRA = 0`, pier toward +Z) — size x,y,z:
 
-Use the same prompt prefix for style consistency:
+| Tier | Prompt | y |
+|------|--------|---|
+| 1 | wooden fishing dock pier tier 1 rundown: weathered dark wood, gaps, moss, crooked pilings, pier extends toward +Z | 6 |
+| 2 | wooden dock pier tier 2 repaired: clean planks, rope railing, more pilings, pier toward +Z | 7 |
+| 3 | wooden dock pier tier 3 grand: fresh wood, metal pilings, cleats, lantern posts, pier toward +Z | 9 |
 
-> cozy Roblox harbor fishing game, low-poly stylized
+**MarketStall** (3×3; sizes 12,5,12 / 12,6,12 / 12,7,12):
 
-**Dock pilot prompts**
+| Tier | Prompt |
+|------|--------|
+| 1 | open fish market stall tier 1: faded canvas awning, wooden crates, front counter toward -Z |
+| 2 | fish market stall tier 2: striped teal awning, weighing scale, front toward -Z |
+| 3 | fish market stall tier 3: ice bed display, gold sign, lanterns, front toward -Z |
 
-| Tier | `textPrompt` (append to prefix) | `size` (x, y, z) |
-|------|--------------------------------|------------------|
-| 1 | wooden fishing dock pier, tier 1 rundown: weathered dark wood, gaps, moss, crooked pilings | 16, 6, 24 |
-| 2 | wooden dock pier, tier 2 repaired: clean planks, rope railing, more pilings, no moss | 16, 7, 24 |
-| 3 | wooden dock pier, tier 3 grand: fresh wood, metal pilings, cleats, warm lantern posts, taller ornate cozy | 16, 9, 24 |
+**Lighthouse** (3×3; y 8/11/14):
 
-`maxTriangles`: 10000–12000.
+| Tier | Prompt |
+|------|--------|
+| 1 | short white lighthouse tower tier 1 worn stone base |
+| 2 | lighthouse tier 2 red and white horizontal bands, taller |
+| 3 | tall lighthouse tier 3 bright glass lantern room on top |
 
-## 3. Install visual (MCP `execute_luau`)
+**BaitShop** (2×3; sizes 8,5,12 / 8,6,12 / 8,7,12):
 
-After each `generate_mesh`, run install (set `TIER` and footprint cells):
+| Tier | Prompt |
+|------|--------|
+| 1 | fishing rod shop stand tier 1: wooden counter and rod sign, front toward -Z |
+| 2 | rod shop tier 2: teal awning, rod rack, front toward -Z |
+| 3 | rod shop tier 3: canopy, glass display case, warm lights, front toward -Z |
 
-```lua
-local TIER = 1
-local FOOTPRINT_W, FOOTPRINT_D = 4, 6
-local TARGET_X, TARGET_Z = FOOTPRINT_W * 4 * 0.9, FOOTPRINT_D * 4 * 0.9
+**Smokehouse** (3×4; sizes 12,6,16 / 12,7,16 / 12,9,16):
 
-local function getSourceModel()
-	for _, child in workspace:GetChildren() do
-		if child:IsA("Model") and child:GetAttribute("RBX_AI_GENERATED") then
-			return child
-		end
-	end
-	return nil
-end
+| Tier | Prompt |
+|------|--------|
+| 1 | stone smokehouse tier 1: small smoker chimney, door toward +Z |
+| 2 | brick smokehouse tier 2: wooden door, taller chimney |
+| 3 | smokehouse tier 3: fish drying racks, copper chimney, weather vane |
 
-local function anchorBottomCenter(model: Model)
-	local bbCF, bbSize = model:GetBoundingBox()
-	local bottomCenter = Vector3.new(bbCF.Position.X, bbCF.Position.Y - bbSize.Y / 2, bbCF.Position.Z)
-	local shift = CFrame.new(-bottomCenter)
-	for _, desc in model:GetDescendants() do
-		if desc:IsA("BasePart") then
-			desc.CFrame = shift * desc.CFrame
-			desc.Anchored = true
-			desc.CanCollide = true
-			desc.CanQuery = false
-			desc.CanTouch = false
-		end
-	end
-	local pp = model:FindFirstChild("PrimaryPart")
-	if pp then pp:Destroy() end
-	pp = Instance.new("Part")
-	pp.Name = "PrimaryPart"
-	pp.Size = Vector3.new(0.2, 0.2, 0.2)
-	pp.Transparency = 1
-	pp.Anchored = true
-	pp.CanCollide = false
-	pp.CanQuery = false
-	pp.CanTouch = false
-	pp.Parent = model
-	bbCF, bbSize = model:GetBoundingBox()
-	bottomCenter = Vector3.new(bbCF.Position.X, bbCF.Position.Y - bbSize.Y / 2, bbCF.Position.Z)
-	pp.CFrame = CFrame.new(bottomCenter)
-	model.PrimaryPart = pp
-end
+**Aquarium** (3×4; sizes 12,5,16 / 12,7,16 / 12,9,16):
 
-local src = getSourceModel()
-assert(src, "No RBX_AI_GENERATED model in Workspace")
+| Tier | Prompt |
+|------|--------|
+| 1 | barrel fish aquarium display tier 1, glass panel toward -Z |
+| 2 | glass fish tank building tier 2 brass trim, front glass -Z |
+| 3 | grand marble aquarium gallery tier 3 large tank, path toward +Z |
 
-local visual = Instance.new("Model")
-visual.Name = "Visual"
-for _, desc in src:GetDescendants() do
-	if desc:IsA("BasePart") then
-		desc:Clone().Parent = visual
-	end
-end
+**Guildhall** (5×5; sizes 20,8,20 / 20,10,20 / 20,12,20; maxTriangles 12000 on tier 3):
 
-local _, bbSize = visual:GetBoundingBox()
-local scale = math.min(TARGET_X / bbSize.X, TARGET_Z / bbSize.Z)
-if scale > 0 and math.abs(scale - 1) > 0.001 then
-	visual:ScaleTo(scale)
-end
-anchorBottomCenter(visual)
+| Tier | Prompt |
+|------|--------|
+| 1 | wooden guild hall tier 1: peaked roof, red banner, notice board, entrance -Z |
+| 2 | guild hall tier 2: stone entry arch, bell, pennants, entrance -Z |
+| 3 | guild hall tier 3: stone facade, stained glass, gold crest, entrance -Z |
 
-local fp = Instance.new("StringValue")
-fp.Name = "Footprint"
-fp.Value = string.format("%dx%d", FOOTPRINT_W, FOOTPRINT_D)
-fp.Parent = visual
+`maxTriangles`: 10000 (12000 Guildhall/Dock tier 3).
 
-local kindFolder = game.ReplicatedStorage.Assets.Buildings.Dock
-local tierFolder = kindFolder:WaitForChild("tier" .. TIER)
-local old = tierFolder:FindFirstChild("Visual")
-if old then old:Destroy() end
-visual.Parent = tierFolder
-src:Destroy()
+## Re-align existing mesh (no regen)
 
--- Optional tier3 dock lanterns (if mesh lacks them)
-if TIER == 3 then
-	local bbCF, sz = visual:GetBoundingBox()
-	local y = bbCF.Position.Y - sz.Y / 2 + math.min(sz.Y * 0.85, 4.5)
-	for i, xz in ipairs({{-sz.X * 0.35, -sz.Z * 0.35}, {sz.X * 0.35, -sz.Z * 0.35}}) do
-		local anchor = Instance.new("Part")
-		anchor.Name = "LanternAnchor" .. i
-		anchor.Size = Vector3.new(0.35, 0.35, 0.35)
-		anchor.Transparency = 0.25
-		anchor.Color = Color3.fromRGB(210, 175, 60)
-		anchor.Material = Enum.Material.Metal
-		anchor.Anchored = true
-		anchor.CanCollide = false
-		anchor.CFrame = CFrame.new(xz[1], y, xz[2])
-		anchor.Parent = visual
-		local pl = Instance.new("PointLight")
-		pl.Brightness = 1.2
-		pl.Range = 14
-		pl.Color = Color3.fromRGB(255, 200, 120)
-		pl.Parent = anchor
-	end
-end
-```
+MCP `execute_luau` on in-place `Visual` models — same `alignVisualYaw` + `anchorBottomCenter` as install script; see agent session or duplicate logic from `CommandBar_InstallHarborVisual.luau`.
 
-Replace `Dock` / footprint constants per kind.
+## Validate
 
-## 4. Validate
+- `meshYaw` ≈ 0° on `body_geom` after install
+- Top-down: building edges parallel to plot at rotation 0
+- Play: no `HarborVisualController` missing-asset warn; clones use `MeshPart` not `Plank0`/`Walls`
 
-- `search_game_tree` → `ReplicatedStorage.Assets.Buildings.Dock`, depth 4
-- Each `Visual` has `MeshPart`, `PrimaryPart`, `Footprint`
-- Play: place/upgrade building; Output must **not** show `HarborVisualController` missing-asset fallback
-- Cloned model should have `body_geom` (mesh), not `Plank0` (procedural)
+## Save
 
-## 5. Save
+**File → Save** (Ctrl+S). MCP cannot save the place file.
 
-**File → Save** (or Ctrl+S). MCP cannot reliably save the place from the agent.
+## Status
 
-## Completed pilot
-
-**Dock** tiers 1–3 installed via `generate_mesh` (May 2026). Other kinds still use procedural placeholders until repeated.
+All **7 kinds × 3 tiers** installed via `generate_mesh` + aligned install. Dock yaw fix: baked ~131° → 0° via [CommandBar_AlignHarborVisual.luau](./CommandBar_AlignHarborVisual.luau). Guildhall tier 3 used alternate prompt after moderation block on first attempt.
