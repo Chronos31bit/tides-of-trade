@@ -40,7 +40,17 @@ local HarborVisualService = Knit.CreateService({
 -- ====================================================================
 -- HELPERS
 -- ====================================================================
+local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+
+local function clampTier(kind: string, tier: any): number
+	local def = BuildingCatalog[kind]
+	local maxTier = if def then #def.tiers else 3
+	local t = if typeof(tier) == "number" then tier else 1
+	return math.clamp(math.floor(t + 0.5), 1, maxTier)
+end
+
 local function makePayload(plotOwnerId: number, plotOrigin: CFrame, building: any, oldTier: number?, newTier: number)
+	local tier = clampTier(building.kind, newTier)
 	-- Shallow-copy the building so downstream mutations on the profile
 	-- don't ripple into the in-flight RemoteEvent payload.
 	return {
@@ -49,13 +59,13 @@ local function makePayload(plotOwnerId: number, plotOrigin: CFrame, building: an
 		building = {
 			uid = building.uid,
 			kind = building.kind,
-			tier = newTier,
+			tier = tier,
 			gridX = building.gridX,
 			gridZ = building.gridZ,
 			rotation = building.rotation,
 		},
 		oldTier = oldTier,
-		newTier = newTier,
+		newTier = tier,
 	}
 end
 

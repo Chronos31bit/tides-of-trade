@@ -121,19 +121,33 @@ end
 -- ====================================================================
 -- BUILD / POSITION
 -- ====================================================================
+local function normalizeBuildingTier(kind: string, tier: any): number
+	local def = BuildingCatalog[kind]
+	local maxTier = if def then #def.tiers else 3
+	local t = if typeof(tier) == "number" then tier else 1
+	return math.clamp(math.floor(t + 0.5), 1, maxTier)
+end
+
 function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFrame, building: any): Model
 	local def = BuildingCatalog[building.kind]
 	local footprint = (def and def.footprint) or {2, 2}
+	local tier = normalizeBuildingTier(building.kind, building.tier)
+	building = table.clone(building)
+	building.tier = tier
 
-	local asset = self:_findAssetModel(building.kind, building.tier)
+	local asset = self:_findAssetModel(building.kind, tier)
 	local model
 	if asset then
 		model = asset:Clone()
 	else
 		warn(("[HarborVisualController] Missing asset %s tier %d, using procedural fallback"):format(building.kind, building.tier))
-		model = BuildingModelFactory.build(building.kind, building.tier, footprint)
+		model = BuildingModelFactory.build(building.kind, tier, footprint)
 		model.Name = building.uid
 	end
+
+	local tierScales = VT.TierModelScale
+	local tierScale = (tierScales and tierScales[tier]) or 1
+	pcall(function() model:ScaleTo(tierScale) end)
 
 	local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
 	if not model.PrimaryPart then
@@ -208,14 +222,21 @@ function HarborVisualController:_onUpdate(payload: any)
 	local existing = state.buildings[building.uid]
 
 	if oldTier == nil then
-		-- Fresh spawn (replay or first place). Re-position if we already have a model
-		-- so Rojo hot-reloads fix placement without requiring demolish + rejoin.
+		-- Fresh spawn (replay or first place). Re-position only when tier/kind match;
+		-- otherwise rebuild so a tier-3 model cannot stick after a tier-1 place.
 		if existing and existing.model and existing.model.Parent then
-			local def = BuildingCatalog[building.kind]
-			local footprint = (def and def.footprint) or { 2, 2 }
-			local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
-			GridUtil.placeModelOnPlate(existing.model, worldCF)
-			return
+			local sameTier = normalizeBuildingTier(building.kind, existing.building.tier)
+				== normalizeBuildingTier(building.kind, newTier)
+			local sameKind = existing.building.kind == building.kind
+			if sameTier and sameKind then
+				local def = BuildingCatalog[building.kind]
+				local footprint = (def and def.footprint) or { 2, 2 }
+				local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
+				GridUtil.placeModelOnPlate(existing.model, worldCF)
+				return
+			end
+			existing.trove:Destroy()
+			state.buildings[building.uid] = nil
 		end
 		if existing then
 			existing.trove:Destroy()

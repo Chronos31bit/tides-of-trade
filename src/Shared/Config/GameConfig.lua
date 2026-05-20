@@ -134,6 +134,8 @@ GameConfig.Harbor = {
 		DebrisRadiusStuds         = 6,
 		DebrisMaxPerPlot          = 30,
 		ReducedMotionDurationScale = 0.5,
+		-- Per-tier Model:ScaleTo on placed visuals (tier 1 = rundown scale).
+		TierModelScale = { 1.0, 1.35, 1.7 },
 	},
 }
 
@@ -146,7 +148,7 @@ GameConfig.Harbor = {
 GameConfig.Buildings = {
 	Dock        = { tierCosts = { 0,     40,     9000  } },
 	MarketStall = { tierCosts = { 800,   3500,   12000 } },
-	Smokehouse  = { tierCosts = { 1500,  6000,   18000 } },
+	Smokehouse  = { tierCosts = { 1500,  6000,   18000 }, PreserveTimeSec = 300 },
 	Lighthouse  = { tierCosts = { 2000,  7500,   22000 }, RarityBumpChance = { 0.15, 0.28, 0.45 } },
 	BaitShop    = { tierCosts = { 600,   2400,   8000  } },
 	Aquarium    = { tierCosts = { 1200,  5000,   16000 } },
@@ -298,8 +300,78 @@ GameConfig.Fishing = {
 
 -- ====================================================================
 -- UI — client-only presentation tunables (no gameplay effect)
+--
+-- Design tokens here are the single source of truth for spacing, radii,
+-- typography, modal chrome, touch/font floors, and ScreenGui z-order.
+-- UIUtil.lua re-exports these via UIUtil.Spacing / UIUtil.Radii /
+-- UIUtil.Typography for ergonomic access from feature UIs. Tune values
+-- here without touching UI module code.
 -- ====================================================================
 GameConfig.UI = {
+	-- Mobile-first accessibility floors. Every interactive button must
+	-- size >= MinTouchPx; every TextLabel must size >= MinFontPx after
+	-- UIScale. UIUtil.makePrimaryButton etc. enforce these in Studio.
+	MinTouchPx = 44,
+	MinFontPx  = 12,
+
+	-- 8px-multiple grid. Use names, not raw numbers, in feature UI.
+	Spacing = {
+		xs  = 4,
+		sm  = 8,
+		md  = 12,
+		lg  = 16,
+		xl  = 24,
+		xxl = 32,
+	},
+
+	-- Corner radii. `pill` is effectively round (used as a UDim offset
+	-- value, capped by the smaller edge of the parent).
+	Radii = {
+		sm   = 6,
+		md   = 10,
+		lg   = 12,
+		xl   = 16,
+		pill = 999,
+	},
+
+	-- Type ramp. Floor on `caption` is 12 — the accessibility minimum.
+	-- Body is the default label size used by UIUtil.makeLabel(..., "body").
+	Typography = {
+		display  = { font = Enum.Font.GothamBlack,    size = 28 },
+		title    = { font = Enum.Font.GothamBold,     size = 20 },
+		subtitle = { font = Enum.Font.GothamSemibold, size = 16 },
+		body     = { font = Enum.Font.GothamMedium,   size = 15 },
+		caption  = { font = Enum.Font.Gotham,         size = 12 },
+	},
+
+	-- Modal chrome shared by every full-screen modal (Inventory, Market,
+	-- Harbor, Rod, Bait, Aquarium, Shop, Social, demolish-confirm).
+	-- UIUtil.makeModalShell reads these on construction.
+	Modal = {
+		MaxWidthPx     = 440,   -- UISizeConstraint cap so panels stay phone-shaped on tablet/desktop
+		BackdropAlpha  = 0.55,  -- final BackgroundTransparency on the fullscreen backdrop
+		FadeDuration   = 0.18,
+		SlideOffsetPx  = 16,    -- panel slides up by this much on open (skipped under ReducedMotion)
+		HeaderHeightPx = 56,    -- height of title bar with close button
+		CloseButtonPx  = 44,    -- diameter of the X button (touch floor)
+		BodyPaddingPx  = 16,    -- inner padding from panel edge to body content
+	},
+
+	-- ScreenGui DisplayOrder map. Higher = drawn on top. Layering is the
+	-- single source of truth for "what sits above what". Each ScreenGui
+	-- in src/Client/UI/* sets `gui.DisplayOrder = DisplayOrder.<role>`
+	-- on construction so the order is grep-able + tunable here.
+	DisplayOrder = {
+		World        = 0,   -- world-anchored BillboardGuis (waypoint, prompts)
+		HUD          = 10,  -- bottom action bar, currency wallet, rod chip
+		QuestTracker = 12,  -- right-edge tracker tab + popups
+		Dialogue     = 20,  -- Mira NPC chat box
+		CastMeter    = 30,  -- fishing overlay (above HUD, below modals)
+		Modal        = 40,  -- Inventory, Market, Harbor, Rod, Bait, Aquarium, Shop, Social
+		CatchReveal  = 50,  -- celebration overlay above all modals
+		Tutorial     = 60,  -- highlight overlay, sits above everything
+	},
+
 	-- HUD rod-tier chip + its tap/long-press tooltip.
 	RodTierChip = {
 		-- Tooltip auto-dismisses after this many seconds of no interaction.

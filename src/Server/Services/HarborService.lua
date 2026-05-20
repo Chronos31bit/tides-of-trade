@@ -291,6 +291,8 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 
 	if building.kind == "Aquarium" then
 		makePrompt("Open Aquarium", "Aquarium")
+	elseif building.kind == "Smokehouse" then
+		makePrompt("Open Smokehouse", "Smokehouse")
 	elseif building.kind == "Dock" then
 		-- At tier 1 the dock is still "broken" — show the repair prompt so the
 		-- tutorial beat can be completed. The anchor is destroyed and respawned
@@ -310,22 +312,8 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 		makePrompt("Open Bait Shop", "Bait Shop")
 	end
 
-	-- "Upgrade" prompt for every building that hasn't reached max tier, except
-	-- Dock at tier 1 which already has "Repair Dock" for the same action.
-	-- After an upgrade the anchor is destroyed and respawned, so the prompt
-	-- disappears when a building hits max tier without any extra bookkeeping.
-	local maxTier = #def.tiers
-	local isDockTier1 = building.kind == "Dock" and building.tier == 1
-	if building.tier < maxTier and not isDockTier1 then
-		local upgradePrompt = Instance.new("ProximityPrompt")
-		upgradePrompt.ActionText    = "Upgrade"
-		upgradePrompt.ObjectText    = def.displayName
-		upgradePrompt.HoldDuration  = 0
-		upgradePrompt.MaxActivationDistance = 12
-		upgradePrompt.RequiresLineOfSight   = false
-		upgradePrompt:SetAttribute("buildingUid", building.uid)
-		upgradePrompt.Parent = anchor
-	end
+	-- Tier upgrades are Harbor Edit only (one prompt per anchor — a world
+	-- "Upgrade" prompt would hide Open Smokehouse / Open Aquarium / etc.).
 end
 
 function HarborService:_spawnExistingBuildings(player: Player)
@@ -365,6 +353,7 @@ function HarborService:_payAllPassiveIncome()
 		-- Aquarium payouts handled in their own service since they're driven
 		-- by stock rather than a flat per-tick number on the building.
 		AquariumService:PayoutFor(player)
+		Knit.GetService("SmokehouseService"):TickFor(player)
 	end
 end
 
@@ -434,6 +423,9 @@ function HarborService.Client:Place(player: Player, kind: string, gridX: number,
 		rotation = rotation,
 		placedAt = os.time(),
 	}
+	if kind == "Smokehouse" then
+		building.preserveSlots = {}
+	end
 	PlayerDataService:AddBuilding(player, building)
 	self:_spawnBuildingVisual(player, building)
 	self.Client.BuildingPlaced:Fire(player, building)
@@ -496,8 +488,7 @@ function HarborService.Client:Remove(player: Player, uid: string): {ok: boolean,
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player)
 
-	-- If we're tearing down an aquarium, return its contents to inventory so
-	-- nothing is orphaned in data.aquariumStock.
+	-- If we're tearing down an aquarium or smokehouse, return contents to inventory.
 	if data then
 		for _, b in ipairs(data.buildings) do
 			if b.uid == uid and b.kind == "Aquarium" then
@@ -508,6 +499,9 @@ function HarborService.Client:Remove(player: Player, uid: string): {ok: boolean,
 					end
 					data.aquariumStock[uid] = nil
 				end
+				break
+			elseif b.uid == uid and b.kind == "Smokehouse" then
+				Knit.GetService("SmokehouseService"):RefundAllSlots(player, b)
 				break
 			end
 		end

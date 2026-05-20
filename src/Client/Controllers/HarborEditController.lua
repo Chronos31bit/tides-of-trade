@@ -17,7 +17,6 @@ local Knit       = require(ReplicatedStorage.Packages.Knit)
 local GridUtil   = require(ReplicatedStorage.Shared.Util.GridUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local HarborEditUI = require(script.Parent.Parent.UI.HarborEditUI)
-local UIUtil = require(script.Parent.Parent.UI.UIUtil)
 
 -- Finds or lazily creates the coin-clink Sound in SoundService.
 -- SoundId is intentionally blank until a real asset is uploaded; Play() on
@@ -106,7 +105,10 @@ function HarborEditController:_open()
 		Knit.GetController("HUDController"):SetVisible(false)
 		self._ui = HarborEditUI.show(catalog,
 			function(kind) self:_selectKind(kind) end,
-			function() self._rotation = (self._rotation + 90) % 360 end,
+			function()
+				self._rotation = (self._rotation + 90) % 360
+				if self._ui then self._ui.setRotationHint(self._rotation) end
+			end,
 			function() self:_confirm() end,
 			function() self:_toggleDemolish() end,
 			function() self:_toggleUpgrade() end,
@@ -184,76 +186,13 @@ function HarborEditController:_doUpgrade()
 	end)
 end
 
--- Confirmation popup before destroying a building. Dark backdrop +
--- centered panel with Cancel/Demolish buttons. Demolish is the dangerous
--- action (red Danger variant); Cancel is the default focus-friendly
--- secondary. Built inline because this is the only confirm dialog in
--- the codebase — when a second use site appears, factor out into UI/.
+-- Confirmation popup before destroying a building. Routes through
+-- HarborEditUI.showDemolishConfirm so the dialog uses the same modal
+-- chrome (header + close + slide/fade) as every other modal.
 function HarborEditController:_confirmDemolish(uid: string, kind: string)
-	local P = UIUtil.Palette
-	local gui, _ = UIUtil.makeScreenGui("DemolishConfirm")
-	gui.DisplayOrder = 20  -- above HUD and tutorial dialogue (5)
-
-	-- Dark backdrop catches input behind the panel.
-	local backdrop = Instance.new("TextButton")
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.BackgroundColor3 = P.Shadow
-	backdrop.BackgroundTransparency = 0.4
-	backdrop.BorderSizePixel = 0
-	backdrop.AutoButtonColor = false
-	backdrop.Text = ""
-	backdrop.Parent = gui
-
-	local panel = UIUtil.makePanel({
-		Name = "Panel",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(360, 180),
-	})
-	panel.Parent = gui
-
-	local title = UIUtil.makeLabel("Demolish " .. kind .. "?", "title", {
-		Position = UDim2.new(0, 20, 0, 18),
-		Size = UDim2.new(1, -40, 0, 26),
-		TextXAlignment = Enum.TextXAlignment.Center,
-	})
-	title.Parent = panel
-
-	local body = UIUtil.makeLabel(
-		"This is permanent and you won't get the coins back.",
-		"body",
-		{
-			Position = UDim2.new(0, 20, 0, 52),
-			Size = UDim2.new(1, -40, 0, 56),
-			TextWrapped = true,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			TextColor3 = P.CreamSoft,
-		}
-	)
-	body.Parent = panel
-
-	local function close()
-		gui:Destroy()
-	end
-
-	local cancelBtn = UIUtil.makeButton("Cancel", function() close() end, {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 20, 1, -18),
-		Size = UDim2.fromOffset(140, 44),
-		variant = "ghost",
-	})
-	cancelBtn.Parent = panel
-
-	local confirmBtn = UIUtil.makeButton("Demolish", function()
-		close()
+	HarborEditUI.showDemolishConfirm(kind, function()
 		self:_remove(uid)
-	end, {
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -20, 1, -18),
-		Size = UDim2.fromOffset(140, 44),
-		variant = "danger",
-	})
-	confirmBtn.Parent = panel
+	end, nil)
 end
 
 function HarborEditController:_remove(uid: string)
@@ -289,6 +228,7 @@ function HarborEditController:_selectKind(kind: string)
 		if self._ui then self._ui.setUpgradeActive(false) end
 	end
 	self._kind = kind
+	if self._ui then self._ui.setRotationHint(self._rotation) end
 	if self._ghost then self._ghost:Destroy() end
 	-- Build a translucent placeholder. Real game would clone a model from
 	-- ReplicatedStorage.Assets.Buildings[kind].
