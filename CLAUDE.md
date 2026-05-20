@@ -38,7 +38,7 @@ This is positioned in the **cozy + social + persistent** opportunity gap, agains
 
 ## Design pillars
 
-These are non-negotiable. If a task seems to violate one, finish the task as specified and add a note flagging the conflict — don't silently rewrite to "fix" it.
+These are non-negotiable. If a task seems to violate one, finish the task as specified and add a note flagging the conflict — don't silently rewrite to "fix" it.1
 
 1. **Low-pressure sessions.** A typical session is 5–15 minutes. The game must be satisfying to dip into for 5 minutes and satisfying to play for 2 hours. No mechanics that punish short sessions (e.g. lost progress on disconnect, forced multi-step quests that can't be paused).
 
@@ -51,7 +51,7 @@ These are non-negotiable. If a task seems to violate one, finish the task as spe
 5. **World stays alive.** Tides cycle, weather changes, NPCs move regardless of UI state. Never auto-pause the world for dialogue, modals, or transitions. Players should feel the world breathing around them.
 
 6. **No combat, no time pressure, no failure states with progress loss.** A failed cast costs nothing. An escaped fish costs nothing meaningful. There are no enemies, no PvP, no permadeath, no rage moments.
-
+   
 7. **Mobile-first, always.** Every UI element is built for a 380px portrait phone first, then scaled up. Every button is 44px minimum hit target. Every interaction works thumb-only. PC and Xbox are nice-to-haves, not the primary target.
 
 ## Architecture conventions

@@ -7,8 +7,11 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UIUtil = require(script.Parent.UIUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
-local P = UIUtil.Palette
+local P    = UIUtil.Palette
+local SP   = UIUtil.Spacing
+local RAD  = UIUtil.Radii
 
 local HarborEditUI = {}
 
@@ -16,6 +19,7 @@ export type HarborEditHandle = {
 	gui: ScreenGui,
 	close: () -> (),
 	setHint: (text: string) -> (),
+	setRotationHint: (degrees: number) -> (),
 	setDemolishActive: (active: boolean) -> (),
 	setUpgradeActive: (active: boolean) -> (),
 }
@@ -30,6 +34,7 @@ function HarborEditUI.show(
 	onCancel: () -> ()
 ): HarborEditHandle
 	local gui = UIUtil.makeScreenGui("HarborEditUI", nil, { respectTopbar = true })
+	gui.DisplayOrder = UIUtil.DisplayOrder.Modal
 
 	-- ----------------------------------------------------------------
 	-- HINT BANNER — solid pill, top center.
@@ -45,10 +50,18 @@ function HarborEditUI.show(
 	local hintCap = Instance.new("UISizeConstraint"); hintCap.MaxSize = Vector2.new(720, 48); hintCap.Parent = hint
 	hint.Parent = gui
 
+	local rotateBtn = UIUtil.makeButton("Rotate 90°", onRotate, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.fromOffset(100, UIUtil.MinTouchPx),
+		BackgroundColor3 = P.Wood,
+	})
+	rotateBtn.Parent = hint
+
 	local hintLabel = Instance.new("TextLabel")
 	hintLabel.BackgroundTransparency = 1
 	hintLabel.Position = UDim2.new(0, 16, 0, 0)
-	hintLabel.Size = UDim2.new(1, -32, 1, 0)
+	hintLabel.Size = UDim2.new(1, -(16 + 100 + 12 + 16), 1, 0)
 	hintLabel.Font = Enum.Font.GothamSemibold
 	hintLabel.TextSize = 15
 	hintLabel.TextColor3 = P.Cream
@@ -59,13 +72,12 @@ function HarborEditUI.show(
 	hintLabel.Parent = hint
 
 	-- ----------------------------------------------------------------
-	-- ACTION STACK — Rotate / Place / Cancel, right side.
+	-- ACTION STACK — Place / Upgrade / Demolish / Cancel, right side.
 	-- ----------------------------------------------------------------
 	local actions = Instance.new("Frame")
 	actions.AnchorPoint = Vector2.new(1, 0.5)
 	actions.Position = UDim2.new(1, -16, 0.5, 0)
-	-- Five buttons now (added Upgrade), bump the stack height accordingly.
-	actions.Size = UDim2.fromOffset(140, 356)
+	actions.Size = UDim2.fromOffset(140, 296)
 	actions.BackgroundTransparency = 1
 	actions.Parent = gui
 
@@ -82,32 +94,28 @@ function HarborEditUI.show(
 		return b
 	end
 
-	local rotateBtn = makeAction("Rotate", P.Wood, onRotate)
-	rotateBtn.LayoutOrder = 1
-	rotateBtn.Parent = actions
-
 	local placeBtn = makeAction("Place", P.Sunset, onConfirm)
-	placeBtn.LayoutOrder = 2
+	placeBtn.LayoutOrder = 1
 	placeBtn.Parent = actions
 
 	-- Upgrade is a mode: while on, world-clicks call HarborService:Upgrade
 	-- on whichever building was hit. Costs are taken from the catalog tier.
 	local upgradeBtn = makeAction("Upgrade", P.Gold, onUpgrade)
-	upgradeBtn.LayoutOrder = 3
+	upgradeBtn.LayoutOrder = 2
 	upgradeBtn.Parent = actions
 
 	-- Demolish is a *mode*, not a one-shot. The controller flips a state
 	-- flag and intercepts world clicks. The button itself just calls the
 	-- callback (controller updates the label to "Demolishing…" when active).
 	local demolishBtn = makeAction("Demolish", P.Danger, onDemolish)
-	demolishBtn.LayoutOrder = 4
+	demolishBtn.LayoutOrder = 3
 	demolishBtn.Parent = actions
 
 	local cancelBtn = makeAction("Cancel", P.Wood, function()
 		onCancel()
 		gui:Destroy()
 	end)
-	cancelBtn.LayoutOrder = 5
+	cancelBtn.LayoutOrder = 4
 	cancelBtn.Parent = actions
 
 	-- ----------------------------------------------------------------
@@ -187,17 +195,12 @@ function HarborEditUI.show(
 		nameLbl.Text = def.displayName
 		nameLbl.Parent = card
 
-		-- Footprint subtitle — small cream-soft.
-		local foot = Instance.new("TextLabel")
-		foot.BackgroundTransparency = 1
-		foot.Position = UDim2.new(0, 8, 0, 32)
-		foot.Size = UDim2.new(1, -16, 0, 14)
-		foot.Font = Enum.Font.Gotham
-		foot.TextSize = 11
-		foot.TextColor3 = P.CreamSoft
-		foot.TextXAlignment = Enum.TextXAlignment.Left
-		foot.Text = ("%d × %d cells"):format(def.footprint[1], def.footprint[2])
-		foot.Parent = card
+		-- Footprint subtitle — small cream-soft. 12px floor (was 11).
+		UIUtil.makeLabel(("%d × %d cells"):format(def.footprint[1], def.footprint[2]), "caption", {
+			Position = UDim2.new(0, SP.sm, 0, 32),
+			Size = UDim2.new(1, -SP.lg, 0, 16),
+			Parent = card,
+		})
 
 		-- Cost — bottom, gold, GothamBold.
 		local cost = Instance.new("TextLabel")
@@ -213,27 +216,37 @@ function HarborEditUI.show(
 		cost.Text = (tier1Cost == 0) and "FREE" or (("%d coins"):format(tier1Cost))
 		cost.Parent = card
 
-		-- Hover/press feedback.
+		-- Hover/press feedback — routed through MotionUtil so the
+		-- snap-to-final behaviour under ReducedMotion is honoured.
 		local rest = P.Teal
 		local hover = rest:Lerp(Color3.new(1, 1, 1), 0.08)
 		local pressed = rest:Lerp(Color3.new(0, 0, 0), 0.2)
-		local TweenService = game:GetService("TweenService")
-		local tween = TweenInfo.new(0.08)
-		card.MouseEnter:Connect(function() TweenService:Create(card, tween, { BackgroundColor3 = hover }):Play() end)
-		card.MouseLeave:Connect(function() card.BackgroundColor3 = rest end)
-		card.MouseButton1Down:Connect(function() TweenService:Create(card, tween, { BackgroundColor3 = pressed }):Play() end)
-		card.MouseButton1Up:Connect(function() TweenService:Create(card, tween, { BackgroundColor3 = hover }):Play() end)
+		local info = TweenInfo.new(0.08)
+		card.MouseEnter:Connect(function() MotionUtil.tweenOrSnap(card, info, { BackgroundColor3 = hover }) end)
+		card.MouseLeave:Connect(function() MotionUtil.tweenOrSnap(card, info, { BackgroundColor3 = rest }) end)
+		card.MouseButton1Down:Connect(function() MotionUtil.tweenOrSnap(card, info, { BackgroundColor3 = pressed }) end)
+		card.MouseButton1Up:Connect(function() MotionUtil.tweenOrSnap(card, info, { BackgroundColor3 = hover }) end)
 		card.Activated:Connect(function()
 			onSelect(entry.kind)
-			-- Update hint banner with selected building's description.
-			hintLabel.Text = ("%s — %s"):format(def.displayName, def.description)
+			hintLabel.Text = ("%s — %s  (tap Rotate, then Place)"):format(def.displayName, def.description)
 		end)
+	end
+
+	local function rotationSuffix(degrees: number): string
+		return ("  ·  facing %d°"):format(degrees % 360)
 	end
 
 	return {
 		gui = gui,
 		close = function() gui:Destroy() end,
+		hintLabel = hintLabel,
 		setHint = function(text: string) hintLabel.Text = text end,
+		setRotationHint = function(degrees: number)
+			local base = hintLabel.Text
+			local cut = base:find("  ·  facing ")
+			if cut then base = base:sub(1, cut - 1) end
+			hintLabel.Text = base .. rotationSuffix(degrees)
+		end,
 		setDemolishActive = function(active: boolean)
 			-- Visual cue: when demolish is on, the button stays "lit" red and
 			-- the hint banner explains what clicking does. Off restores it.
@@ -251,6 +264,59 @@ function HarborEditUI.show(
 			end
 		end,
 	}
+end
+
+-- Confirmation popup before destroying a building. Uses the shared modal
+-- shell so it matches the rest of the chrome. Demolish is the dangerous
+-- action (red Danger variant); Cancel is the secondary.
+function HarborEditUI.showDemolishConfirm(kind: string, onConfirm: () -> (), onCancel: (() -> ())?)
+	local shell
+	shell = UIUtil.makeModalShell({
+		name = "DemolishConfirm",
+		title = "Demolish " .. kind .. "?",
+		onClose = function()
+			if shell then shell.destroy() end
+			if onCancel then onCancel() end
+		end,
+		width = 400,
+		heightScale = 0.34,
+	})
+
+	local body = shell.body
+
+	UIUtil.makeLabel(
+		"This is permanent and you won't get the coins back.",
+		"body",
+		{
+			Position = UDim2.new(0, 0, 0, 0),
+			Size = UDim2.new(1, 0, 1, -UIUtil.MinTouchPx - SP.md),
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			TextColor3 = P.CreamSoft,
+			Parent = body,
+		}
+	)
+
+	local cancelBtn = UIUtil.makeGhostButton("Cancel", function()
+		shell.destroy()
+		if onCancel then onCancel() end
+	end, {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.fromOffset(140, UIUtil.MinTouchPx),
+	})
+	cancelBtn.Parent = body
+
+	local confirmBtn = UIUtil.makeDangerButton("Demolish", function()
+		shell.destroy()
+		onConfirm()
+	end, {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, 0, 1, 0),
+		Size = UDim2.fromOffset(140, UIUtil.MinTouchPx),
+	})
+	confirmBtn.Parent = body
 end
 
 return HarborEditUI

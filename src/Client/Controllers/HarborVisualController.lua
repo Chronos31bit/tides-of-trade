@@ -26,10 +26,12 @@ local HapticService     = game:GetService("HapticService")
 
 local Knit            = require(ReplicatedStorage.Packages.Knit)
 local Trove           = require(ReplicatedStorage.Packages.Trove)
-local GridUtil        = require(ReplicatedStorage.Shared.Util.GridUtil)
-local GameConfig      = require(ReplicatedStorage.Shared.Config.GameConfig)
-local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
-local MotionUtil      = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local GridUtil              = require(ReplicatedStorage.Shared.Util.GridUtil)
+local GameConfig            = require(ReplicatedStorage.Shared.Config.GameConfig)
+local BuildingCatalog       = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+local MotionUtil            = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local BuildingModelFactory  = require(ReplicatedStorage.Shared.Util.BuildingModelFactory)
+local BuildingAssetUtil     = require(ReplicatedStorage.Shared.Util.BuildingAssetUtil)
 
 local VT = GameConfig.Harbor.VisualTuning
 
@@ -84,57 +86,46 @@ function HarborVisualController:_plotState(plotOwnerId: number)
 end
 
 -- ====================================================================
--- ASSET LOOKUP — with WaitForChild on first call (server's placeholder
--- script may finish a beat after this controller starts). Falls back to
--- a neutral block if anything's missing, so a typo or missing folder
--- never leaves a building invisible.
--- ====================================================================
-function HarborVisualController:_findAssetModel(kind: string, tier: number): Model?
-	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
-	if not assets then return nil end
-	local buildings = assets:WaitForChild("Buildings", 5)
-	if not buildings then return nil end
-	local kindFolder = buildings:FindFirstChild(kind)
-	if not kindFolder then return nil end
-	local tierFolder = kindFolder:FindFirstChild("tier" .. tier)
-	if not tierFolder then return nil end
-	local model = tierFolder:FindFirstChild("Visual")
-	if model and model:IsA("Model") then return model end
-	return nil
-end
-
-function HarborVisualController:_neutralPlaceholder(footprint: {number}): Model
-	local model = Instance.new("Model")
-	model.Name = "FallbackVisual"
-	local base = Instance.new("Part")
-	base.Anchored = true; base.CanCollide = true
-	base.Color = Color3.fromRGB(220, 60, 200)
-	base.Material = Enum.Material.Neon
-	base.Size = Vector3.new(footprint[1] * GridUtil.CELL, 4, footprint[2] * GridUtil.CELL)
-	base.CFrame = CFrame.new(0, 2, 0)
-	base.Parent = model
-	model.PrimaryPart = base
-	return model
-end
-
--- ====================================================================
 -- BUILD / POSITION
 -- ====================================================================
+local function normalizeBuildingTier(kind: string, tier: any): number
+	local def = BuildingCatalog[kind]
+	local maxTier = if def then #def.tiers else 3
+	local t = if typeof(tier) == "number" then tier else 1
+	return math.clamp(math.floor(t + 0.5), 1, maxTier)
+end
+
 function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFrame, building: any): Model
 	local def = BuildingCatalog[building.kind]
 	local footprint = (def and def.footprint) or {2, 2}
+	local tier = normalizeBuildingTier(building.kind, building.tier)
+	building = table.clone(building)
+	building.tier = tier
 
-	local asset = self:_findAssetModel(building.kind, building.tier)
+	local asset = BuildingAssetUtil.getVisualTemplate(building.kind, tier)
 	local model
 	if asset then
 		model = asset:Clone()
 	else
-		warn(("[HarborVisualController] Missing asset %s tier %d, using fallback"):format(building.kind, building.tier))
-		model = self:_neutralPlaceholder(footprint)
+		warn(("[HarborVisualController] No mesh at ReplicatedStorage.Assets.Buildings.%s.tier%d.Visual — using procedural placeholder. See scripts/Studio/MCP_HarborBuildings.md"):format(building.kind, tier))
+		model = BuildingModelFactory.build(building.kind, tier, footprint)
+	end
+	model.Name = building.uid
+
+	-- Studio meshes are already tier-sized; only scale procedural fallbacks.
+	if model:GetAttribute("ProceduralPlaceholder") then
+		local tierScales = VT.TierModelScale
+		local tierScale = (tierScales and tierScales[tier]) or 1
+		pcall(function() model:ScaleTo(tierScale) end)
+	else
+		pcall(function() model:ScaleTo(1) end)
 	end
 
 	local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
-	model:PivotTo(worldCF)
+	if not model.PrimaryPart then
+		warn(("[HarborVisualController] %s tier %d missing PrimaryPart"):format(building.kind, building.tier))
+	end
+	GridUtil.placeModelOnPlate(model, worldCF)
 
 	model.Name = building.uid
 	model:SetAttribute("plotOwnerId", plotOwnerId)
@@ -170,10 +161,11 @@ local function tweenAllToOriginalTransparency(model: Model, info: TweenInfo, tro
 		if part:IsA("BasePart") then
 			local target = part:GetAttribute("origTransparency")
 			if typeof(target) ~= "number" then target = 0 end
-			local t = TweenService:Create(part, info, { Transparency = target })
-			t:Play()
-			trove:Add(t)
-			t.Completed:Connect(function() t:Destroy() end)
+			local t = MotionUtil.tweenOrSnap(part, info, { Transparency = target })
+			if t then
+				trove:Add(t)
+				t.Completed:Connect(function() t:Destroy() end)
+			end
 		end
 	end
 end
@@ -181,10 +173,11 @@ end
 local function tweenAllTransparencyTo(model: Model, target: number, info: TweenInfo, trove: any)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
-			local t = TweenService:Create(part, info, { Transparency = target })
-			t:Play()
-			trove:Add(t)
-			t.Completed:Connect(function() t:Destroy() end)
+			local t = MotionUtil.tweenOrSnap(part, info, { Transparency = target })
+			if t then
+				trove:Add(t)
+				t.Completed:Connect(function() t:Destroy() end)
+			end
 		end
 	end
 end
@@ -193,8 +186,16 @@ end
 -- UPDATE DISPATCH
 -- ====================================================================
 function HarborVisualController:_onUpdate(payload: any)
+	if typeof(payload) ~= "table" or typeof(payload.plotOwnerId) ~= "number" then
+		warn("[HarborVisualController] Ignoring HarborVisualUpdate with invalid payload")
+		return
+	end
 	local plotOwnerId: number = payload.plotOwnerId
-	local plotOrigin: CFrame  = payload.plotOrigin
+	local plotOrigin = GridUtil.unpackPlotOrigin(payload.plotOrigin)
+	if not plotOrigin then
+		warn("[HarborVisualController] HarborVisualUpdate missing plotOrigin")
+		return
+	end
 	local building: any       = payload.building
 	local oldTier: number?    = payload.oldTier
 	local newTier: number     = payload.newTier
@@ -203,8 +204,26 @@ function HarborVisualController:_onUpdate(payload: any)
 	local existing = state.buildings[building.uid]
 
 	if oldTier == nil then
-		-- Fresh spawn (replay or first place). Idempotent.
-		if existing then return end
+		-- Fresh spawn (replay or first place). Re-position only when tier/kind match;
+		-- otherwise rebuild so a tier-3 model cannot stick after a tier-1 place.
+		if existing and existing.model and existing.model.Parent then
+			local sameTier = normalizeBuildingTier(building.kind, existing.building.tier)
+				== normalizeBuildingTier(building.kind, newTier)
+			local sameKind = existing.building.kind == building.kind
+			if sameTier and sameKind then
+				local def = BuildingCatalog[building.kind]
+				local footprint = (def and def.footprint) or { 2, 2 }
+				local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
+				GridUtil.placeModelOnPlate(existing.model, worldCF)
+				return
+			end
+			existing.trove:Destroy()
+			state.buildings[building.uid] = nil
+		end
+		if existing then
+			existing.trove:Destroy()
+			state.buildings[building.uid] = nil
+		end
 		self:_spawnFresh(plotOwnerId, plotOrigin, building, newTier)
 	elseif newTier > oldTier then
 		self:_animateUpgrade(plotOwnerId, plotOrigin, building, oldTier, newTier)
@@ -589,13 +608,43 @@ function HarborVisualController:KnitStart()
 	local HarborVisualService = Knit.GetService("HarborVisualService")
 
 	HarborVisualService.HarborVisualUpdate:Connect(function(payload)
-		self:_onUpdate(payload)
+		local ok, err = pcall(function()
+			self:_onUpdate(payload)
+		end)
+		if not ok then
+			warn("[HarborVisualController] HarborVisualUpdate failed:", err)
+		end
 	end)
 	HarborVisualService.HarborVisualRemove:Connect(function(plotOwnerId: number, buildingUid: string)
 		self:_onRemove(plotOwnerId, buildingUid)
 	end)
 	HarborVisualService.HarborVisualClear:Connect(function(plotOwnerId: number)
 		self:_onClear(plotOwnerId)
+	end)
+
+	-- Server join-replay often fires before this controller connects.
+	HarborVisualService:RequestWorldReplay():andThen(function()
+		-- RequestWorldReplay is a RemoteFunction. The server fires one
+		-- HarborVisualUpdate RemoteEvent per building and then returns true.
+		-- Both use the same ordered channel, but the RemoteEvent callbacks
+		-- are deferred into the next task-scheduler step. Yielding one frame
+		-- lets those queued _onUpdate calls run before we count models.
+		task.wait()
+		local root = self:_ensureRoot()
+		local count = 0
+		for _, child in ipairs(root:GetChildren()) do
+			for _, m in ipairs(child:GetChildren()) do
+				if m:IsA("Model") then
+					count += 1
+				end
+			end
+		end
+		print(("[HarborVisualController] Replay done — %d building model(s) in HarborVisuals"):format(count))
+		if count == 0 then
+			warn("[HarborVisualController] No building visuals — install ReplicatedStorage.Assets.Buildings (see scripts/Studio/MCP_HarborBuildings.md) or check Output for spawn errors")
+		end
+	end):catch(function(err)
+		warn("[HarborVisualController] RequestWorldReplay failed:", err)
 	end)
 end
 

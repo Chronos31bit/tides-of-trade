@@ -34,7 +34,7 @@ function ShopController:KnitStart()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, _player)
 		if prompt.ActionText == "Buy Rod Upgrade" then
 			Knit.GetController("RodSelectController"):Toggle()
-		elseif prompt.ActionText == "Repair Dock" or prompt.ActionText == "Upgrade" then
+		elseif prompt.ActionText == "Repair Dock" then
 			local uid = prompt:GetAttribute("buildingUid")
 			if not uid then return end
 			Knit.GetService("HarborService"):Upgrade(uid):andThen(function(res)

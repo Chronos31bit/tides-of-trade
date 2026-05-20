@@ -9,10 +9,11 @@ local TeleportService  = game:GetService("TeleportService")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Knit       = require(ReplicatedStorage.Packages.Knit)
-local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local UidUtil    = require(ReplicatedStorage.Shared.Util.UidUtil)
-local Signal     = require(ReplicatedStorage.Packages.Signal)
+local Knit        = require(ReplicatedStorage.Packages.Knit)
+local GameConfig  = require(ReplicatedStorage.Shared.Config.GameConfig)
+local UidUtil     = require(ReplicatedStorage.Shared.Util.UidUtil)
+local Signal      = require(ReplicatedStorage.Packages.Signal)
+local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
 
 local SocialService = Knit.CreateService({
 	Name = "SocialService",
@@ -32,6 +33,22 @@ local SocialService = Knit.CreateService({
 
 function SocialService:KnitInit()
 	self._crewStore = DataStoreService:GetDataStore("TidesCrews_v1")
+	-- Rate limiters. Silent-drop on over-limit per CLAUDE.md cozy pillar — the
+	-- player never sees an error; the server just no-ops. Budgets in GameConfig
+	-- are tuned generously so honest play never trips them.
+	self._crewOpLimiter   = RateLimiter.new(GameConfig.AntiExploit.MaxCrewOpsPerMinute, 60)
+	self._crewChatLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxCrewChatsPerMinute, 60)
+	self._emoteLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxEmotesPerMinute, 60)
+	self._visitLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxVisitsPerMinute, 60)
+end
+
+function SocialService:KnitStart()
+	Players.PlayerRemoving:Connect(function(player)
+		self._crewOpLimiter:reset(player)
+		self._crewChatLimiter:reset(player)
+		self._emoteLimiter:reset(player)
+		self._visitLimiter:reset(player)
+	end)
 end
 
 -- ====================================================================
@@ -40,6 +57,7 @@ end
 
 function SocialService.Client:CreateCrew(player: Player, name: string): {ok: boolean, reason: string?, crewId: string?}
 	local self = self.Server
+	if not self._crewOpLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
 	if data.crewId then return { ok = false, reason = "already_in_crew" } end
@@ -67,6 +85,10 @@ end
 
 function SocialService.Client:JoinCrew(player: Player, crewId: string): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._crewOpLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+	if typeof(crewId) ~= "string" or #crewId == 0 or #crewId > 64 then
+		return { ok = false, reason = "bad_crew_id" }
+	end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
 	if data.crewId then return { ok = false, reason = "already_in_crew" } end
@@ -89,6 +111,7 @@ end
 
 function SocialService.Client:LeaveCrew(player: Player): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._crewOpLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
 	if not data.crewId then return { ok = false, reason = "not_in_crew" } end
@@ -115,6 +138,10 @@ end
 -- ====================================================================
 function SocialService.Client:SendCrewChat(player: Player, message: string)
 	local self = self.Server
+	-- Silent-drop on over-limit. Crew chat amplifies one client's traffic to
+	-- N other clients, so the limit is essential. Cozy: never show "you're
+	-- being too noisy" — the player just sees their own message not arrive.
+	if not self._crewChatLimiter:check(player) then return end
 	if typeof(message) ~= "string" or #message == 0 or #message > 140 then return end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data or not data.crewId then return end
@@ -139,9 +166,13 @@ end
 -- ====================================================================
 function SocialService.Client:PlayEmote(player: Player, emoteId: string)
 	local self = self.Server
+	-- Silent-drop on over-limit. Each emote fans out to every player on the
+	-- server, so an unlimited-rate emote is a broadcast amplification attack.
+	-- Generous budget keeps dance parties working.
+	if not self._emoteLimiter:check(player) then return end
 	-- Whitelist check — clients can only play emotes the catalog knows about.
 	local allowed = { wave = true, dance = true, fish_pose = true, salute = true, bow = true }
-	if not allowed[emoteId] then return end
+	if typeof(emoteId) ~= "string" or not allowed[emoteId] then return end
 	for _, other in ipairs(Players:GetPlayers()) do
 		self.Client.EmotePlayed:Fire(other, player.UserId, emoteId)
 	end
@@ -158,6 +189,14 @@ end
 
 function SocialService.Client:VisitLocalHarbor(player: Player, targetUserId: number): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._visitLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+	-- targetUserId goes into Players:GetPlayerByUserId and TeleportService;
+	-- typeof guard is cheap defense-in-depth against bad client input.
+	if typeof(targetUserId) ~= "number" or targetUserId ~= targetUserId
+		or targetUserId <= 0 or targetUserId > 2^53 then
+		return { ok = false, reason = "bad_target" }
+	end
+	targetUserId = math.floor(targetUserId)
 	local target = Players:GetPlayerByUserId(targetUserId)
 	if not target then
 		-- Not on this server — initiate a cross-server teleport.

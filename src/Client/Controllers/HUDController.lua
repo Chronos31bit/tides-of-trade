@@ -42,8 +42,27 @@ end
 function HUDController:KnitStart()
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 
-	self._hud = HUD.create()
+	local hudOk, hudOrErr = pcall(function()
+		self._hud = HUD.create()
+	end)
+	if not hudOk then
+		warn("[HUDController] HUD.create failed:", hudOrErr)
+		return
+	end
+	if self._hud.gui then
+		self._hud.gui.Enabled = true
+		print("[HUDController] HUD ScreenGui ready")
+	end
 
+	local ok, err = pcall(function()
+		self:_wireHUD(PlayerDataService)
+	end)
+	if not ok then
+		warn("[HUDController] Action bar / data wiring failed (HUD shell should still be visible):", err)
+	end
+end
+
+function HUDController:_wireHUD(PlayerDataService: any)
 	-- Hide Roblox's default Backpack UI. We have our own Rod button that
 	-- auto-equips the tool, so the default hotbar at the bottom is redundant
 	-- and was overlapping our action bar. pcall because some non-place
@@ -250,10 +269,7 @@ function HUDController:_applyRodTier(tier: number, animate: boolean)
 			Enum.EasingDirection.InOut,
 			-1, true
 		)
-		self._rodCycleTween = game:GetService("TweenService"):Create(
-			hud.rodChipStroke, info, { Color = pal.accent2 }
-		)
-		self._rodCycleTween:Play()
+		self._rodCycleTween = MotionUtil.tween(hud.rodChipStroke, info, { Color = pal.accent2 })
 	end
 
 	-- Tier-change glow pulse (not on the initial paint). Decorative: under
@@ -267,11 +283,8 @@ function HUDController:_applyRodTier(tier: number, animate: boolean)
 			Enum.EasingDirection.Out,
 			0, true
 		)
-		local t = game:GetService("TweenService"):Create(
-			hud.rodChipStroke, info, { Transparency = 0 }
-		)
+		local t = MotionUtil.tween(hud.rodChipStroke, info, { Transparency = 0 })
 		t.Completed:Connect(function() t:Destroy() end)
-		t:Play()
 	end
 end
 
@@ -306,7 +319,7 @@ function HUDController:_buildRodTooltip(content: Frame)
 	})
 	header.Parent = content
 
-	local catchable = g.countAtOrBelow[tier] or 0
+	local catchable = RodTierUtil.countCatchableAtRodTier(tier)
 	local sub = UIUtil.makeLabel(("Catches %d fish species"):format(catchable), "subtitle", {
 		Size = UDim2.new(1, 0, 0, 20),
 		LayoutOrder = nextOrder(),

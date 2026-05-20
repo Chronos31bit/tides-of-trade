@@ -30,11 +30,9 @@ local UserInputService  = game:GetService("UserInputService")
 local HapticService     = game:GetService("HapticService")
 local SoundService      = game:GetService("SoundService")
 local RunService        = game:GetService("RunService")
-local TweenService      = game:GetService("TweenService")
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local Trove      = require(ReplicatedStorage.Packages.Trove)
-local CastMeter  = require(script.Parent.Parent.UI.CastMeter)
 local CatchRevealUI = require(script.Parent.Parent.UI.CatchRevealUI)
 local AssetIds   = require(script.Parent.Parent.AssetIds)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
@@ -89,10 +87,12 @@ local TENSION_TIERS: {[string]: any} = {
 
 local FishingController = Knit.CreateController({
 	Name = "FishingController",
-	_pendingCastId = nil :: string?,
-	_phase = "idle",         -- "idle" | "casting" | "reeling"
-	_meter = nil :: any,
-	_castTrove = nil :: any, -- disposables for the *current* cast
+	_trove          = nil :: any,    -- controller-lifetime cleanup (KnitInit → KnitStop)
+	_pendingCastId  = nil :: string?,
+	_phase          = "idle",        -- "idle" | "casting" | "reeling"
+	_castMeterCtrl  = nil :: any,    -- CastMeterController reference, set in KnitStart
+	_castTrove      = nil :: any,    -- disposables for the *current* cast
+	_castButton     = nil :: any,    -- cast button GuiObject; stored so _onBite can pulse it
 })
 
 -- ====================================================================
@@ -291,6 +291,139 @@ local function snapBeamTaut(beam: Beam?)
 end
 
 -- ====================================================================
+-- BITE FEEDBACK — camera nudge, button pulse, vignette flash
+-- ====================================================================
+
+-- Forward camera nudge: sin-arc offset applied post-camera via BindToRenderStep.
+-- TweenService:Create on camera.CFrame is overridden every frame by Roblox's
+-- camera system; BindToRenderStep at Camera+1 runs after it, so the offset sticks.
+-- Skip under ReducedMotion. `trove` unbinds early if cast disposes mid-nudge.
+local function nudgeCamera(trove: any?)
+	if MotionUtil.reducedMotionEnabled() then return end
+	local cam = Workspace.CurrentCamera
+	if not cam then return end
+	local cfg = GameConfig.FishBite
+	local startT = os.clock()
+	local DURATION = cfg.CameraNudgeDuration
+	local MAGNITUDE = cfg.CameraNudgeMagnitude
+	local bindName = "TidesFishingBiteNudge"
+	local function unbind()
+		pcall(function() RunService:UnbindFromRenderStep(bindName) end)
+	end
+	unbind()
+	RunService:BindToRenderStep(bindName, Enum.RenderPriority.Camera.Value + 1, function()
+		local t = (os.clock() - startT) / DURATION
+		if t >= 1 then
+			unbind()
+			return
+		end
+		local offset = math.sin(t * math.pi) * MAGNITUDE
+		cam.CFrame = cam.CFrame * CFrame.new(0, 0, -offset)
+	end)
+	if trove then
+		trove:Add(unbind)
+	end
+end
+
+-- Scale the cast button 1.0 → scale → 1.0. Skip under ReducedMotion.
+local function pulseCastButton(button: GuiObject?, trove: any?)
+	if MotionUtil.reducedMotionEnabled() then return end
+	if not button or not button.Parent then return end
+	local scale = GameConfig.FishBite.ButtonPulseScale
+	local orig = button.Size
+	local big  = UDim2.new(
+		orig.X.Scale * scale, math.round(orig.X.Offset * scale),
+		orig.Y.Scale * scale, math.round(orig.Y.Offset * scale)
+	)
+	local info = TweenInfo.new(GameConfig.FishBite.ButtonPulseDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local t1 = MotionUtil.tween(button, info, { Size = big })
+	local conn1 = t1.Completed:Connect(function()
+		t1:Destroy()
+		if not button.Parent then return end
+		local t2 = MotionUtil.tween(button, info, { Size = orig })
+		local conn2 = t2.Completed:Connect(function() t2:Destroy() end)
+		if trove then trove:Add(conn2) end
+	end)
+	if trove then
+		trove:Add(conn1)
+		trove:Add(function()
+			t1:Cancel()
+			if button.Parent then button.Size = orig end
+		end)
+	end
+end
+
+-- Four-edge vignette: each screen edge gets a panel with a UIGradient fading
+-- toward the center. All panels fade out together over 0.3s (one direction
+-- only — satisfies ≤3 flips/sec rule). Using edge panels rather than a full-
+-- screen overlay avoids center-of-screen colour contamination on bright days.
+local function flashVignette(trove: any?)
+	local playerGui = Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if not playerGui then return end
+	local cfg = GameConfig.FishBite
+	local edgeTransparency = 1 - cfg.VignetteAlpha
+	local sg = Instance.new("ScreenGui")
+	sg.Name           = "BiteVignette"
+	sg.ResetOnSpawn   = false
+	sg.DisplayOrder   = 10
+	sg.IgnoreGuiInset = true
+	sg.Parent         = playerGui
+
+	-- { size, position, gradient rotation (degrees): 0=top→down, 180=bottom→up }
+	local EDGES = {
+		{ UDim2.new(1, 0, 0.28, 0), UDim2.new(0, 0, 0, 0),    0   },  -- top
+		{ UDim2.new(1, 0, 0.28, 0), UDim2.new(0, 0, 0.72, 0), 180 },  -- bottom
+		{ UDim2.new(0.18, 0, 1, 0), UDim2.new(0, 0, 0, 0),    270 },  -- left
+		{ UDim2.new(0.18, 0, 1, 0), UDim2.new(0.82, 0, 0, 0), 90  },  -- right
+	}
+
+	local COLOR = Color3.fromRGB(20, 100, 160)
+	local FADE  = TweenInfo.new(cfg.VignetteFadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local frames: {Frame} = {}
+
+	for _, e in ipairs(EDGES) do
+		local f = Instance.new("Frame")
+		f.Size                   = e[1]
+		f.Position               = e[2]
+		f.BackgroundColor3       = COLOR
+		f.BackgroundTransparency = edgeTransparency
+		f.BorderSizePixel        = 0
+		f.Parent                 = sg
+
+		local grad = Instance.new("UIGradient")
+		grad.Rotation    = e[3]
+		grad.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),   -- opaque at screen edge
+			NumberSequenceKeypoint.new(1, 1),   -- transparent toward screen center
+		})
+		grad.Parent = f
+		table.insert(frames, f)
+	end
+
+	-- Tween all panels to fully transparent simultaneously.
+	local lastTween: Tween? = nil
+	for _, f in ipairs(frames) do
+		local tw = MotionUtil.tween(f, FADE, { BackgroundTransparency = 1 })
+		lastTween = tw
+	end
+	local function destroyVignette()
+		if sg.Parent then sg:Destroy() end
+	end
+	if trove then
+		trove:Add(destroyVignette)
+	end
+	if lastTween then
+		local conn = lastTween.Completed:Connect(function()
+			lastTween:Destroy()
+			destroyVignette()
+		end)
+		if trove then trove:Add(conn) end
+	else
+		task.delay(cfg.VignetteFadeDuration + 0.05, destroyVignette)
+	end
+end
+
+-- ====================================================================
 -- AUDIO
 -- ====================================================================
 local function playSound(soundId: string, volume: number?, position: Vector3?)
@@ -318,25 +451,46 @@ end
 -- ====================================================================
 -- LIFECYCLE
 -- ====================================================================
+function FishingController:KnitInit()
+	self._trove = Trove.new()
+end
+
+function FishingController:KnitStop()
+	if self._trove then
+		self._trove:Destroy()
+		self._trove = nil
+	end
+end
+
 function FishingController:KnitStart()
 	local FishingService = Knit.GetService("FishingService")
 	local RodService     = Knit.GetService("RodService")
+	self._castMeterCtrl  = Knit.GetController("CastMeterController")
 
 	-- Authoritative end-of-cast result (miss, escape, or success).
-	FishingService.CastResolved:Connect(function(result)
+	self._trove:Add(FishingService.CastResolved:Connect(function(result)
 		self:_onResolved(result)
-	end)
+	end))
 
 	-- Bite — server validated the cast marker and now wants the reel.
-	FishingService.BiteStarted:Connect(function(payload)
+	self._trove:Add(FishingService.BiteStarted:Connect(function(payload)
 		self:_onBite(payload)
-	end)
+	end))
 
 	-- Tool.Activated. Single entry point for first tap (cast) and second tap
 	-- (release-cast-meter). Ignored during the reel phase (which is hold-driven).
-	RodService.RodActivated:Connect(function()
+	self._trove:Add(RodService.RodActivated:Connect(function()
 		self:_onRodTap()
-	end)
+	end))
+
+	-- Reel-phase signals wired once at controller lifetime. They fire only while
+	-- a cast is active; idle fires are impossible (CastMeterController guards them).
+	self._trove:Add(self._castMeterCtrl.ReelComplete:Connect(function(pf: number)
+		self:_releaseReel(pf)
+	end))
+	self._trove:Add(self._castMeterCtrl.ReelEscaped:Connect(function()
+		self:_reportEscape()
+	end))
 end
 
 function FishingController:_onRodTap()
@@ -356,10 +510,8 @@ end
 function FishingController:_disposeCast()
 	self._phase = "idle"
 	self._pendingCastId = nil
-	if self._meter then
-		self._meter.stop()
-		self._meter = nil
-	end
+	self._castButton = nil
+	self._castMeterCtrl:dismiss()
 	if self._castTrove then
 		self._castTrove:Destroy()
 		self._castTrove = nil
@@ -397,15 +549,15 @@ function FishingController:_startCast()
 		playSound(AssetIds.Sounds.CastSplash, 0.6, castPoint)
 
 		-- ---- Cast Meter (cast phase) ----
-		self._meter = CastMeter.show(window.greenCenter, window.greenSize, window.period)
+		-- CastMeterController owns the handle; reel signals are wired in KnitStart.
+		local castButton = self._castMeterCtrl:show(window.greenCenter, window.greenSize, window.period)
+		self._castButton = castButton  -- stored so _onBite can pulse it on bite
 
-		-- Wire reel-phase signals up front; they're inert until enterReel().
-		self._meter.onComplete:Connect(function(perfectFraction: number)
-			self:_releaseReel(perfectFraction)
-		end)
-		self._meter.onEscape:Connect(function()
-			self:_reportEscape()
-		end)
+		-- The cast button (80px circle, bottom-center) is an alternative to the
+		-- rod tap for releasing the marker. Both call _onRodTap which guards phase.
+		trove:Add(castButton.Activated:Connect(function()
+			self:_onRodTap()
+		end))
 	end):catch(function(err)
 		warn("[FishingController] StartCast failed:", err)
 	end)
@@ -413,9 +565,9 @@ end
 
 -- Second rod tap during cast phase: capture the marker and ship to server.
 function FishingController:_releaseCastMarker()
-	if not self._pendingCastId or not self._meter then return end
+	if not self._pendingCastId then return end
 	local castId = self._pendingCastId
-	local marker = self._meter.releaseCast()
+	local marker = self._castMeterCtrl:releaseCast()
 	-- Move to a wait-for-server state so additional taps don't spam ClaimCast.
 	-- The server will resolve us into "reeling" (via BiteStarted) or "idle"
 	-- (via CastResolved on miss/error).
@@ -441,13 +593,20 @@ function FishingController:_onBite(payload: any)
 	-- Snap line taut on bite — the visible cue that "you've got one".
 	snapBeamTaut(self._currentBeam)
 
-	-- Pick the tier params for the fish weight. Defensive fallback to medium.
+	-- Bite feedback — disposable hooks land on _castTrove for cleanup.
+	local trove = self._castTrove
+	nudgeCamera(trove)
+	pulseCastButton(self._castButton, trove)
+	flashVignette(trove)
+	pulseHaptic()
+	playSound(GameConfig.FishBite.SoundId, GameConfig.FishBite.SoundVolume)
+
+	-- Pick the tier params for this fish. Tier is now rarity-derived (server-side).
+	-- Defensive fallback to medium in case of an unexpected value.
 	local params = TENSION_TIERS[payload.tier] or TENSION_TIERS.medium
 
-	-- Transition the meter UI.
-	if self._meter then
-		self._meter.enterReel(payload.weightKg, payload.tier, params)
-	end
+	-- Transition the meter UI. Rarity forwarded for zone color theming.
+	self._castMeterCtrl:enterReel(payload.weightKg, payload.tier, params, payload.rarity or "Common")
 
 	-- Start the continuous gamepad rumble for the duration of the fight.
 	-- Stop function goes onto the trove so all cast-resolve paths kill it.
@@ -466,15 +625,12 @@ function FishingController:_onBite(payload: any)
 			or input.KeyCode == Enum.KeyCode.Space
 	end
 
-	local meter = self._meter
 	local beganConn = UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then return end
-		if not meter then return end
-		if isHoldInput(input) then meter.setHold(true) end
+		if isHoldInput(input) then self._castMeterCtrl:setHold(true) end
 	end)
 	local endedConn = UserInputService.InputEnded:Connect(function(input)
-		if not meter then return end
-		if isHoldInput(input) then meter.setHold(false) end
+		if isHoldInput(input) then self._castMeterCtrl:setHold(false) end
 	end)
 	if self._castTrove then
 		self._castTrove:Add(beganConn)
@@ -527,6 +683,7 @@ function FishingController:_celebrate(result: any)
 		xpGained = result.xpGained,
 		perfect = result.perfect == true,
 		castPerfect = result.castPerfect == true,
+		modifiers = result.modifiers,
 	})
 end
 

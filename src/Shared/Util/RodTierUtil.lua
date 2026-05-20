@@ -103,6 +103,15 @@ function RodTierUtil.examplesForTier(tier: number, limit: number): ({ TierSpecie
 	return shown, remaining
 end
 
+-- Species hookable at the player's equipped rod tier. Equipment tiers can
+-- exceed FishCatalog rodMinTier (rods 1..10 vs fish gates 1..5); fishing
+-- uses rodTier >= rodMinTier, so tiers above catalog max share the same count.
+function RodTierUtil.countCatchableAtRodTier(rodTier: number): number
+	local g = RodTierUtil.compute()
+	local effective = math.clamp(math.floor(tonumber(rodTier) or 1), 1, g.maxTier)
+	return g.countAtOrBelow[effective] or 0
+end
+
 -- Fills rodTierUnlocks[t].speciesUnlocked with the ids unlocked exactly at t.
 -- Idempotent. Returns the grouping so the caller can log counts / warnings.
 function RodTierUtil.populate(rodTierUnlocks: { [number]: { speciesUnlocked: { string } } }): TierGrouping

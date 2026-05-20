@@ -16,10 +16,6 @@ local TIER_COLOUR: {[string]: Color3} = {
 	Epic     = P.Gold,
 }
 
--- Pixels reserved for the header (title + close button). The ScrollingFrame
--- starts below this so it can never overlap the header.
-local HEADER_H = 54
-
 local BaitShopUI = {}
 
 export type BaitDef = {
@@ -104,20 +100,15 @@ local function buildRow(
 	tierLabel.Text              = bait.tier
 	tierLabel.Parent            = row
 
-	-- Boost + held count in one line
+	-- Boost + held count in one line — 12px floor (was 11).
 	local boostStr = bait.rarityBoost == 1.0
 		and "No boost"
 		or ("%.1f× rares"):format(bait.rarityBoost)
-	local infoLabel = Instance.new("TextLabel")
-	infoLabel.BackgroundTransparency = 1
-	infoLabel.Position          = UDim2.new(0, 20, 0, 46)
-	infoLabel.Size              = UDim2.fromOffset(168, 13)
-	infoLabel.Font              = Enum.Font.Gotham
-	infoLabel.TextSize          = 11
-	infoLabel.TextColor3        = P.CreamSoft
-	infoLabel.TextXAlignment    = Enum.TextXAlignment.Left
-	infoLabel.Text              = boostStr .. "  ·  " .. count .. " held"
-	infoLabel.Parent            = row
+	UIUtil.makeLabel(boostStr .. "  ·  " .. count .. " held", "caption", {
+		Position    = UDim2.new(0, 20, 0, 46),
+		Size        = UDim2.fromOffset(168, 16),
+		Parent      = row,
+	})
 
 	-- Equip button (right-most, 90 × 44)
 	local equipText = equipped and "✓ On" or (count > 0 and "Equip" or "Equip")
@@ -161,79 +152,30 @@ function BaitShopUI.show(
 	onEquip:        (baitId: string?) -> ()
 ): BaitHandle
 
-	local gui = UIUtil.makeScreenGui("BaitShopUI")
-	-- Sit above HUD and other gameplay ScreenGuis so panels aren't clipped
-	-- by elements that were created before this session.
-	gui.DisplayOrder = 20
-
-	-- Semi-transparent full-screen backdrop (tap to close).
-	local backdrop = Instance.new("TextButton")
-	backdrop.Text                 = ""
-	backdrop.AutoButtonColor      = false
-	backdrop.BackgroundColor3     = Color3.new(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.45
-	backdrop.BorderSizePixel      = 0
-	backdrop.Size                 = UDim2.fromScale(1, 1)
-	backdrop.Parent               = gui
-
-	-- Main panel — capped at 380 × 680 so it fits phones and doesn't
-	-- stomp the HUD on tall screens.
-	local panel = UIUtil.makePanel({
-		AnchorPoint      = Vector2.new(0.5, 0.5),
-		Position         = UDim2.fromScale(0.5, 0.5),
-		Size             = UDim2.new(0.94, 0, 0.88, 0),
-		ClipsDescendants = true,
-	})
-	local cap = Instance.new("UISizeConstraint")
-	cap.MaxSize = Vector2.new(380, 680)
-	cap.Parent  = panel
-	panel.Parent = gui
-
-	-- ── Header bar (fixed height = HEADER_H, always visible above list) ──
-	local header = Instance.new("Frame")
-	header.BackgroundTransparency = 1
-	header.Size                   = UDim2.new(1, 0, 0, HEADER_H)
-	header.Position               = UDim2.new(0, 0, 0, 0)
-	header.Parent                 = panel
-
 	local titleText = discountPct > 0
 		and ("Bait Shop  ·  -%d%% dock"):format(math.round(discountPct * 100))
 		or "Bait Shop"
-	local titleLabel = UIUtil.makeLabel(titleText, "title", {
-		Position = UDim2.new(0, 14, 0, 0),
-		Size     = UDim2.new(1, -64, 1, 0),
+	local shell
+	shell = UIUtil.makeModalShell({
+		name = "BaitShopUI",
+		title = titleText,
+		onClose = function() if shell then shell.destroy() end end,
+		width = 440,
+		heightScale = 0.88,
 	})
-	titleLabel.Parent = header
+	local gui  = shell.gui
+	local body = shell.body
 
-	local closeBtn = UIUtil.makeButton("✕", function() gui:Destroy() end, {
-		AnchorPoint      = Vector2.new(1, 0.5),
-		Position         = UDim2.new(1, -8, 0.5, 0),
-		Size             = UDim2.fromOffset(44, 44),
-		BackgroundColor3 = P.Wood,
-		variant          = "secondary",
-	})
-	closeBtn.Parent = header
-
-	-- Thin divider line below header
-	local divider = Instance.new("Frame")
-	divider.BackgroundColor3     = P.TealDeeper
-	divider.BackgroundTransparency = 0.5
-	divider.BorderSizePixel      = 0
-	divider.Position             = UDim2.new(0, 0, 0, HEADER_H)
-	divider.Size                 = UDim2.new(1, 0, 0, 1)
-	divider.Parent               = panel
-
-	-- ── Scrolling bait list (starts below header) ──
+	-- Scrolling bait list fills the body.
 	local list = Instance.new("ScrollingFrame")
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel        = 0
-	list.Position               = UDim2.new(0, 8, 0, HEADER_H + 4)
-	list.Size                   = UDim2.new(1, -16, 1, -(HEADER_H + 12))
+	list.Size                   = UDim2.fromScale(1, 1)
 	list.ScrollBarThickness     = 4
 	list.ScrollBarImageColor3   = P.TealDeeper
 	list.CanvasSize             = UDim2.new(0, 0, 0, 0)
 	list.AutomaticCanvasSize    = Enum.AutomaticSize.Y
-	list.Parent                 = panel
+	list.Parent                 = body
 
 	local layout = Instance.new("UIListLayout")
 	layout.Padding      = UDim.new(0, 6)
@@ -260,10 +202,8 @@ function BaitShopUI.show(
 
 	rebuild(initialStash, equippedBaitId)
 
-	backdrop.Activated:Connect(function() gui:Destroy() end)
-
 	return {
-		close        = function() gui:Destroy() end,
+		close        = function() shell.destroy() end,
 		refreshStash = function(newStash, newEquipped)
 			if gui.Parent then rebuild(newStash, newEquipped) end
 		end,

@@ -99,6 +99,10 @@ GameConfig.Harbor = {
 	-- snap cleanly. 80/4 = 20x20 grid of placement cells per plot.
 	PlotSizeStuds = 80,
 	GridCellStuds = 4,
+	-- How far above world Y=0 (water line) the plot corner sits.
+	PlotElevationStuds = 7,
+	-- Y offset from plot corner to the walkable plate surface (1-stud plate centered at Y=1).
+	PlotPlateTopStuds = 1.5,
 
 	-- Cap concurrent buildings per plot to keep the network and physics budget
 	-- in check with StreamingEnabled.
@@ -130,6 +134,8 @@ GameConfig.Harbor = {
 		DebrisRadiusStuds         = 6,
 		DebrisMaxPerPlot          = 30,
 		ReducedMotionDurationScale = 0.5,
+		-- Per-tier Model:ScaleTo on placed visuals (tier 1 = rundown scale).
+		TierModelScale = { 1.0, 1.35, 1.7 },
 	},
 }
 
@@ -142,7 +148,7 @@ GameConfig.Harbor = {
 GameConfig.Buildings = {
 	Dock        = { tierCosts = { 0,     40,     9000  } },
 	MarketStall = { tierCosts = { 800,   3500,   12000 } },
-	Smokehouse  = { tierCosts = { 1500,  6000,   18000 } },
+	Smokehouse  = { tierCosts = { 1500,  6000,   18000 }, PreserveTimeSec = 300 },
 	Lighthouse  = { tierCosts = { 2000,  7500,   22000 }, RarityBumpChance = { 0.15, 0.28, 0.45 } },
 	BaitShop    = { tierCosts = { 600,   2400,   8000  } },
 	Aquarium    = { tierCosts = { 1200,  5000,   16000 } },
@@ -153,8 +159,21 @@ GameConfig.Buildings = {
 -- FISHING
 -- ====================================================================
 GameConfig.Fishing = {
-	-- Cast meter oscillation period (seconds). Lower = harder.
+	-- Cast meter oscillation period (seconds). Lower = harder. Read by the server
+	-- to supply the timing window; client uses CastMeter.OscillationPeriod below.
 	CastMeterPeriod = 1.4,
+
+	-- Client-side cast meter layout and feel. All values the designer would tune.
+	CastMeter = {
+		OscillationPeriod  = 1.4,   -- seconds per full marker sweep
+		BarHeightPx        = 160,   -- logical px height of the vertical bar
+		BarWidthPx         = 20,    -- logical px width of the vertical bar
+		CastButtonSizePx   = 80,    -- diameter of the cast-release circle
+		-- Distance from screen bottom to the BOTTOM EDGE of the cast button.
+		-- Nav bar is 88px tall + 20px safe-area gap = 108px. 10px clearance → 118.
+		CastButtonBottomPx = 118,
+		BarButtonGapPx     = 8,     -- gap between top of button and bottom of bar
+	},
 
 	-- Minimum cooldown between casts (anti-spam, anti-exploit).
 	CastCooldownSeconds = 0.5,
@@ -186,6 +205,41 @@ GameConfig.Fishing = {
 		Divine    =  0.5,
 	},
 
+	-- Rarity → tension tier for the reel mini-game. Primary difficulty axis.
+	-- Weight still influences zone oscillation speed as a secondary modifier.
+	RarityTierMap = {
+		Common    = "light",
+		Uncommon  = "light",
+		Rare      = "medium",
+		Epic      = "medium",
+		Legendary = "heavy",
+		Mythic    = "heavy",
+		Divine    = "legendary",
+	},
+
+	-- 0..1 difficulty base per rarity. Weight adds a small nudge (+0.00–0.10).
+	RarityDifficultyBase = {
+		Common    = 0.10,
+		Uncommon  = 0.20,
+		Rare      = 0.38,
+		Epic      = 0.52,
+		Legendary = 0.70,
+		Mythic    = 0.85,
+		Divine    = 1.00,
+	},
+
+	-- Zone and label tint colors for the reel mini-game, keyed by rarity.
+	-- Matches the RANK palette in RodCatalog.lua so the visual language is consistent.
+	RarityColors = {
+		Common    = Color3.fromRGB(176, 182, 190),
+		Uncommon  = Color3.fromRGB(120, 205, 135),
+		Rare      = Color3.fromRGB( 95, 165, 240),
+		Epic      = Color3.fromRGB(185, 120, 235),
+		Legendary = Color3.fromRGB(245, 180,  75),
+		Mythic    = Color3.fromRGB(240,  95, 140),
+		Divine    = Color3.fromRGB(255, 225, 150),
+	},
+
 	-- ----------------------------------------------------------------
 	-- FEEL TUNING — every magic number for the cast/reel/reveal UI.
 	-- Designer-friendly: tweak these without hunting through controllers.
@@ -211,6 +265,7 @@ GameConfig.Fishing = {
 		PerfectBonusMultiplier    = 2.0,
 		PerfectThreshold          = 0.8,
 		-- Perfect-cast: marker lands in the inner gold strip → fish is heavier.
+		BaseGreenZoneScale        = 1.35,   -- global multiplier on fish.greenZoneSize; widens all zones without catalog edits
 		PerfectCastWeightBonus    = 0.15,   -- +15% weight, capped at 1.5× catalog max
 		-- Perfect-reel: award immediate coins = fraction of the fish's base market price.
 		PerfectReelCoinFraction   = 0.20,   -- 20% of fish.basePrice awarded on completion
@@ -245,8 +300,79 @@ GameConfig.Fishing = {
 
 -- ====================================================================
 -- UI — client-only presentation tunables (no gameplay effect)
+--
+-- Design tokens here are the single source of truth for spacing, radii,
+-- typography, modal chrome, touch/font floors, and ScreenGui z-order.
+-- UIUtil.lua re-exports these via UIUtil.Spacing / UIUtil.Radii /
+-- UIUtil.Typography for ergonomic access from feature UIs. Tune values
+-- here without touching UI module code.
 -- ====================================================================
 GameConfig.UI = {
+	-- Mobile-first accessibility floors. Every interactive button must
+	-- size >= MinTouchPx; every TextLabel must size >= MinFontPx after
+	-- UIScale. UIUtil.makePrimaryButton etc. enforce these in Studio.
+	MinTouchPx = 44,
+	MinFontPx  = 12,
+
+	-- 8px-multiple grid. Use names, not raw numbers, in feature UI.
+	Spacing = {
+		xs  = 4,
+		sm  = 8,
+		md  = 12,
+		lg  = 16,
+		xl  = 24,
+		xxl = 32,
+	},
+
+	-- Corner radii. `pill` is effectively round (used as a UDim offset
+	-- value, capped by the smaller edge of the parent).
+	Radii = {
+		sm   = 6,
+		md   = 10,
+		lg   = 12,
+		xl   = 16,
+		pill = 999,
+	},
+
+	-- Type ramp. Floor on `caption` is 12 — the accessibility minimum.
+	-- Body is the default label size used by UIUtil.makeLabel(..., "body").
+	Typography = {
+		display  = { font = Enum.Font.GothamBlack,    size = 28 },
+		title    = { font = Enum.Font.GothamBold,     size = 20 },
+		subtitle = { font = Enum.Font.GothamSemibold, size = 16 },
+		body     = { font = Enum.Font.GothamMedium,   size = 15 },
+		caption  = { font = Enum.Font.Gotham,         size = 12 },
+	},
+
+	-- Modal chrome shared by every full-screen modal (Inventory, Market,
+	-- Harbor, Rod, Bait, Aquarium, Shop, Social, demolish-confirm).
+	-- UIUtil.makeModalShell reads these on construction.
+	Modal = {
+		MaxWidthPx     = 440,   -- UISizeConstraint cap so panels stay phone-shaped on tablet/desktop
+		BackdropAlpha  = 0.55,  -- final BackgroundTransparency on the fullscreen backdrop
+		FadeDuration   = 0.18,
+		SlideOffsetPx  = 16,    -- panel slides up by this much on open (skipped under ReducedMotion)
+		HeaderHeightPx = 56,    -- height of title bar with close button
+		CloseButtonPx  = 44,    -- diameter of the X button (touch floor)
+		BodyPaddingPx  = 16,    -- inner padding from panel edge to body content
+	},
+
+	-- ScreenGui DisplayOrder map. Higher = drawn on top. Layering is the
+	-- single source of truth for "what sits above what". Each ScreenGui
+	-- in src/Client/UI/* sets `gui.DisplayOrder = DisplayOrder.<role>`
+	-- on construction so the order is grep-able + tunable here.
+	DisplayOrder = {
+		World        = 0,   -- world-anchored BillboardGuis (waypoint, prompts)
+		HUD          = 10,  -- bottom action bar, currency wallet, rod chip
+		QuestTracker = 12,  -- right-edge tracker tab + popups
+		Dialogue     = 20,  -- Mira NPC chat box
+		CastMeter    = 30,  -- fishing overlay (above HUD, below modals)
+		Notification = 31,  -- bottom-center toast stack (above cast thumb)
+		Modal        = 40,  -- Inventory, Market, Harbor, Rod, Bait, Aquarium, Shop, Social
+		CatchReveal  = 50,  -- celebration overlay above all modals
+		Tutorial     = 60,  -- highlight overlay, sits above everything
+	},
+
 	-- HUD rod-tier chip + its tap/long-press tooltip.
 	RodTierChip = {
 		-- Tooltip auto-dismisses after this many seconds of no interaction.
@@ -269,6 +395,16 @@ GameConfig.UI = {
 		-- The Rod Shop exists (ShopService:BuyRodTier), so this points at it
 		-- rather than a placeholder. Edit this one string if the path moves.
 		UpgradeHintText          = "Upgrade your rod at the Rod Shop on the dock.",
+	},
+
+	-- Ephemeral bottom-center toasts (market sale, demand spike, quests).
+	Notification = {
+		MaxQueue = 3,
+		HoldSec = 3,
+		SlideSec = 0.25,
+		FadeSec = 0.30,
+		-- Above HUD action bar: 20px inset + 88px bar + 12px gap (see HUD.lua).
+		BottomOffsetPx = 120,
 	},
 }
 
@@ -396,6 +532,9 @@ GameConfig.Quests = {
 	-- After day 28 reward this every day until streak breaks.
 	LoginStreakReward28Plus = { coins = 200 },
 
+	-- Login-streak days that fire StreakMilestone toast (in addition to rewards).
+	StreakMilestoneToastDays = { 7, 14, 30, 50, 100 },
+
 	-- Coalescing window for the QuestsChanged network push during
 	-- incremental progress. NOT a DataStore batch — the profile is mutated
 	-- in memory immediately and ProfileService owns the autosave, so there
@@ -422,9 +561,28 @@ GameConfig.Crew = {
 -- ====================================================================
 GameConfig.AntiExploit = {
 	-- Per-player rate limits. Server drops requests above these thresholds.
-	MaxCastsPerMinute     = 30,
-	MaxListingsPerMinute  = 5,
-	MaxBuildOpsPerMinute  = 60,
+	-- Tuning rule (cozy pillar): set generously so legit play never trips.
+	-- Limits are silent-drop only — never surface "you're going too fast"
+	-- to the player. Server logs over-limit events for analytics.
+	MaxCastsPerMinute       = 30,
+	MaxListingsPerMinute    = 5,
+	MaxBuildOpsPerMinute    = 60,
+	MaxBuysPerMinute        = 20,  -- comfortable bulk-buy ceiling
+	MaxQuickSellsPerMinute  = 60,  -- one per inventory slot, fast
+	MaxCancelsPerMinute     = 20,  -- mirrors buys
+	MaxQuestClaimsPerMinute = 20,  -- 3 dailies + grace; 20 is well above any honest peak
+	MaxCrewOpsPerMinute     = 10,  -- create/join/leave; rare in honest play
+	MaxCrewChatsPerMinute   = 20,  -- ~1 every 3s, generous for chatty crews
+	MaxEmotesPerMinute      = 30,  -- one every 2s; dance parties still work
+	MaxVisitsPerMinute      = 6,   -- TeleportService is heavy; visiting is intentional
+	MaxAquariumOpsPerMinute = 60,
+	MaxSmokehouseOpsPerMinute = 30,
+	MaxShopOpsPerMinute     = 20,
+	MaxRodEquipsPerMinute   = 20,
+	MaxBaitEquipsPerMinute  = 30,
+	MaxTutorialOpsPerMinute = 30,
+	MaxSnapshotPullsPerMinute = 30, -- coarse limiter on read-only getters
+	MaxReelClaimsPerMinute  = 60,   -- one per cast; upstream gated by StartCast
 
 	-- If a client claims a catch outside this window after server says "fish
 	-- on the line", reject. Tight window = exploiters can't replay old hooks.
@@ -436,25 +594,25 @@ GameConfig.AntiExploit = {
 }
 
 -- ====================================================================
--- RODS — XP thresholds to unlock each named rod tier.
--- Display data (castWindowBonus, catchWeightBonus, color) lives in
--- RodCatalog.lua. Thresholds live here so designers can tune the
--- progression curve without touching the catalog.
--- Keys must match RodCatalog rod ids exactly.
+-- RODS — level thresholds to unlock each named rod tier.
+-- Display data (catchWeightBonus, color) lives in RodCatalog.lua.
+-- Thresholds live here so designers can tune progression without
+-- touching the catalog. Keys must match RodCatalog rod ids exactly.
+-- Level curve: cumulative XP to reach level L = 50 * L^2 (PlayerDataService).
 -- ====================================================================
 GameConfig.Rods = {
 	-- Keyed by rod id; ascends with RodCatalog tier (apex = abyssal).
-	UnlockXp = {
-		driftwood = 0,       -- t1  starter rod, always available
-		bamboo    = 200,     -- t2  ~10-20 fish caught
-		ironwood  = 800,     -- t3  ~40-60 fish caught
-		coral     = 2500,    -- t4  solid mid-game milestone
-		tempest   = 7000,    -- t5  dedicated long-term players
-		leviathan = 15000,   -- t6  late-game push
-		aurora    = 30000,   -- t7  prestige territory
-		celestial = 55000,   -- t8  months of play
-		eclipse   = 95000,   -- t9  veteran flex
-		abyssal   = 160000,  -- t10 apex — top of the rack
+	UnlockLevel = {
+		driftwood = 1,   -- t1  starter rod, always available
+		bamboo    = 2,   -- t2  ~10-20 fish caught
+		ironwood  = 4,   -- t3  ~40-60 fish caught
+		coral     = 7,   -- t4  solid mid-game milestone
+		tempest   = 12,  -- t5  dedicated players
+		leviathan = 17,  -- t6  late-game push
+		aurora    = 24,  -- t7  prestige territory
+		celestial = 33,  -- t8  months of play
+		eclipse   = 43,  -- t9  veteran flex
+		abyssal   = 56,  -- t10 apex — top of the rack
 	},
 }
 
@@ -471,23 +629,40 @@ GameConfig.Rods = {
 -- and future market-price integration. Stable ids — never rename.
 -- ====================================================================
 GameConfig.FishModifiers = {
-	-- ── Random modifiers — rolled independently per catch ────────────────
-	{ id = "shiny",        displayName = "Shiny",        dropChance = 0.015, coinInstant = 1.0,               sellPriceMul = 1.25 },
-	{ id = "giant",        displayName = "Giant",        dropChance = 0.050, weightMul = 1.4                                      },
-	{ id = "glowing",      displayName = "Glowing",      dropChance = 0.060,               xpMul = 1.5                           },
-	{ id = "lucky",        displayName = "Lucky",        dropChance = 0.030, lureBonus = 1                                       },
-	{ id = "ancient",      displayName = "Ancient",      dropChance = 0.020,               xpMul = 3.0,       sellPriceMul = 1.50 },
-	{ id = "prismatic",    displayName = "Prismatic",    dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
-	{ id = "elder",        displayName = "Elder",        dropChance = 0.008,               xpMul = 5.0,       sellPriceMul = 1.80 },
-	{ id = "cursed",       displayName = "Cursed",       dropChance = 0.035,               xpMul = 3.0,       sellPriceMul = 0.50 },
-	{ id = "magnetic",     displayName = "Magnetic",     dropChance = 0.025, lureBonus = 3                                       },
-	{ id = "barnacled",    displayName = "Barnacled",    dropChance = 0.045, weightMul = 1.6                                     },
+	-- ── NEW random modifiers — GAG-style mesh mutations (see ModifierMutations.lua) ──
+	{ id = "rainbow",      displayName = "Rainbow",      dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
+	{ id = "golden",       displayName = "Golden",       dropChance = 0.012, coinInstant = 1.0,                sellPriceMul = 1.60 },
+	{ id = "silver",       displayName = "Silver",       dropChance = 0.025,                                   sellPriceMul = 1.30 },
+	{ id = "frozen",       displayName = "Frozen",       dropChance = 0.045, weightMul = 1.15,                 sellPriceMul = 1.20 },
+	{ id = "inferno",      displayName = "Inferno",      dropChance = 0.030,                xpMul = 2.0                          },
+	{ id = "shocked",      displayName = "Shocked",      dropChance = 0.040,                xpMul = 1.5,       lureBonus = 1     },
+	{ id = "radioactive",  displayName = "Radioactive",  dropChance = 0.018,                xpMul = 2.5,       sellPriceMul = 1.25 },
+	{ id = "crystal",      displayName = "Crystal",      dropChance = 0.020,                                   sellPriceMul = 1.40 },
+	{ id = "colossal",     displayName = "Colossal",     dropChance = 0.040, weightMul = 1.5                                     },
+	{ id = "tiny",         displayName = "Tiny",         dropChance = 0.030, coinInstant = 0.5, weightMul = 0.4                  },
+	{ id = "bloodlust",    displayName = "Bloodlust",    dropChance = 0.025,                xpMul = 3.0,       sellPriceMul = 0.60 },
+	{ id = "voidtouched",  displayName = "Voidtouched",  dropChance = 0.008,                xpMul = 4.0,       sellPriceMul = 1.70 },
+	{ id = "ghostly",      displayName = "Ghostly",      dropChance = 0.030,                                   lureBonus = 2     },
+	{ id = "disco",        displayName = "Disco",        dropChance = 0.012, coinInstant = 1.5,                sellPriceMul = 1.30 },
+	{ id = "ancientcore",  displayName = "Ancient Core", dropChance = 0.018,                xpMul = 3.0,       sellPriceMul = 1.50 },
 	-- ── World-state modifiers — dropChance=0, assigned by world state ───
 	{ id = "tide_kissed",  displayName = "Tide-Kissed",  dropChance = 0,                    sellPriceMul = 1.25 },
 	{ id = "storm_forged", displayName = "Storm-Forged", dropChance = 0,                    sellPriceMul = 1.50 },
 	{ id = "moon_touched", displayName = "Moon-Touched", dropChance = 0,     xpMul = 1.25,  sellPriceMul = 1.15 },
 	{ id = "dawn_blessed", displayName = "Dawn-Blessed", dropChance = 0,     xpMul = 1.20,  sellPriceMul = 1.10 },
 	{ id = "fog_shrouded", displayName = "Fog-Shrouded", dropChance = 0,     lureBonus = 1, sellPriceMul = 1.20 },
+	-- ── DEPRECATED — never roll (dropChance=0). Kept for legacy inventory items.
+	-- ── ModifierMutations.lua still defines visuals for each so old fish render correctly.
+	{ id = "shiny",        displayName = "Shiny",        dropChance = 0, deprecated = true, coinInstant = 1.0, sellPriceMul = 1.25 },
+	{ id = "giant",        displayName = "Giant",        dropChance = 0, deprecated = true, weightMul = 1.4 },
+	{ id = "glowing",      displayName = "Glowing",      dropChance = 0, deprecated = true, xpMul = 1.5 },
+	{ id = "lucky",        displayName = "Lucky",        dropChance = 0, deprecated = true, lureBonus = 1 },
+	{ id = "ancient",      displayName = "Ancient",      dropChance = 0, deprecated = true, xpMul = 3.0, sellPriceMul = 1.50 },
+	{ id = "prismatic",    displayName = "Prismatic",    dropChance = 0, deprecated = true, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
+	{ id = "elder",        displayName = "Elder",        dropChance = 0, deprecated = true, xpMul = 5.0, sellPriceMul = 1.80 },
+	{ id = "cursed",       displayName = "Cursed",       dropChance = 0, deprecated = true, xpMul = 3.0, sellPriceMul = 0.50 },
+	{ id = "magnetic",     displayName = "Magnetic",     dropChance = 0, deprecated = true, lureBonus = 3 },
+	{ id = "barnacled",    displayName = "Barnacled",    dropChance = 0, deprecated = true, weightMul = 1.6 },
 }
 
 -- ====================================================================
@@ -522,6 +697,48 @@ GameConfig.DataStores = {
 }
 
 -- ====================================================================
+-- MODIFIER GLOW — per-modifier UIStroke settings for inventory pills.
+-- Color drives the pill border glow; Thickness/Transparency tune visibility.
+-- When 2+ modifiers appear on a card, the highest-priority modifier's Color
+-- is also applied to the card's outer frame stroke.
+-- ====================================================================
+GameConfig.ModifierGlow = {
+	-- New roll-eligible set
+	rainbow      = { Color = Color3.fromRGB(255, 120, 200), Thickness = 3.0, Transparency = 0.10 },
+	golden       = { Color = Color3.fromRGB(255, 215,  60), Thickness = 2.5, Transparency = 0.15 },
+	silver       = { Color = Color3.fromRGB(220, 225, 240), Thickness = 2.0, Transparency = 0.25 },
+	frozen       = { Color = Color3.fromRGB(140, 220, 255), Thickness = 2.0, Transparency = 0.20 },
+	inferno      = { Color = Color3.fromRGB(255, 130,  50), Thickness = 2.5, Transparency = 0.15 },
+	shocked      = { Color = Color3.fromRGB(255, 240,  80), Thickness = 2.0, Transparency = 0.20 },
+	radioactive  = { Color = Color3.fromRGB(120, 255, 100), Thickness = 2.5, Transparency = 0.15 },
+	crystal      = { Color = Color3.fromRGB(200, 230, 255), Thickness = 2.0, Transparency = 0.25 },
+	colossal     = { Color = Color3.fromRGB(120, 220, 130), Thickness = 2.0, Transparency = 0.25 },
+	tiny         = { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5, Transparency = 0.30 },
+	bloodlust    = { Color = Color3.fromRGB(220,  40,  40), Thickness = 2.5, Transparency = 0.15 },
+	voidtouched  = { Color = Color3.fromRGB(170,  80, 255), Thickness = 2.5, Transparency = 0.15 },
+	ghostly      = { Color = Color3.fromRGB(240, 245, 255), Thickness = 2.0, Transparency = 0.30 },
+	disco        = { Color = Color3.fromRGB(255,  80, 200), Thickness = 2.5, Transparency = 0.20 },
+	ancientcore  = { Color = Color3.fromRGB(220, 170,  90), Thickness = 2.0, Transparency = 0.25 },
+	-- World-state
+	tide_kissed  = { Color = Color3.fromRGB( 60, 200, 180), Thickness = 2.0, Transparency = 0.25 },
+	storm_forged = { Color = Color3.fromRGB(120, 120, 200), Thickness = 2.5, Transparency = 0.20 },
+	moon_touched = { Color = Color3.fromRGB(200, 200, 255), Thickness = 2.0, Transparency = 0.20 },
+	dawn_blessed = { Color = Color3.fromRGB(255, 180, 100), Thickness = 2.0, Transparency = 0.20 },
+	fog_shrouded = { Color = Color3.fromRGB(180, 200, 210), Thickness = 1.5, Transparency = 0.30 },
+	-- Deprecated (kept for legacy items)
+	shiny        = { Color = Color3.fromRGB(255, 230,  80), Thickness = 2.0, Transparency = 0.20 },
+	giant        = { Color = Color3.fromRGB( 80, 200, 255), Thickness = 2.0, Transparency = 0.30 },
+	glowing      = { Color = Color3.fromRGB(255, 200,  60), Thickness = 2.5, Transparency = 0.15 },
+	lucky        = { Color = Color3.fromRGB(100, 230, 100), Thickness = 1.5, Transparency = 0.30 },
+	ancient      = { Color = Color3.fromRGB(180, 140,  60), Thickness = 2.0, Transparency = 0.25 },
+	prismatic    = { Color = Color3.fromRGB(200, 100, 255), Thickness = 3.0, Transparency = 0.10 },
+	elder        = { Color = Color3.fromRGB(120,  80, 200), Thickness = 2.5, Transparency = 0.20 },
+	cursed       = { Color = Color3.fromRGB(180,  40,  40), Thickness = 2.0, Transparency = 0.25 },
+	magnetic     = { Color = Color3.fromRGB( 60, 180, 220), Thickness = 1.5, Transparency = 0.30 },
+	barnacled    = { Color = Color3.fromRGB(140, 120,  80), Thickness = 1.5, Transparency = 0.35 },
+}
+
+-- ====================================================================
 -- MESSAGINGSERVICE TOPICS — used for cross-server market notifications
 -- ====================================================================
 GameConfig.Topics = {
@@ -542,6 +759,75 @@ GameConfig.Topics = {
 --   Assets.Buildings[kind]["tier" .. N] / Visual   (Model instance)
 GameConfig.Assets = {
 	BuildingModels = "Assets.Buildings",
+	Fish           = "Assets.Fish",
+}
+
+-- ====================================================================
+-- FISH HELD — weight-to-size mapping for the in-world held-fish model.
+-- MinStuds: max-dimension target when fish is at its species weightRange min.
+-- MaxStuds: max-dimension target when fish is at its species weightRange max.
+-- ====================================================================
+GameConfig.FishHeld = {
+	-- Dramatic range: a max-weight fish is ~13× the volume of a min-weight fish.
+	-- Tweakers: change MaxStuds to taste. MinStuds should stay ≥ 0.4.
+	MinStuds = 0.5,
+	MaxStuds = 8.0,
+}
+
+-- ====================================================================
+-- FISH BITE FEEDBACK — client-only (FishingController._onBite).
+-- Replace SoundId with a real water-splash asset before shipping.
+-- ====================================================================
+GameConfig.FishBite = {
+	SoundId              = "rbxassetid://0",  -- placeholder
+	SoundVolume          = 0.7,
+	CameraNudgeMagnitude = 0.3,
+	CameraNudgeDuration  = 0.30,
+	ButtonPulseScale     = 1.15,
+	ButtonPulseDuration  = 0.15,
+	VignetteAlpha        = 0.08,
+	VignetteFadeDuration = 0.30,
+}
+
+-- ====================================================================
+-- MODIFIER VISUALS — GAG-style mesh mutations.
+-- Per-modifier visual treatments (color cycle, material swap, Highlight,
+-- PointLight) live in src/Shared/Config/ModifierMutations.lua, driven
+-- by src/Shared/Util/FishMutations.lua (client-only).
+-- ====================================================================
+
+-- ====================================================================
+-- BIOME TEST HUB — Studio-only. Values consumed by BiomeTestService and
+-- BiomeDebugController. Guard: RunService:IsStudio() in each file.
+-- ====================================================================
+GameConfig.BiomeTest = {
+	HubCenter      = Vector3.new(-300, 0, 300),
+	PlatformHeight = 4,
+	PlatformSizeX  = 200,
+	PlatformSizeZ  = 40,
+	PadSize        = 16,
+	PadHeight      = 0.5,
+	PadSpacing     = 34,
+
+	LabelStudsOffset = Vector3.new(0, 6, 0),
+
+	-- Teleport destinations for each biome's sensor zone centre.
+	-- Pier has no sensor zone so it will still resolve as Shoreline.
+	TeleportTargets = {
+		Shoreline = Vector3.new(600, 2, 550),
+		Pier      = Vector3.new(520, 2, 660),
+		Reef      = Vector3.new(600, 2, 1020),
+		DeepWater = Vector3.new(600, 2, 1160),
+		Trench    = Vector3.new(600, 2, 1400),
+	},
+
+	PadColors = {
+		Shoreline = Color3.fromRGB(210, 190, 130),
+		Pier      = Color3.fromRGB(160, 120,  80),
+		Reef      = Color3.fromRGB( 70, 200, 200),
+		DeepWater = Color3.fromRGB( 20,  60, 130),
+		Trench    = Color3.fromRGB( 10,  20,  50),
+	},
 }
 
 return GameConfig

@@ -63,6 +63,10 @@ purna/
 │           └── QuestTrackerUI.lua
 ```
 
+## Dev roadmap (interactive)
+
+Open [`roadmap.html`](roadmap.html) in a browser for an interactive implementation map: a **dependency flowchart** (click any node), **CLAUDE.md pillar audit chips**, and backlog cards — each opens a ready-to-paste Cursor / Claude Code prompt (prefixed with CLAUDE.md guardrails). Status last synced May 2026. Deep-link examples: `roadmap.html#smokehouse`, `roadmap.html#ui-overhaul`, `roadmap.html#ui-remaining-screens`.
+
 ## 1. First-time setup
 
 ### Install Rojo
@@ -100,6 +104,10 @@ rojo serve
 ```
 
 Then in Roblox Studio: **Plugins ▸ Rojo ▸ Connect** (port 34872 by default).
+
+### Roblox Studio MCP (Cursor agent)
+
+To let the Cursor agent run Luau and edit your open place from chat, enable Studio MCP and connect Cursor. See [scripts/Studio/MCP_Setup.md](scripts/Studio/MCP_Setup.md). Use **only** global `~/.cursor/mcp.json` (not a duplicate project config). After changes, **fully restart Cursor** with your place already open in Studio; the MCP row must show tools, not "No tools…".
 
 > **DataStore note**: DataStores don't write to disk in Studio unless
 > "Enable Studio Access to API Services" is on under **Game Settings ▸

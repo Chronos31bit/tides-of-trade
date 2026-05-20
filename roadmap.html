@@ -24,59 +24,112 @@
   --purple: #a855f7;
   --purple-bg: rgba(59,7,100,0.65);
   --purple-bd: rgba(124,58,237,0.35);
+  --amber: #f59e0b;
+  --amber-bg: rgba(120,53,15,0.45);
+  --amber-bd: rgba(217,119,6,0.45);
+  --todo-bg: rgba(30,41,59,0.85);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;overflow-x:hidden}
 
-/* ── Header ── */
 header{padding:22px 32px 18px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
 .header-top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
 header h1{font-size:20px;font-weight:700;letter-spacing:-0.4px}
 header p{font-size:12px;color:var(--muted);margin-top:3px}
+.hint{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;max-width:520px}
 .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:11px}
 .leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
 .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.dg{background:var(--green)}.do{background:var(--orange)}.db{background:var(--blue)}.dp{background:var(--purple)}
+.dg{background:var(--green)}.da{background:var(--amber)}.do{background:var(--orange)}.db{background:var(--blue)}.dp{background:var(--purple)}
 
-/* ── Main ── */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.fbtn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:600;padding:6px 12px;border-radius:20px;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.fbtn:hover{color:var(--text)}
+.fbtn.on{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+
 main{padding:28px 32px 60px;max-width:1280px}
+@media(max-width:520px){main{padding:18px 16px 60px}}
 .sec-label{font-size:10px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
 
-/* ── Core Loop ── */
-.loop-row{display:flex;align-items:center;gap:0;overflow-x:auto;padding-bottom:10px;margin-bottom:40px;scrollbar-width:thin}
+.loop-row{display:flex;align-items:center;gap:0;overflow-x:auto;padding-bottom:10px;margin-bottom:28px;scrollbar-width:thin}
 .loop-row::-webkit-scrollbar{height:4px}.loop-row::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
 .cn{background:var(--green-bg);border:1px solid var(--green-bd);border-radius:10px;padding:11px 15px;min-width:128px;text-align:center;position:relative;flex-shrink:0}
-.cn-icon{font-size:18px;display:block;margin-bottom:3px}
 .cn-label{font-size:12px;font-weight:600;color:var(--green)}
 .cn-sub{font-size:10px;color:var(--muted);margin-top:2px}
 .ck{position:absolute;top:-6px;right:-6px;width:17px;height:17px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff}
 .arr{color:var(--border);font-size:16px;padding:0 5px;flex-shrink:0;user-select:none}
 .loop-back{color:var(--muted);font-size:10px;margin-left:6px;padding:5px 9px;border:1px dashed var(--border);border-radius:20px;flex-shrink:0;white-space:nowrap}
 
-/* ── Columns ── */
+.pillar-row{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:28px}
+.pchip{background:var(--surface);border:1px dashed var(--border);color:var(--muted);font-size:10px;font-weight:600;padding:6px 11px;border-radius:20px;cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.pchip:hover{border-color:var(--blue);color:var(--text);background:var(--blue-bg)}
+.pchip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.flow-wrap{overflow-x:auto;padding-bottom:12px;margin-bottom:28px;scrollbar-width:thin}
+.flow-wrap::-webkit-scrollbar{height:4px}.flow-wrap::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px}
+.flow-track{display:flex;align-items:flex-start;gap:0;min-width:max-content;padding-bottom:4px}
+.flow-group{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.flow-group-label{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;text-align:center;min-width:100%}
+.flow-lane{display:flex;align-items:center;gap:0}
+.fn{border-radius:10px;padding:9px 12px;min-width:108px;max-width:140px;text-align:center;flex-shrink:0;cursor:pointer;position:relative;outline:none;transition:transform .15s,box-shadow .15s,border-color .15s}
+.fn:focus-visible{box-shadow:0 0 0 2px var(--blue)}
+.fn:hover{transform:translateY(-2px)}
+.fn-label{font-size:11px;font-weight:600;line-height:1.25;display:block}
+.fn-sub{font-size:9px;color:var(--muted);margin-top:3px;line-height:1.35;display:block}
+.fn.done{background:var(--green-bg);border:1px solid var(--green-bd);cursor:default}
+.fn.done .fn-label{color:var(--green)}
+.fn.done:hover{transform:none}
+.fn.in-progress{background:var(--amber-bg);border:1px solid var(--amber-bd)}
+.fn.in-progress .fn-label{color:var(--amber)}
+.fn.todo{background:var(--todo-bg);border:1px solid var(--border)}
+.fn.todo .fn-label{color:var(--text)}
+.fn.todo.launch{border-color:var(--orange-bd);background:var(--orange-bg)}
+.fn.todo.launch .fn-label{color:var(--orange)}
+.fn.todo.near{border-color:var(--blue-bd)}
+.fn.todo.near .fn-label{color:var(--blue)}
+.fn.todo.content .fn-label{color:var(--blue)}
+.fn.todo.monetize{border-color:var(--purple-bd);background:var(--purple-bg)}
+.fn.todo.monetize .fn-label{color:var(--purple)}
+.fn.hl{box-shadow:0 0 0 2px var(--blue),0 6px 20px rgba(59,130,246,.35)}
+.fn-wk{position:absolute;top:-5px;right:-4px;font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.card.in-progress-card{border-color:var(--amber-bd)!important;padding-left:28px}
+.card.in-progress-card::before{content:'◐';position:absolute;top:13px;left:12px;font-size:11px;color:var(--amber)}
+.badge-g{background:rgba(51,65,85,.6);color:var(--muted);border:1px solid var(--border)}
+
+.week-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;margin-bottom:32px;scrollbar-width:thin}
+.week-row::-webkit-scrollbar{height:4px}
+.wk{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.wk.done{border-color:var(--green-bd);background:var(--green-bg)}
+.wk-num{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.wk.done .wk-num{color:var(--green)}
+.wk-title{font-size:12px;font-weight:600;margin-bottom:4px}
+.wk-body{font-size:10px;color:var(--muted);line-height:1.5}
+
 .cols{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:40px}
 @media(max-width:960px){.cols{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:520px){.cols{grid-template-columns:1fr};main{padding:18px 16px 60px}}
+@media(max-width:520px){.cols{grid-template-columns:1fr}}
 .col-head{font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid}
 .co .col-head{color:var(--orange);border-color:var(--orange)}
 .cb .col-head{color:var(--blue);border-color:var(--blue)}
 .cp .col-head{color:var(--purple);border-color:var(--purple)}
 
-.card{border-radius:10px;padding:13px 14px 13px 14px;margin-bottom:10px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;outline:none}
+.card{border-radius:10px;padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;outline:none}
+.card.hidden{display:none}
+.card.hl{box-shadow:0 0 0 2px var(--blue),0 6px 20px rgba(59,130,246,.35)}
 .card:focus-visible{box-shadow:0 0 0 2px var(--blue)}
 .card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.45)}
 .card:active{transform:translateY(0)}
 .card-o{background:var(--orange-bg);border:1px solid var(--orange-bd)}.card-o:hover{border-color:var(--orange)}
 .card-b{background:var(--blue-bg);border:1px solid var(--blue-bd)}.card-b:hover{border-color:var(--blue)}
 .card-p{background:var(--purple-bg);border:1px solid var(--purple-bd)}.card-p:hover{border-color:var(--purple)}
-.card-title{font-size:13px;font-weight:600;margin-bottom:4px;line-height:1.3;padding-right:18px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:4px;line-height:1.3;padding-right:52px}
 .card-o .card-title{color:var(--orange)}.card-b .card-title{color:var(--blue)}.card-p .card-title{color:var(--purple)}
 .card-desc{font-size:11px;color:var(--muted);line-height:1.55}
 .card-chev{position:absolute;top:13px;right:13px;color:var(--muted);font-size:13px;opacity:.45;transition:opacity .15s}
 .card:hover .card-chev{opacity:1}
+.wk-badge{position:absolute;top:13px;right:28px;font-size:9px;font-weight:700;letter-spacing:.3px;padding:2px 6px;border-radius:10px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
 
-/* ── Accordion ── */
 .acc{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:32px}
 .acc-head{background:var(--surface);padding:13px 20px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;user-select:none;gap:12px}
 .acc-head:hover{background:var(--surface2)}
@@ -85,9 +138,8 @@ main{padding:28px 32px 60px;max-width:1280px}
 .acc-body{display:none;padding:14px 18px;background:var(--bg)}
 .acc-body.open{display:block}
 .chip-grid{display:flex;flex-wrap:wrap;gap:7px}
-.chip{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);font-size:10px;font-weight:500;padding:4px 9px;border-radius:20px;display:flex;align-items:center;gap:4px}
+.chip{background:var(--green-bg);border:1px solid var(--green-bd);color:var(--green);font-size:10px;font-weight:500;padding:4px 9px;border-radius:20px}
 
-/* ── Drawer ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200}
 .overlay.on{display:block}
 .drawer{position:fixed;top:0;right:-530px;width:520px;height:100dvh;background:var(--surface);border-left:1px solid var(--border);z-index:201;display:flex;flex-direction:column;transition:right .24s cubic-bezier(.4,0,.2,1);overflow:hidden}
@@ -96,9 +148,9 @@ main{padding:28px 32px 60px;max-width:1280px}
 .dr-head{padding:18px 22px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
 .dr-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
 .dr-title{font-size:17px;font-weight:700;line-height:1.3}
-.xbtn{background:var(--surface2);border:1px solid var(--border);color:var(--text);cursor:pointer;padding:5px 10px;border-radius:6px;font-size:15px;line-height:1;flex-shrink:0;transition:background .15s}
+.xbtn{background:var(--surface2);border:1px solid var(--border);color:var(--text);cursor:pointer;padding:5px 10px;border-radius:6px;font-size:15px;line-height:1;flex-shrink:0}
 .xbtn:hover{background:var(--border)}
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.5px}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:12px;font-size:10px;font-weight:700;letter-spacing:.5px;margin-right:6px}
 .badge-o{background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-bd)}
 .badge-b{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd)}
 .badge-p{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-bd)}
@@ -106,9 +158,8 @@ main{padding:28px 32px 60px;max-width:1280px}
 .dr-body{flex:1;overflow:hidden;display:flex;flex-direction:column;padding:14px 22px 20px}
 .pr-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;flex-shrink:0}
 .pr-box{flex:1;overflow-y:auto;background:#080e1c;border:1px solid var(--border);border-radius:8px;padding:13px 14px;margin-bottom:12px;scrollbar-width:thin}
-.pr-box::-webkit-scrollbar{width:5px}.pr-box::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px}
-.pr-box pre{font-family:'Consolas','Fira Code','Monaco',monospace;font-size:11.5px;line-height:1.65;color:#cbd5e1;white-space:pre-wrap;word-break:break-word}
-.cpbtn{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;width:100%;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:7px;flex-shrink:0}
+.pr-box pre{font-family:Consolas,'Fira Code',Monaco,monospace;font-size:11.5px;line-height:1.65;color:#cbd5e1;white-space:pre-wrap;word-break:break-word}
+.cpbtn{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:12px 18px;font-size:13px;font-weight:600;cursor:pointer;width:100%;transition:background .15s;flex-shrink:0}
 .cpbtn:hover{background:#2563eb}
 .cpbtn.done{background:var(--green)}
 </style>
@@ -118,649 +169,873 @@ main{padding:28px 32px 60px;max-width:1280px}
 <header>
   <div class="header-top">
     <div>
-      <h1>🌊 Tides of Trade — Dev Roadmap</h1>
-      <p>Click any card to get a ready-to-paste Claude Code prompt for that feature.</p>
+      <h1>Tides of Trade — Dev Roadmap</h1>
+      <p>Click any flow node, pillar chip, or card to open a ready-to-paste Cursor / Claude Code prompt.</p>
+      <p class="hint">Workflow: click node in the flowchart or a card below → Copy Prompt → paste into Agent chat. Aligns with CLAUDE.md (server-authoritative, GameConfig tunables, mobile-first, drip-feed after week 1).</p>
+      <p class="hint" style="margin-top:4px;color:var(--green)">Last synced with codebase: May 20, 2026</p>
     </div>
   </div>
   <div class="legend">
-    <div class="leg"><div class="dot dg"></div>Implemented</div>
+    <div class="leg"><div class="dot dg"></div>Shipped</div>
+    <div class="leg"><div class="dot da"></div>In progress</div>
     <div class="leg"><div class="dot do"></div>Launch Critical</div>
     <div class="leg"><div class="dot db"></div>Near-Term / Content</div>
     <div class="leg"><div class="dot dp"></div>Monetization / Future</div>
+  </div>
+  <div class="filters" id="filters">
+    <button type="button" class="fbtn on" data-filter="all">All</button>
+    <button type="button" class="fbtn" data-filter="launch">Launch</button>
+    <button type="button" class="fbtn" data-filter="near">Near-Term</button>
+    <button type="button" class="fbtn" data-filter="content">Content</button>
+    <button type="button" class="fbtn" data-filter="monetize">Monetization</button>
+    <button type="button" class="fbtn" data-filter="progress">In progress</button>
   </div>
 </header>
 
 <main>
 
-  <div class="sec-label">Core Game Loop</div>
+  <div class="sec-label">Core Game Loop (shipped)</div>
   <div class="loop-row">
-    <div class="cn"><span class="cn-icon">🎣</span><div class="cn-label">Fish</div><div class="cn-sub">5 biomes</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">Fish</div><div class="cn-sub">5 biomes · 100 species</div><div class="ck">✓</div></div>
     <div class="arr">→</div>
-    <div class="cn"><span class="cn-icon">🎯</span><div class="cn-label">Cast &amp; Reel</div><div class="cn-sub">3-phase server auth</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">Cast &amp; Reel</div><div class="cn-sub">Server auth 3-phase</div><div class="ck">✓</div></div>
     <div class="arr">→</div>
-    <div class="cn"><span class="cn-icon">🐟</span><div class="cn-label">Catch Resolve</div><div class="cn-sub">Weight &amp; rarity roll</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">Catch Resolve</div><div class="cn-sub">Weight + rarity</div><div class="ck">✓</div></div>
     <div class="arr">→</div>
-    <div class="cn"><span class="cn-icon">🏪</span><div class="cn-label">Market / Sell</div><div class="cn-sub">Cross-server global</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">Market / Sell</div><div class="cn-sub">Cross-server</div><div class="ck">✓</div></div>
     <div class="arr">→</div>
-    <div class="cn"><span class="cn-icon">🔨</span><div class="cn-label">Build Harbor</div><div class="cn-sub">7 buildings × 3 tiers</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">Build Harbor</div><div class="cn-sub">7 × 3 tiers</div><div class="ck">✓</div></div>
     <div class="arr">→</div>
-    <div class="cn"><span class="cn-icon">💰</span><div class="cn-label">Passive Income</div><div class="cn-sub">Tick every 60s</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">Harbor Visuals</div><div class="cn-sub">Upgrade tweens</div><div class="ck">✓</div></div>
     <div class="arr">→</div>
-    <div class="cn"><span class="cn-icon">⬆️</span><div class="cn-label">Progression</div><div class="cn-sub">XP → Rods → Biomes</div><div class="ck">✓</div></div>
+    <div class="cn"><div class="cn-label">World Alive</div><div class="cn-sub">Tide + weather</div><div class="ck">✓</div></div>
     <div class="loop-back">↩ back to Fish</div>
   </div>
 
-  <div class="sec-label">What to Build Next</div>
+  <div class="sec-label">Game requirements (CLAUDE.md pillars) — click to audit</div>
+  <div class="pillar-row" id="pillarRow">
+    <button type="button" class="pchip" data-id="pillar-low-pressure">Low-pressure sessions</button>
+    <button type="button" class="pchip" data-id="pillar-monetization">Sell identity, not progress</button>
+    <button type="button" class="pchip" data-id="pillar-visible">Visible transformation</button>
+    <button type="button" class="pchip" data-id="pillar-dripfeed">Drip-feed mechanics</button>
+    <button type="button" class="pchip" data-id="pillar-world-alive">World stays alive</button>
+    <button type="button" class="pchip" data-id="pillar-no-combat">No combat / no progress loss</button>
+    <button type="button" class="pchip" data-id="pillar-mobile">Mobile-first + a11y</button>
+    <button type="button" class="pchip" data-id="pillar-server-auth">Server-authoritative</button>
+  </div>
+
+  <div class="sec-label">Implementation path — click any node for agent prompt</div>
+  <div class="flow-wrap" id="flowWrap">
+    <div class="flow-track" id="flowTrack">
+      <div class="flow-group">
+        <div class="flow-group-label">Shipped</div>
+        <div class="flow-lane">
+          <div class="fn done" title="Core loop complete — see cards below for polish">
+            <span class="fn-label">Core Loop</span>
+            <span class="fn-sub">Fish → harbor → world</span>
+          </div>
+        </div>
+      </div>
+      <div class="arr">→</div>
+      <div class="flow-group">
+        <div class="flow-group-label">Week 2 · Launch</div>
+        <div class="flow-lane">
+          <div class="fn todo launch" tabindex="0" data-id="harbor-building-art" data-progress="todo"><span class="fn-wk">W2</span><span class="fn-label">Harbor Art</span><span class="fn-sub">MCP meshes</span></div>
+          <div class="arr">→</div>
+          <div class="fn in-progress" tabindex="0" data-id="smokehouse" data-progress="in-progress"><span class="fn-wk">W2</span><span class="fn-label">Smokehouse</span><span class="fn-sub">Studio QA</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo launch" tabindex="0" data-id="asset-audio-sfx" data-progress="todo"><span class="fn-wk">W2</span><span class="fn-label">Audio / SFX</span><span class="fn-sub">SoundController</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo launch" tabindex="0" data-id="reel-validation" data-progress="todo"><span class="fn-wk">W2</span><span class="fn-label">Reel Validate</span><span class="fn-sub">Anti-exploit</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo near" tabindex="0" data-id="notifications" data-progress="todo"><span class="fn-wk">W2</span><span class="fn-label">Toasts</span><span class="fn-sub">Notifications</span></div>
+        </div>
+      </div>
+      <div class="arr">→</div>
+      <div class="flow-group">
+        <div class="flow-group-label">Week 3 · Social</div>
+        <div class="flow-lane">
+          <div class="fn in-progress" tabindex="0" data-id="social-ui-v1" data-progress="in-progress"><span class="fn-wk">W3</span><span class="fn-label">Crew UI</span><span class="fn-sub">v1 roster</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo near" tabindex="0" data-id="visiting" data-progress="todo"><span class="fn-wk">W3</span><span class="fn-label">Visiting</span><span class="fn-sub">Ghost harbor</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo near" tabindex="0" data-id="leaderboards" data-progress="todo"><span class="fn-wk">W3</span><span class="fn-label">Leaderboards</span><span class="fn-sub">Top 10 HUD</span></div>
+        </div>
+      </div>
+      <div class="arr">→</div>
+      <div class="flow-group">
+        <div class="flow-group-label">Week 4 · Depth</div>
+        <div class="flow-lane">
+          <div class="fn in-progress" tabindex="0" data-id="ui-overhaul" data-progress="in-progress"><span class="fn-wk">W4</span><span class="fn-label">UI Redesign</span><span class="fn-sub">8/14 design system</span></div>
+          <div class="arr">→</div>
+          <div class="fn in-progress" tabindex="0" data-id="ui-remaining-screens" data-progress="in-progress"><span class="fn-wk">W4</span><span class="fn-label">6 Screens</span><span class="fn-sub">Cast · HUD · etc.</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo content" tabindex="0" data-id="achievements" data-progress="todo"><span class="fn-wk">W4</span><span class="fn-label">Achievements</span><span class="fn-sub">Catalog + UI</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo content" tabindex="0" data-id="price-history" data-progress="todo"><span class="fn-wk">W4</span><span class="fn-label">Price History</span><span class="fn-sub">Market sparkline</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo content" tabindex="0" data-id="mobile-polish" data-progress="todo"><span class="fn-wk">W4</span><span class="fn-label">Mobile QA</span><span class="fn-sub">44px audit</span></div>
+        </div>
+      </div>
+      <div class="arr">→</div>
+      <div class="flow-group">
+        <div class="flow-group-label">Post-month</div>
+        <div class="flow-lane">
+          <div class="fn todo monetize" tabindex="0" data-id="cosmetic-shop" data-progress="todo"><span class="fn-wk">Post</span><span class="fn-label">Cosmetic Shop</span><span class="fn-sub">Robux only</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo monetize" tabindex="0" data-id="season-pass" data-progress="todo"><span class="fn-wk">Post</span><span class="fn-label">Season Pass</span><span class="fn-sub">Cosmetics</span></div>
+          <div class="arr">→</div>
+          <div class="fn todo monetize" tabindex="0" data-id="events" data-progress="todo"><span class="fn-wk">Post</span><span class="fn-label">Live Events</span><span class="fn-sub">Festival fish</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-label">First Month Unlock Schedule (CLAUDE.md drip-feed)</div>
+  <div class="week-row">
+    <div class="wk done">
+      <div class="wk-num">Week 1 — shipped</div>
+      <div class="wk-title">Core onboarding</div>
+      <div class="wk-body">Tutorial 6 beats, fish/sell, dock repair, daily quest seed, bait + rods</div>
+    </div>
+    <div class="wk">
+      <div class="wk-num">Week 2</div>
+      <div class="wk-title">Launch polish</div>
+      <div class="wk-body">Harbor art meshes, smokehouse QA (in progress), audio/SFX, reel validation, toasts</div>
+    </div>
+    <div class="wk">
+      <div class="wk-num">Week 3</div>
+      <div class="wk-title">Social layer</div>
+      <div class="wk-body">Crew UI v1, harbor visiting, leaderboards</div>
+    </div>
+    <div class="wk">
+      <div class="wk-num">Week 4</div>
+      <div class="wk-title">Depth + mobile</div>
+      <div class="wk-body">UI redesign ~60% (8/14 on UIUtil; 6 screens left), achievements, price history, mobile audit</div>
+    </div>
+    <div class="wk">
+      <div class="wk-num">Post-month</div>
+      <div class="wk-title">Monetization</div>
+      <div class="wk-body">Cosmetic shop, season pass, live events (cosmetic-only)</div>
+    </div>
+  </div>
+
+  <div class="sec-label">What to Build Next — click for agent prompt</div>
   <div class="cols">
 
-    <!-- Launch Critical -->
     <div class="co">
-      <div class="col-head">🚨 Launch Critical</div>
+      <div class="col-head">Launch Critical</div>
 
-      <div class="card card-o" tabindex="0" data-id="reel-validation">
-        <span class="card-chev">›</span>
+      <div class="card card-o" tabindex="0" data-id="harbor-building-art" data-cat="launch" data-week="W2">
+        <span class="wk-badge">W2</span><span class="card-chev">›</span>
+        <div class="card-title">Harbor Building Art (MCP)</div>
+        <div class="card-desc">Real meshes in ReplicatedStorage — procedural factory is fallback only</div>
+      </div>
+
+      <div class="card card-o in-progress-card" tabindex="0" data-id="smokehouse" data-cat="launch" data-week="W2" data-progress="in-progress">
+        <span class="wk-badge">W2</span><span class="card-chev">›</span>
+        <div class="card-title">Smokehouse — Studio QA</div>
+        <div class="card-desc">Gameplay code shipped (service, UI, EconomyUtil 3× sell) — verify ProximityPrompt, claim, demolish refund in Studio</div>
+      </div>
+
+      <div class="card card-o" tabindex="0" data-id="asset-audio-sfx" data-cat="launch" data-week="W2">
+        <span class="wk-badge">W2</span><span class="card-chev">›</span>
+        <div class="card-title">Audio / SFX System</div>
+        <div class="card-desc">AssetIds.lua + SoundController, ReducedMotion volume scale</div>
+      </div>
+
+      <div class="card card-o" tabindex="0" data-id="reel-validation" data-cat="launch" data-week="W2">
+        <span class="wk-badge">W2</span><span class="card-chev">›</span>
         <div class="card-title">Server Reel Validation</div>
-        <div class="card-desc">Anti-exploit Path B — server-side score check on reel mini-game results</div>
-      </div>
-
-      <div class="card card-o" tabindex="0" data-id="sound-design">
-        <span class="card-chev">›</span>
-        <div class="card-title">Sound Design System</div>
-        <div class="card-desc">Ocean ambient, cast SFX, building chimes, ReducedMotion compliance</div>
-      </div>
-
-      <div class="card card-o" tabindex="0" data-id="smokehouse">
-        <span class="card-chev">›</span>
-        <div class="card-title">Smokehouse Pipeline</div>
-        <div class="card-desc">Fish preservation → GoodItem, 3× sell price, slot state in profile</div>
-      </div>
-
-      <div class="card card-o" tabindex="0" data-id="lighthouse">
-        <span class="card-chev">›</span>
-        <div class="card-title">Lighthouse Aura Effect</div>
-        <div class="card-desc">Rarity bump within radius — building defined in catalog, logic missing</div>
+        <div class="card-desc">Tighten perfectFraction checks beyond MinReelSeconds</div>
       </div>
     </div>
 
-    <!-- Near-Term -->
     <div class="cb">
-      <div class="col-head">📅 Near-Term (Wk 1–2)</div>
+      <div class="col-head">Near-Term</div>
 
-      <div class="card card-b" tabindex="0" data-id="leaderboards">
-        <span class="card-chev">›</span>
-        <div class="card-title">Leaderboard System</div>
-        <div class="card-desc">3 OrderedDataStore tracks, top-10 panel, HUD button</div>
-      </div>
-
-      <div class="card card-b" tabindex="0" data-id="notifications">
-        <span class="card-chev">›</span>
+      <div class="card card-b" tabindex="0" data-id="notifications" data-cat="near" data-week="W2">
+        <span class="wk-badge">W2</span><span class="card-chev">›</span>
         <div class="card-title">Notification Toasts</div>
         <div class="card-desc">Market sold, demand spike, quest complete, streak milestones</div>
       </div>
 
-      <div class="card card-b" tabindex="0" data-id="visiting">
-        <span class="card-chev">›</span>
-        <div class="card-title">Harbor Visiting</div>
-        <div class="card-desc">Teleport to other plots, ghost mode, Message in a Bottle</div>
+      <div class="card card-b in-progress-card" tabindex="0" data-id="social-ui-v1" data-cat="near" data-week="W3" data-progress="in-progress">
+        <span class="wk-badge">W3</span><span class="card-chev">›</span>
+        <div class="card-title">Crew UI v1</div>
+        <div class="card-desc">SocialUI modal + emotes exist — wire create/join/chat roster; replace print stubs</div>
       </div>
 
-      <div class="card card-b" tabindex="0" data-id="crew-depth">
-        <span class="card-chev">›</span>
+      <div class="card card-b" tabindex="0" data-id="visiting" data-cat="near" data-week="W3">
+        <span class="wk-badge">W3</span><span class="card-chev">›</span>
+        <div class="card-title">Harbor Visiting</div>
+        <div class="card-desc">Same-server teleport, ghost mode, Message in a Bottle</div>
+      </div>
+
+      <div class="card card-b" tabindex="0" data-id="leaderboards" data-cat="near" data-week="W3">
+        <span class="wk-badge">W3</span><span class="card-chev">›</span>
+        <div class="card-title">Leaderboard System</div>
+        <div class="card-desc">3 OrderedDataStore tracks, top-10 HUD panel</div>
+      </div>
+
+      <div class="card card-b" tabindex="0" data-id="crew-depth" data-cat="near" data-week="W3">
+        <span class="wk-badge">W3+</span><span class="card-chev">›</span>
         <div class="card-title">Crew Gameplay Depth</div>
-        <div class="card-desc">Crew missions, crew board, contribution tracking, name/emblem</div>
+        <div class="card-desc">After UI v1: missions, board, contribution stats</div>
       </div>
     </div>
 
-    <!-- Content -->
     <div class="cb">
-      <div class="col-head">🎮 Content (Wk 3–4)</div>
+      <div class="col-head">Content</div>
 
-      <div class="card card-b" tabindex="0" data-id="achievements">
-        <span class="card-chev">›</span>
+      <div class="card card-b in-progress-card" tabindex="0" data-id="ui-overhaul" data-cat="content" data-week="W4" data-progress="in-progress">
+        <span class="wk-badge">W4</span><span class="card-chev">›</span>
+        <div class="card-title">Complete UI Redesign</div>
+        <div class="card-desc">~60% — 8 modals on makeModalShell; HUD rebuild #3 done; continue per docs/UI_OVERHAUL.md</div>
+      </div>
+
+      <div class="card card-b in-progress-card" tabindex="0" data-id="ui-remaining-screens" data-cat="content" data-week="W4" data-progress="in-progress">
+        <span class="wk-badge">W4</span><span class="card-chev">›</span>
+        <div class="card-title">Finish UI Migration (6 screens)</div>
+        <div class="card-desc">CastMeter, CatchReveal, QuestTracker, Dialogue, RodSelect, HUD polish — UIUtil + MotionUtil rules</div>
+      </div>
+
+      <div class="card card-b" tabindex="0" data-id="achievements" data-cat="content" data-week="W4">
+        <span class="wk-badge">W4</span><span class="card-chev">›</span>
         <div class="card-title">Achievement System</div>
         <div class="card-desc">AchievementCatalog, event-driven progress, badge rewards</div>
       </div>
 
-      <div class="card card-b" tabindex="0" data-id="price-history">
-        <span class="card-chev">›</span>
+      <div class="card card-b" tabindex="0" data-id="price-history" data-cat="content" data-week="W4">
+        <span class="wk-badge">W4</span><span class="card-chev">›</span>
         <div class="card-title">Market Price History</div>
-        <div class="card-desc">Per-species sale log, sparkline in MarketUI, avg/last stats</div>
+        <div class="card-desc">Per-species sale log, sparkline in MarketUI</div>
       </div>
 
-      <div class="card card-b" tabindex="0" data-id="mobile-polish">
-        <span class="card-chev">›</span>
+      <div class="card card-b" tabindex="0" data-id="mobile-polish" data-cat="content" data-week="W4">
+        <span class="wk-badge">W4</span><span class="card-chev">›</span>
         <div class="card-title">Mobile UI Polish Pass</div>
-        <div class="card-desc">44px audit, thumb zones, touch input paths, ReducedMotion sweep</div>
+        <div class="card-desc">QA pass after Complete UI Redesign — 44px, touch, ReducedMotion</div>
+      </div>
+
+      <div class="card card-b" tabindex="0" data-id="lighthouse-polish" data-cat="content" data-week="W4">
+        <span class="wk-badge">QA</span><span class="card-chev">›</span>
+        <div class="card-title">Lighthouse Polish (optional)</div>
+        <div class="card-desc">Server rarity bump shipped — add visible aura VFX + Studio QA</div>
       </div>
     </div>
 
-    <!-- Monetization / Future -->
     <div class="cp">
-      <div class="col-head">💎 Monetization &amp; Future</div>
+      <div class="col-head">Monetization &amp; Future</div>
 
-      <div class="card card-p" tabindex="0" data-id="cosmetic-shop">
-        <span class="card-chev">›</span>
+      <div class="card card-p" tabindex="0" data-id="cosmetic-shop" data-cat="monetize" data-week="Post">
+        <span class="wk-badge">Post</span><span class="card-chev">›</span>
         <div class="card-title">Cosmetic Shop (Robux)</div>
-        <div class="card-desc">CosmeticCatalog, ProcessReceipt idempotency, rod wraps, harbor decor</div>
+        <div class="card-desc">Visual-only — ProcessReceipt idempotency</div>
       </div>
 
-      <div class="card card-p" tabindex="0" data-id="season-pass">
-        <span class="card-chev">›</span>
+      <div class="card card-p" tabindex="0" data-id="season-pass" data-cat="monetize" data-week="Post">
+        <span class="wk-badge">Post</span><span class="card-chev">›</span>
         <div class="card-title">Seasonal Pass</div>
-        <div class="card-desc">28-day track, SeasonXP, 30 tiers, free + premium, cosmetics only</div>
+        <div class="card-desc">28-day track, cosmetics only, no gameplay stats</div>
       </div>
 
-      <div class="card card-p" tabindex="0" data-id="events">
-        <span class="card-chev">›</span>
+      <div class="card card-p" tabindex="0" data-id="events" data-cat="monetize" data-week="Post">
+        <span class="wk-badge">Post</span><span class="card-chev">›</span>
         <div class="card-title">Seasonal Events System</div>
-        <div class="card-desc">EventService, festival fish, token shop, weather override, /setevent</div>
+        <div class="card-desc">EventService, festival fish, token shop, /setevent</div>
       </div>
     </div>
 
-  </div><!-- /cols -->
+  </div>
 
-  <!-- Completed Systems -->
   <div class="acc">
     <div class="acc-head" id="accHead">
-      <span>✅ Completed Systems — 16 services · 15 controllers · 13 UI modules</span>
+      <span>Completed Systems — 18 services · 18 controllers · 14 UI modules</span>
       <span class="acc-chev">▼</span>
     </div>
     <div class="acc-body" id="accBody">
       <div class="chip-grid">
-        <div class="chip">✓ FishingService</div><div class="chip">✓ HarborService</div>
-        <div class="chip">✓ MarketService</div><div class="chip">✓ QuestService</div>
-        <div class="chip">✓ TutorialService</div><div class="chip">✓ RodService</div>
-        <div class="chip">✓ BaitService</div><div class="chip">✓ ShopService</div>
-        <div class="chip">✓ AquariumService</div><div class="chip">✓ SocialService</div>
-        <div class="chip">✓ TideService</div><div class="chip">✓ WeatherService</div>
-        <div class="chip">✓ WorldService</div><div class="chip">✓ AdminService</div>
-        <div class="chip">✓ PlayerDataService</div><div class="chip">✓ HarborVisualService</div>
-        <div class="chip">✓ FishingController</div><div class="chip">✓ HarborVisualController</div>
-        <div class="chip">✓ HarborEditController</div><div class="chip">✓ TutorialController</div>
-        <div class="chip">✓ HUDController</div><div class="chip">✓ RodSelectController</div>
-        <div class="chip">✓ BaitShopController</div><div class="chip">✓ AquariumController</div>
-        <div class="chip">✓ MarketController</div><div class="chip">✓ QuestTrackerController</div>
-        <div class="chip">✓ SocialController</div><div class="chip">✓ ShopController</div>
-        <div class="chip">✓ InventoryController</div><div class="chip">✓ AdminController</div>
-        <div class="chip">✓ WorldFXController</div><div class="chip">✓ CastMeter UI</div>
-        <div class="chip">✓ QuestTrackerUI</div><div class="chip">✓ HUD</div>
-        <div class="chip">✓ RodSelectUI</div><div class="chip">✓ CatchRevealUI</div>
-        <div class="chip">✓ BaitShopUI</div><div class="chip">✓ MarketUI</div>
-        <div class="chip">✓ HarborEditUI</div><div class="chip">✓ DialogueUI</div>
-        <div class="chip">✓ InventoryUI</div><div class="chip">✓ AquariumUI</div>
-        <div class="chip">✓ ShopUI</div><div class="chip">✓ FishCatalog (100+ species)</div>
-        <div class="chip">✓ RodCatalog (10 tiers)</div><div class="chip">✓ BuildingCatalog (7 buildings)</div>
-        <div class="chip">✓ BaitCatalog (4 baits)</div><div class="chip">✓ QuestTemplates (18 templates)</div>
-        <div class="chip">✓ GameConfig</div>
+        <div class="chip">FishingService</div><div class="chip">HarborService</div>
+        <div class="chip">MarketService</div><div class="chip">QuestService</div>
+        <div class="chip">TutorialService</div><div class="chip">RodService</div>
+        <div class="chip">BaitService</div><div class="chip">ShopService</div>
+        <div class="chip">AquariumService</div><div class="chip">SmokehouseService</div><div class="chip">SocialService</div>
+        <div class="chip">TideService</div><div class="chip">WeatherService</div>
+        <div class="chip">WorldService</div><div class="chip">AdminService</div>
+        <div class="chip">PlayerDataService</div><div class="chip">HarborVisualService</div>
+        <div class="chip">BiomeTestService (dev)</div>
+        <div class="chip">FishingController</div><div class="chip">HarborVisualController</div>
+        <div class="chip">HarborEditController</div><div class="chip">TutorialController</div>
+        <div class="chip">HUDController</div><div class="chip">RodSelectController</div>
+        <div class="chip">BaitShopController</div><div class="chip">AquariumController</div>
+        <div class="chip">MarketController</div><div class="chip">QuestTrackerController</div>
+        <div class="chip">SmokehouseController</div><div class="chip">SocialController</div>
+        <div class="chip">SocialUI</div><div class="chip">SmokehouseUI</div><div class="chip">ShopController</div>
+        <div class="chip">InventoryController</div><div class="chip">HoldFishController</div>
+        <div class="chip">CastMeterController</div><div class="chip">AdminController</div>
+        <div class="chip">WorldFXController</div>
+        <div class="chip">BuildingModelFactory</div>
+        <div class="chip">Lighthouse rarity (FishingService)</div>
+        <div class="chip">FishCatalog (100 species)</div>
+        <div class="chip">RodCatalog</div><div class="chip">BuildingCatalog (7)</div>
+        <div class="chip">BaitCatalog</div><div class="chip">QuestTemplates (18)</div>
+        <div class="chip">GameConfig</div>
+        <div class="chip">EconomyUtil</div>
+        <div class="chip">MotionUtil</div>
+        <div class="chip">docs/UI_OVERHAUL.md</div>
+        <div class="chip">MCP_HarborBuildings.md</div>
       </div>
     </div>
   </div>
 
 </main>
 
-<!-- Overlay -->
 <div class="overlay" id="overlay"></div>
 
-<!-- Drawer -->
 <div class="drawer" id="drawer" aria-modal="true" role="dialog">
   <div class="dr-head">
     <div class="dr-head-row">
       <div class="dr-title" id="drTitle"></div>
-      <button class="xbtn" id="xbtn" aria-label="Close">✕</button>
+      <button class="xbtn" id="xbtn" aria-label="Close">×</button>
     </div>
-    <span class="badge" id="drBadge"></span>
+    <span class="badge" id="drBadge"></span><span id="drWeek" style="font-size:10px;color:var(--muted)"></span>
   </div>
   <div class="dr-desc" id="drDesc"></div>
   <div class="dr-body">
-    <div class="pr-label">Claude Code Prompt — paste directly into the chat</div>
+    <div class="pr-label">Agent prompt — paste into Cursor chat</div>
     <div class="pr-box"><pre id="drPrompt"></pre></div>
-    <button class="cpbtn" id="cpbtn">
-      <span id="cpicon">⧉</span><span id="cptext">Copy Prompt</span>
-    </button>
+    <button class="cpbtn" id="cpbtn"><span id="cptext">Copy Prompt</span></button>
   </div>
 </div>
 
 <script>
 const NODES = {
 
-"reel-validation": {
-  title: "Server-Side Reel Validation",
-  cat: "Launch Critical", badge: "badge-o",
-  desc: "The reel mini-game runs entirely client-side. This adds server-side score validation so impossible reel results can't grant fish — the existing FishingService comment calls it \"Path B\".",
+"harbor-building-art": {
+  title: "Harbor Building Art (Studio MCP)",
+  cat: "Launch Critical", badge: "badge-o", week: "Week 2",
+  desc: "HarborVisualController clones ReplicatedStorage.Assets.Buildings when present; BuildingModelFactory is the procedural fallback. Install real meshes per scripts/Studio/MCP_HarborBuildings.md.",
   prompt:
-`In \`src/Server/Services/FishingService.lua\`, implement server-side reel mini-game validation (the existing TODO comment calls this "Path B").
+`Install harbor building visuals into the open Roblox place using the documented MCP workflow. Read \`scripts/Studio/MCP_HarborBuildings.md\` and \`scripts/Studio/MCP_Setup.md\` first.
 
-The reel game runs client-side in FishingController. Add server-side score validation:
-1. When the server generates a BiteStarted event, store the expected difficulty window for that fish's tension tier (light/medium/heavy/legendary) in a per-cast session table keyed by player UserId + castId.
-2. When the client fires ReleaseReel or ReportEscape, compare the claimed reel score against GameConfig.AntiExploit.ReelValidation.MaxScoreByTier[tier]. If the score is implausibly high, force-escape the fish instead of granting it.
-3. Log suspicious claims (score > 2× max) to a DataStore audit log keyed "TidesAudit_v1".
-4. Add GameConfig.AntiExploit.ReelValidation = { MaxScoreByTier = { light=1.0, medium=1.0, heavy=1.0, legendary=1.0 } } — tune values after playtesting.
+Goal: for each of the 7 kinds in BuildingCatalog (Dock, MarketStall, Smokehouse, Lighthouse, BaitShop, Aquarium, Guildhall), tiers 1–3 exist at:
+  ReplicatedStorage.Assets.Buildings.<Kind>.tier<N>.Visual
 
-Follow existing RateLimiter patterns in FishingService. No client-side changes needed.`
+Asset contract (do not skip):
+- Visual is a Model with mesh geometry (MeshPart preferred over Part boxes).
+- Visual.PrimaryPart = invisible part at bbox bottom-center.
+- Visual.Footprint = StringValue matching catalog (e.g. Dock "4x6", Guildhall "5x5").
+- rotation=0: width on world X, depth on Z; shop fronts toward -Z; Dock pier toward +Z.
+
+Per tier workflow:
+1. Run CommandBar_ClearHarborBuildings.luau for the kind.
+2. Studio MCP generate_mesh using the per-kind prompts in MCP_HarborBuildings.md (prefix: axis-aligned, low-poly cozy harbor, longer side along Z).
+3. Run CommandBar_InstallHarborVisual.luau (KIND, TIER, footprint, FACING_YAW_EXTRA).
+4. Save the place (Ctrl+S) — assets are not Rojo-synced.
+
+Validate in Play: HarborVisualController logs no missing-asset warnings; upgrades tween between tier models; buildings read clearly from 30+ studs (CLAUDE.md visible transformation pillar).
+
+Do not change gameplay services unless a footprint mismatch breaks HarborService grid validation.
+
+Acceptance:
+- [ ] All 7 kinds × 3 tiers present under ReplicatedStorage.Assets.Buildings
+- [ ] No missing-asset warnings in Output on place/upgrade
+- [ ] Tier upgrade readable from 30+ studs away`
 },
 
-"sound-design": {
-  title: "Sound Design System",
-  cat: "Launch Critical", badge: "badge-o",
-  desc: "There is currently no audio in the game at all. This adds ocean ambient, reactive SFX for all major game events, and full ReducedMotion compliance. All audio is client-local.",
+"reel-validation": {
+  title: "Server-Side Reel Validation",
+  cat: "Launch Critical", badge: "badge-o", week: "Week 2",
+  desc: "ReleaseReel already enforces MinReelSeconds. The server still cannot verify client-reported perfectFraction — tighten anti-exploit without reimplementing the reel UI.",
   prompt:
-`Create \`src/Client/Controllers/SoundController.lua\` for the game's audio system. No server-side service needed — all audio is client-local.
+`Harden reel validation in \`src/Server/Services/FishingService.lua\`. Do NOT reimplement the client reel mini-game.
 
-SoundController responsibilities:
-- On init, build a SoundGroup hierarchy under a new "TidesSounds" Folder in SoundService: groups for Ambient, SFX, Music.
-- Ambient: loop an ocean ambient sound (asset ID from GameConfig.Sound.AssetIds.OceanAmbient). Volume fades based on camera distance from water (use a simple camera Y-position heuristic or WorldService's coastline data).
-- SFX reactions — listen to local Knit signals from other controllers:
-  - FishingController CastResolved → play cast splash sound
-  - FishingController BiteStarted (heavy/legendary tier) → play reel tension creak
-  - HarborVisualController BuildingPlaced → play placement thunk
-  - HarborVisualController BuildingUpgraded → play upgrade chime
-  - MarketController sale confirmed → play coin jingle
-- Respect GuiService.ReducedMotionEnabled — when true, set all SFX volume to 50% of configured value.
-- Use Trove for all sound instance cleanup.
+Current state (read the file first):
+- \`ReleaseReel\` clamps perfectFraction to [0,1] and rejects casts shorter than GameConfig.AntiExploit.MinReelSeconds (already shipped).
+- Comment at ~557 admits the server cannot verify the fraction value.
 
-Add to GameConfig:
-GameConfig.Sound = {
-  AssetIds = {
-    OceanAmbient = "rbxassetid://0",
-    CastSplash   = "rbxassetid://0",
-    ReelCreak    = "rbxassetid://0",
-    PlaceThunk   = "rbxassetid://0",
-    UpgradeChime = "rbxassetid://0",
-    CoinJingle   = "rbxassetid://0",
-  },
-  Volumes = { Ambient=0.4, SFX=0.8, Music=0.3 },
-  ReducedMotionMultiplier = 0.5,
-}
-Replace "rbxassetid://0" with real asset IDs once sourced.`
+Add Path B validation:
+1. On BiteStarted / transition to phase "reeling", store in the pending cast session:
+   - fish tension tier derived from rarity (light/medium/heavy/legendary)
+   - reelStartedAt (already present)
+   - optional: server-side max plausible perfectFraction for that tier
+2. In ReleaseReel, after MinReelSeconds check:
+   - If perfectFraction >= GameConfig.AntiExploit.ReelValidation.MaxPerfectFraction[tier], treat as non-perfect (or force escape if fraction is 1.0 with duration below tier minimum play time).
+   - Add GameConfig.AntiExploit.ReelValidation = { MaxPerfectFraction = { light=0.95, medium=0.92, heavy=0.88, legendary=0.85 }, MinReelSecondsByTier = { ... } } — tune after playtest.
+3. Optional audit: log claims where perfectFraction > MaxPerfectFraction to DataStore "TidesAudit_v1" (rate-limited).
+
+Use existing RateLimiter patterns. Profile/DataStore: no TidesProfile_v1 bump. Client changes only if you need to send an extra telemetry field — prefer server-only.`
+},
+
+"asset-audio-sfx": {
+  title: "Audio / SFX System",
+  cat: "Launch Critical", badge: "badge-o", week: "Week 2",
+  desc: "AssetIds.lua and GameConfig.Sound are mostly placeholders. WorldFXController has stub ambient. Centralize client audio with ReducedMotion compliance.",
+  prompt:
+`Create \`src/Client/Controllers/SoundController.lua\` and wire existing TODO asset IDs.
+
+1. Populate \`src/Client/AssetIds.lua\` SFX entries (cast splash, catch, miss, perfect ding, upgrade chime, coin jingle) — use rbxassetid://0 placeholders until art supplies real IDs.
+2. Add/extend GameConfig.Sound in \`src/Shared/Config/GameConfig.lua\`:
+   AssetIds table, Volumes { Ambient, SFX, Music }, ReducedMotionMultiplier = 0.5.
+3. SoundController (Knit):
+   - Trove for cleanup.
+   - SoundGroups under SoundService: Ambient, SFX, Music.
+   - Loop ocean ambient (GameConfig or AssetIds).
+   - Subscribe to existing client signals:
+     FishingController cast resolve / bite (heavy+ reel creak)
+     HarborVisualController placement + upgrade (see HarborVisualController TODO rbxassetids)
+     MarketController sale success (replace print TODO)
+   - GuiService.ReducedMotionEnabled: halve SFX volume (and skip decorative bursts if any).
+4. Migrate stub logic out of WorldFXController ambient TODO into SoundController; leave WorldFX for particles/weather only.
+
+CLAUDE.md: no gameplay changes from audio. Register controller in init.client.lua via Knit.AddControllersDeep (auto if file is under Controllers/).`
 },
 
 "smokehouse": {
-  title: "Smokehouse Pipeline",
-  cat: "Launch Critical", badge: "badge-o",
-  desc: "The Smokehouse building is fully defined in BuildingCatalog (2/5/10 slots per tier, 3× price multiplier already in GameConfig.Economy) but has zero runtime logic. Players can place the building but can't actually use it.",
+  title: "Smokehouse — Studio QA",
+  cat: "Launch Critical", badge: "badge-o", week: "Week 2 · In progress",
+  desc: "Gameplay code shipped: SmokehouseService, SmokehouseController, SmokehouseUI, preserveSlots on buildings, EconomyUtil 3× sell for preserved_* goods. Remaining work is Studio QA and bugfixes only.",
   prompt:
-`Implement the Smokehouse building's fish preservation mechanic. The building and its slot counts are already defined in BuildingCatalog.lua and GameConfig — only the runtime logic is missing.
+`Studio QA for the Smokehouse — do NOT greenfield reimplement. Read existing code first:
+- \`src/Server/Services/SmokehouseService.lua\` (PlaceFishInSmokehouse, CancelFishInSmokehouse, ClaimPreservedFish, TickFor, RefundAllSlots)
+- \`src/Client/Controllers/SmokehouseController.lua\` (ProximityPrompt "Open Smokehouse")
+- \`src/Client/UI/SmokehouseUI.lua\`
+- \`src/Shared/Types.lua\` preserveSlots on building entries
+- GameConfig.Buildings.Smokehouse.PreserveTimeSec and Economy.SmokehouseMultiplier = 3
 
-Changes in \`src/Server/Services/HarborService.lua\` (extract to SmokehouseService if logic exceeds ~150 lines):
+Studio test checklist:
+1. Place Smokehouse tier 1–3; confirm slot counts match BuildingCatalog smokehouseSlots (2/5/10).
+2. Open via ProximityPrompt; place fish from inventory; UI shows countdown; cancel returns fish (cozy: no failure).
+3. After PreserveTimeSec (300s) or tick: slot shows ready; ClaimPreservedFish adds goodId preserved_<speciesId> to inventory.
+4. Sell preserved good — confirm 3× via EconomyUtil.sellPriceForGood (preserved_* prefix + GameConfig.Economy.SmokehouseMultiplier); wire inventory sell only if broken.
+5. Demolish or relocate smokehouse: RefundAllSlots returns in-progress fish to inventory.
+6. SmokehouseChanged signal updates open UI without reopen.
 
-1. Add two new RemoteEvents:
-   - PlaceFishInSmokehouse(buildingUid, fishUid)
-   - ClaimPreservedFish(buildingUid, slotIndex)
+Fix only bugs found; minimal diff. 44px buttons, 12px fonts, MotionUtil + ReducedMotion in UI.
 
-2. PlaceFishInSmokehouse handler:
-   - Validate: player owns that buildingUid, kind == "Smokehouse", slot is empty, fishUid is in inventory.
-   - Remove fish from inventory, store { fishUid, speciesId, startedAt = os.time() } in profile.buildings[uid].preserveSlots[slotIndex].
-
-3. Periodic tick (60s, alongside existing income tick):
-   - For each player, for each Smokehouse slot with a pending fish:
-     - If os.time() - startedAt >= GameConfig.Buildings.Smokehouse.PreserveTimeSec:
-       - Convert to GoodItem { uid=UidUtil.new("gd"), goodId="preserved_"..speciesId, count=1 }
-       - Add GoodItem to inventory, clear the slot.
-
-4. ClaimPreservedFish handler:
-   - If the slot holds a finished GoodItem (not a pending fish), move it to inventory.
-
-5. Profile schema: preserveSlots is additive on each PlacedBuilding — safe default = {}. Use Reconcile, no schema version bump needed.
-
-6. Add GameConfig.Buildings.Smokehouse.PreserveTimeSec = 300. The SmokehouseMultiplier = 3 is already in GameConfig.Economy.
-
-Add SmokehouseUI and SmokehouseController following existing HarborEditUI / HarborEditController patterns for the client side.`
-},
-
-"lighthouse": {
-  title: "Lighthouse Aura Effect",
-  cat: "Launch Critical", badge: "badge-o",
-  desc: "BuildingCatalog already defines the Lighthouse radius (30/55/90 studs per tier), but FishingService never reads it. The rarity bump during the species roll is entirely missing.",
-  prompt:
-`Wire up the Lighthouse building's per-cast rarity bonus in \`src/Server/Services/FishingService.lua\`.
-
-BuildingCatalog already defines radius per tier (30/55/90 studs). Add the application:
-
-1. Maintain a per-player lighthouse cache: lighthouseCache[userId] = { position: Vector3, tier: number }.
-   - Rebuild the cache entry when HarborService signals BuildingPlaced or BuildingUpgraded for a Lighthouse.
-   - Clear the cache entry on BuildingRemoved.
-   - Read positions from the BuildingAnchor Part (CollectionService tag "BuildingAnchor") for that building uid.
-
-2. In the rarity roll section of FishingService (where the species is selected from the weighted pool):
-   - Look up lighthouseCache[player.UserId].
-   - If the cached position exists and the server-authoritative cast position (stored in the cast session from WorldService's biome zone, not the client-reported value) is within the lighthouse's radius studs:
-     - Apply a flat additive rarity upgrade probability of GameConfig.Buildings.Lighthouse.RarityBumpChance[tier].
-     - Example: on a Common result, roll; if < bumpChance, upgrade to Uncommon. On Uncommon, upgrade to Rare.
-
-3. Add to GameConfig:
-   GameConfig.Buildings.Lighthouse.RarityBumpChance = {0.05, 0.10, 0.18}  -- tiers 1/2/3
-
-No client-side changes needed — rarity is already communicated in CastResolved.`
-},
-
-"leaderboards": {
-  title: "Leaderboard System",
-  cat: "Near-Term", badge: "badge-b",
-  desc: "Three competitive tracks (top anglers by total catches, wealthiest harbors by lifetime coins, rarest collectors by Mythic species count) shown in a tabbed HUD panel.",
-  prompt:
-`Create \`src/Server/Services/LeaderboardService.lua\` and \`src/Client/Controllers/LeaderboardController.lua\` with a new LeaderboardUI panel.
-
-Server (LeaderboardService):
-- Three Roblox OrderedDataStore tracks:
-  • "TidesLB_Catches_v1" — value = profile.stats.totalCatches
-  • "TidesLB_Coins_v1"   — value = profile.stats.totalCoinsEarned
-  • "TidesLB_Mythic_v1"  — value = count of Mythic-rarity species in profile.stats.caughtSpecies
-    (filter by looking up each speciesId in FishCatalog and checking rarity == "Mythic")
-- Update a player's scores on PlayerRemoving and every GameConfig.Leaderboards.UpdateIntervalSec = 300 seconds during their session.
-- Expose LeaderboardService:GetTopN(trackId, n) returning { {rank, displayName, score}, ... }, cached for GameConfig.Leaderboards.CacheSec = 60 seconds.
-- Add: GameConfig.Leaderboards = { CacheSec=60, TopN=10, UpdateIntervalSec=300 }
-
-Client (LeaderboardController + LeaderboardUI):
-- A panel with three tabs: "Top Anglers" / "Wealthiest Harbors" / "Rarest Catches".
-- Fetches the active tab's data via a RemoteFunction on open (or on tab switch if cache is stale).
-- Shows top 10 rows: rank badge (#1 gold, #2 silver, #3 bronze, rest plain), display name, formatted score.
-- Highlights the current player's row with a subtle border if they appear in the top 10.
-- A "Leaderboard" button added to the HUD following HUDController's existing icon-button pattern.
-- Respects ReducedMotionEnabled for row entry animations (MotionUtil).`
+Acceptance: all 6 checklist steps pass in Studio on tier 1–3 smokehouses.`
 },
 
 "notifications": {
   title: "Notification Toast System",
-  cat: "Near-Term", badge: "badge-b",
-  desc: "Bottom-center slide-up toasts for four event types. The server signals already exist in MarketService and QuestService — this just plumbs them to the client and renders the UI.",
+  cat: "Near-Term", badge: "badge-b", week: "Week 2",
+  desc: "MarketController and QuestService have TODOs for toasts. Wire server signals to a bottom-center queue.",
   prompt:
 `Create \`src/Client/Controllers/NotificationController.lua\` and \`src/Client/UI/NotificationUI.lua\`.
 
-Four notification types (delivered via new Knit RemoteSignals from the server):
+Server — add Knit RemoteSignals (targeted, not full profile replicate):
+1. MarketService: ItemSold → seller with { displayName, price } on purchase complete.
+2. MarketService: DemandSpike → all clients with { speciesId, displayName } when daily demand rotates.
+3. QuestService: QuestCompletedToast → player with { questId, renderedText }.
+4. QuestService: StreakMilestone → player at days {7,14,30,50,100}.
 
-1. Market sold: add a new "ItemSold" RemoteSignal in MarketService fired to the selling player with { displayName, price } when their listing is purchased. Toast: "Your [displayName] sold for [price] coins!"
+Client:
+- Bottom-center stack, max GameConfig.UI.Notification.MaxQueue = 3, FIFO drop.
+- Hold GameConfig.UI.Notification.HoldSec = 3; slide via MotionUtil; ReducedMotionEnabled = fade only, halved durations.
+- Min height 44px, TextSize >= 12, above thumb zone (cast button).
 
-2. Demand spike: MarketService already fires DemandRotated internally — add a client RemoteSignal broadcast so players see: "⬆ High demand: [species name] pays 2.5× today!"
+Add GameConfig.UI.Notification = { MaxQueue=3, HoldSec=3, SlideSec=0.25, FadeSec=0.30 }.
 
-3. Quest complete: QuestService already fires QuestCompleted — add a client RemoteSignal so players see: "Quest done: [renderedText]! Tap to claim."
+Replace MarketController print TODO. No pay-to-win. No schema bump.
 
-4. Streak milestone: QuestService already fires StreakAdvanced — show a toast at milestones {7, 14, 30, 50, 100} days: "🔥 [N]-day streak!"
+Acceptance:
+- [ ] Item sold, demand spike, quest complete, streak milestone each show a toast
+- [ ] Max 3 visible; ReducedMotion uses fade-only`
+},
 
-UI requirements (CLAUDE.md compliance):
-- Toasts slide up from off-screen at bottom-center, hold for GameConfig.UI.Notification.HoldSec = 3, then fade out.
-- ReducedMotionEnabled: skip the slide, fade only, halve all durations.
-- Queue max GameConfig.UI.Notification.MaxQueue = 3 toasts; FIFO-drop if full.
-- Min height 44px, font min 12px, position above cast button (thumb-accessible zone).
-- Use TweenService via MotionUtil for all animation.
+"social-ui-v1": {
+  title: "Crew UI v1",
+  cat: "Near-Term", badge: "badge-b", week: "Week 3 · In progress",
+  desc: "SocialUI.lua modal + emote buttons exist; crew card is a placeholder. SocialService backend is ready — wire create/join/chat roster and replace SocialController print stubs.",
+  prompt:
+`Complete Crew UI v1 in \`src/Client/UI/SocialUI.lua\` and \`src/Client/Controllers/SocialController.lua\`. SocialUI already exists with emote round-trips and a crew placeholder card — extend it, do not rewrite from scratch. No crew missions or board yet (see crew-depth card).
 
-Add GameConfig.UI.Notification = { MaxQueue=3, HoldSec=3, SlideSec=0.25, FadeSec=0.30 }.`
+SocialUI v1 features (replace placeholder + prints):
+1. If profile.crewId nil: show Create Crew (name TextBox 3–20 chars) and Join Crew (crewId TextBox) buttons calling SocialService Client methods.
+2. If in crew: show crew name, member list (fetch via new SocialService.Client:GetCrewSnapshot RemoteFunction returning { name, members: {userId, displayName} }), Leave Crew button.
+3. Chat tab: TextBox + Send → SocialService.Client:SendCrewChat; render incoming CrewChat signal in a ScrollingFrame (filter text client-side display only — server already validates).
+4. Wire EmotePlayed to play wave animation via AnimationController (replace print TODO) — one emote is enough for v1.
+
+Mobile: 44px buttons, 12px fonts, close button, UIUtil patterns, Trove cleanup on close.
+
+Server: only add GetCrewSnapshot if needed; use existing TidesCrews_v1 DataStore. Guildhall crew bonus already in SocialService join cap check.
+
+Do not surface crew missions until week 3+ drip schedule satisfied. No TidesProfile_v1 bump unless adding optional display fields with reconcile defaults.
+
+Acceptance:
+- [ ] Create and join crew from SocialUI
+- [ ] Member list + crew chat work
+- [ ] One emote plays animation (not print)`
+},
+
+"leaderboards": {
+  title: "Leaderboard System",
+  cat: "Near-Term", badge: "badge-b", week: "Week 3",
+  desc: "Three OrderedDataStore tracks, top-10 panel, HUD button.",
+  prompt:
+`Create \`src/Server/Services/LeaderboardService.lua\` and \`src/Client/Controllers/LeaderboardController.lua\` with LeaderboardUI.
+
+Server:
+- OrderedDataStores: TidesLB_Catches_v1 (totalCatches), TidesLB_Coins_v1 (totalCoinsEarned), TidesLB_Mythic_v1 (mythic species count from stats.caughtSpecies + FishCatalog rarity).
+- Update on PlayerRemoving + every GameConfig.Leaderboards.UpdateIntervalSec = 300.
+- GetTopN(track, n) cached GameConfig.Leaderboards.CacheSec = 60.
+
+Client: 3 tabs, top 10, highlight self, HUD entry button, MotionUtil + ReducedMotion.
+
+GameConfig.Leaderboards = { CacheSec=60, TopN=10, UpdateIntervalSec=300 }.`
 },
 
 "visiting": {
   title: "Harbor Visiting",
-  cat: "Near-Term", badge: "badge-b",
-  desc: "Players can teleport to each other's harbor plots within the same server, browse in a read-only ghost mode, and leave a Message in a Bottle — a short persistent note the plot owner can read.",
+  cat: "Near-Term", badge: "badge-b", week: "Week 3",
+  desc: "Same-server plot visits, ghost edit mode, Message in a Bottle.",
   prompt:
-`Create \`src/Server/Services/VisitService.lua\` with matching VisitController and VisitUI.
+`Create \`src/Server/Services/VisitService.lua\`, VisitController, VisitUI.
 
-Server (VisitService):
-- Tracks active visits: visitSessions[visitorUserId] = visitedUserId. Cleaned up on PlayerRemoving.
-- Exposes two RemoteEvents:
-  • VisitPlayer(targetUserId): validates target is in-server, teleports visitor's HumanoidRootPart to HarborService.GetPlotOrigin(target) + small offset. Sets a "IsVisiting" attribute on the visitor's character.
-  • LeaveVisit(): teleports the visitor back to their own plot origin. Clears the attribute.
-- Fires a RemoteSignal to the visited player's client: PlayerVisited { visitorName } (for the notification toast).
+Server:
+- visitSessions[visitorId] = hostUserId
+- VisitPlayer(targetUserId): same server, teleport to HarborService.GetPlotOrigin + offset, set IsVisiting attribute
+- LeaveVisit(): return to own plot
+- PlayerVisited signal to host (for NotificationController when present)
+- PostBottleMessage: Chat:FilterStringAsync, profile.harborMessages additive max 10 FIFO — reconcile, no version bump
 
-Client (VisitController + VisitUI):
-- "Visit Harbor" button in the HUD opens a panel listing players currently in this server (use Players:GetPlayers()).
-- Tapping a player's entry fires VisitPlayer(targetUserId).
-- HarborEditController: on init and whenever the "IsVisiting" attribute changes, if IsVisiting == true disable all building placement / upgrade / removal interactions and show a "Viewing [Name]'s Harbor" banner.
-- A "Leave" button in the banner fires LeaveVisit().
+Client:
+- HUD Visit Harbor → player list
+- HarborEditController disables edit when IsVisiting, banner "Viewing X's Harbor"
+- Bottle prop read UI on own plot
 
-Message in a Bottle:
-- While visiting, a "Leave a Message" button opens a TextBox (≤120 chars, filtered via Chat:FilterStringAsync before storing).
-- Server: a new RemoteEvent PostBottleMessage(targetUserId, text) appends { fromName, text, sentAt } to the target player's profile under a new harborMessages array (additive, max 10, FIFO trim). Use Reconcile — no schema version bump.
-- On the owner's plot, a floating bottle Part near the dock (tagged "BottleProp") becomes visible when harborMessages is non-empty. Clicking it opens a read-only MessageUI listing the notes.
-
-Add GameConfig.Social = { MaxHarborMessages=10, MessageMaxLength=120 } if not already present.`
+GameConfig.Social.MaxHarborMessages = 10, MessageMaxLength = 120 (add if missing).`
 },
 
 "crew-depth": {
   title: "Crew Gameplay Depth",
-  cat: "Near-Term", badge: "badge-b",
-  desc: "Crew formation already works. This adds three features on top: collective daily missions, a social show-off board, and per-member contribution stats in the roster.",
+  cat: "Near-Term", badge: "badge-b", week: "Week 3+",
+  desc: "After SocialUI v1: crew missions, board, contribution stats.",
   prompt:
-`Expand \`src/Server/Services/SocialService.lua\` with three new crew features. Basic crew formation (join/leave/Guildhall bonuses) already works.
+`Expand \`src/Server/Services/SocialService.lua\` with crew depth features. Prerequisite: SocialUI v1 (create/join/chat) must already work.
 
-Crew data lives in a separate DataStore key "TidesCrew_v1_{crewId}" (not in player profiles — crews are independent entities).
+Crew data: TidesCrews_v1 DataStore (existing). Use UpdateAsync CAS like MarketService.
 
-1. Crew Missions (daily collective quest):
-   - One daily mission per crew, reset at UTC midnight (GameConfig.Social.CrewMissionResetHour = 0).
-   - Template examples: "Crew catches 50 fish today" / "Crew earns 500 coins today".
-   - Each member's qualifying FishCaught / Sold events increment the shared progress in the crew DataStore.
-   - Use UpdateAsync CAS pattern (same as MarketService) for all writes — concurrent members must not double-count.
-   - On completion, SocialService grants rewardCoins to each online crew member via PlayerDataService.AddCoins. Offline members receive coins on next login (store a pendingCrewReward field in their profile, additive, safe default = 0).
-   - New RemoteEvent: ClaimCrewMission() — idempotent, server checks claimed flag per UTC day.
+1. Daily crew mission (UTC midnight reset): shared catch/coin targets, ClaimCrewMission idempotent, offline pendingCrewReward on profile (additive default 0).
+2. Crew board: PostCrewBoard(speciesId, fishUid), max 20 FIFO.
+3. GetCrewStats(crewId): per-member catches/coins snapshot.
 
-2. Crew Board (social showcase):
-   - One post per member per UTC day: { displayName, speciesId, weightKg, postedAt }.
-   - Stored in crewBoard array in the crew DataStore (max 20 posts, FIFO trim).
-   - New RemoteEvent: PostCrewBoard(speciesId, fishUid) — server reads the fish from player inventory to get weight, validates ownership.
-   - SocialController + SocialUI: show the board in a new "Board" tab in the crew roster panel.
+SocialUI: Board + Stats tabs. GameConfig.Social.CrewMission = { ResetHour=0, TemplateCatchCount=50, TemplateCoinTarget=500, RewardCoins=75 }.`
+},
 
-3. Crew Contribution Tracking:
-   - SocialService exposes GetCrewStats(crewId) returning an array of { displayName, totalCatches, totalCoinsEarned } by reading each crew member's online profile or a cached snapshot.
-   - Shown in a "Stats" tab in the crew roster.
+"ui-overhaul": {
+  title: "Complete UI Redesign (continuation)",
+  cat: "Content", badge: "badge-b", week: "Week 4 · In progress (~60%)",
+  desc: "docs/UI_OVERHAUL.md + UIUtil + GameConfig.UI shipped. 8/14 feature UIs use makeModalShell. HUD rebuild #3 done. Do not greenfield-rebuild modals or HUD — align remaining screens and grep for rule violations.",
+  prompt:
+`Continue the UI design system rollout for Tides of Trade. Read \`docs/UI_OVERHAUL.md\` first — it is the source of truth. Presentation only: do NOT change Knit RemoteEvent/Signal contracts, server logic, or profile schema.
 
-Add GameConfig.Social.CrewMission = { ResetHour=0, TemplateCatchCount=50, TemplateCoinTarget=500, RewardCoins=75 }.`
+## Already shipped (do not redo)
+- \`docs/UI_OVERHAUL.md\`, \`src/Client/UI/UIUtil.lua\`, \`GameConfig.UI\` tokens
+- Modals on \`UIUtil.makeModalShell\` (8): InventoryUI, MarketUI, ShopUI, BaitShopUI, AquariumUI, SmokehouseUI, HarborEditUI, SocialUI
+- \`src/Client/UI/HUD.lua\` — rebuild #3 (opaque panels, bottom dock); polish only, do not delete and rebuild
+- Color3.fromRGB only in UIUtil (grep feature UI — should be zero)
+
+## Remaining (~6 screens) — see roadmap card ui-remaining-screens
+CastMeter, CatchRevealUI, QuestTrackerUI, DialogueUI, RodSelectUI, plus HUD polish pass
+
+## Your tasks
+1. Grep \`src/Client/UI/\` for violations: Color3.fromRGB outside UIUtil, raw TweenService:Create (use MotionUtil), TextSize below 12px, buttons below 44px.
+2. For each remaining screen: align layout/spacing/typography to UI_OVERHAUL.md; preserve all controller bindings and callbacks.
+3. Append to docs/UI_OVERHAUL.md only if wireframes or component recipes are missing — no separate UI_DESIGN_SPEC.md unless user requests a full Sea Glass & Parchment rebrand.
+4. Controllers pass: Trove cleanup, ReducedMotion on open/close, correct DisplayOrder per GameConfig.UI.DisplayOrder.
+
+## Acceptance (380×667 portrait)
+- [ ] Grep: no Color3.fromRGB in feature UI files
+- [ ] All 14 UI modules use UIUtil palette/helpers consistently
+- [ ] Touch + ReducedMotion on every modal and overlay
+- [ ] Cast reveal stacks above modals; tutorial above catch reveal
+
+Out of scope: new gameplay (notifications, leaderboards), server changes, TidesProfile_v1 bump.
+After this card ships, run roadmap "Mobile UI Polish Pass" for regression QA.`
+},
+
+"ui-remaining-screens": {
+  title: "Finish UI Migration (6 screens)",
+  cat: "Content", badge: "badge-b", week: "Week 4 · In progress",
+  desc: "Non-modal overlays still on custom layout. Migrate to UIUtil + MotionUtil per docs/UI_OVERHAUL.md without changing behavior.",
+  prompt:
+`Finish UI migration for the 6 remaining screens in Tides of Trade. Read \`docs/UI_OVERHAUL.md\` and \`src/Client/UI/UIUtil.lua\` first. Presentation only — keep every controller callback and Remote contract unchanged.
+
+## Files (in priority order)
+1. \`src/Client/UI/CastMeter.lua\` — hold/release cast, green zone, touch + mouse, DisplayOrder Cast
+2. \`src/Client/UI/CatchRevealUI.lua\` — species/weight/rarity, dismiss, above modals
+3. \`src/Client/UI/QuestTrackerUI.lua\` — 3 daily quests, claim, streak UI
+4. \`src/Client/UI/DialogueUI.lua\` — Mira lines, Continue, TutorialConfig speaker
+5. \`src/Client/UI/RodSelectUI.lua\` — rod list, level lock, equip
+6. \`src/Client/UI/HUD.lua\` — polish only (rebuild #3 already shipped); align tokens, 44px dock, no emoji-as-icons
+
+## Rules (non-negotiable)
+- No Color3.fromRGB outside UIUtil
+- MotionUtil.tween / tweenOrSnap only (ReducedMotion = fade, halve durations)
+- Min 12px text, 44px touch targets
+- Do not change HUD export fields HUDController expects
+
+## Per file
+- Replace ad-hoc colors with UIUtil.Palette
+- Use UIUtil.makeLabel / makePrimaryButton / spacing tokens
+- Route tweens through MotionUtil
+- Test touch on CastMeter and harbor-adjacent flows
+
+Acceptance: each file passes grep audit; Studio 380×667 portrait smoke test for that screen.`
 },
 
 "achievements": {
   title: "Achievement System",
-  cat: "Content", badge: "badge-b",
-  desc: "Persistent badges across five categories, event-driven (hooks into the same signals as QuestService). An AchievementCatalog defines all goals; a new service tracks progress.",
+  cat: "Content", badge: "badge-b", week: "Week 4",
+  desc: "AchievementCatalog + AchievementService, same signal hooks as QuestService.",
   prompt:
 `Create \`src/Shared/Config/AchievementCatalog.lua\` and \`src/Server/Services/AchievementService.lua\`.
 
-AchievementCatalog.lua — mirror the style of QuestTemplates.lua:
-Each entry: { id, displayName, description, category, target, rewardCoins, rewardBadgeId }
-Categories: fishing | economy | harbor | social | exploration
+Categories: fishing | economy | harbor | social | exploration (8–10 each).
 
-Example achievements (at least 8–10 per category):
-- fishing:     "First Catch" (target=1), "Century Angler" (100), "Mythic Hunter" (1 Mythic), "Deep Diver" (fish in all 5 biomes), "Storm Fisher" (catch during Storm weather), "Night Owl" (catch during Night time-of-day), "Perfect Cast x10" (10 perfect casts), "Land a 10kg Fish"
-- economy:     "First Sale" (1 sale), "Thousand Coins" (1000 earned), "Market Magnate" (50 listings posted), "Shrewd Buyer" (10 purchases), "Demand Surfer" (sell during a demand spike)
-- harbor:      "First Building" (place 1), "Tier 3 Master" (upgrade any building to tier 3), "Full Harbor" (all 7 buildings placed), "Passive Earner" (500 passive income coins total), "Smokehouse Chef" (10 preserved fish claimed)
-- social:      "First Crew" (join a crew), "Harbor Tourist" (visit another harbor), "Message Sender" (leave a bottle message), "Crew Mission" (complete 1 crew mission)
-- exploration: "Biome Explorer" (fish in all 5 biomes), "Tide Rider" (fish during high tide), "Night Shift" (fish at Night), "Storm Survivor" (fish during Storm)
+Listen to FishingService.CaughtServer, MarketService sold/listed/bought, HarborService building events, SocialService crew join, VisitService bottle (when exists).
 
-AchievementService:
-- On PlayerAdded, load or init the player's achievement state from their profile.
-- Listen to the same signals as QuestService: FishingService.CaughtServer, MarketService.SoldServer / ListedServer / BoughtServer, HarborService.BuildingPlaced / BuildingUpgraded / BuildingRemoved, SocialService.CrewJoined.
-- On each event, iterate incomplete achievements for that player and increment progress where the event matches.
-- On progress reaching target: mark completed, fire AchievementUnlocked RemoteSignal to client, grant rewardCoins via PlayerDataService.AddCoins (idempotent — check completed flag first).
-- Profile schema addition: achievements = {} table of { [achievementId] = { progress, completed, claimedAt } } (additive, safe default).
+Profile: achievements = { [id] = { progress, completed, claimedAt } } additive reconcile.
 
-AchievementController + AchievementUI:
-- A panel with five category tabs, each showing achievement cards with progress bars and lock/unlock states.
-- Claim button per completed unclaimed achievement fires ClaimAchievement(achievementId) RemoteEvent (server grants, idempotent).
-- AchievementUnlocked also fires a toast via NotificationController if that system is present.`
+AchievementController + AchievementUI: 5 tabs, claim idempotent, toast via NotificationController if present.
+
+No gameplay stat rewards that affect catch rates — coin/badge only.`
 },
 
 "price-history": {
   title: "Market Price History",
-  cat: "Content", badge: "badge-b",
-  desc: "Record the last 50 completed sales per fish species in a dedicated DataStore, then render a sparkline chart and avg/last-sold stats in the MarketUI when browsing listings.",
+  cat: "Content", badge: "badge-b", week: "Week 4",
+  desc: "Per-species sale log + sparkline in MarketUI.",
   prompt:
-`Enhance \`src/Server/Services/MarketService.lua\` to record per-species sale history.
+`Enhance \`src/Server/Services/MarketService.lua\`:
+- On sale complete append to TidesPriceHist_v1_{speciesId}, trim to GameConfig.Market.PriceHistoryMaxRecords = 50.
+- Cache GetPriceHistory(speciesId, n) for PriceHistoryCacheSec = 300.
 
-Server changes:
-- On every completed sale in the existing purchase handler, after coins are transferred, append to a DataStore key "TidesPriceHist_v1_{speciesId}":
-    { price = listing.price, weightKg = listing.weightKg, ts = os.time() }
-- After appending, trim the array to the last GameConfig.Market.PriceHistoryMaxRecords = 50 entries.
-- Cache the fetched history per speciesId in-memory for GameConfig.Market.PriceHistoryCacheSec = 300 seconds to stay within DataStore budget.
-- Expose a new RemoteFunction: GetPriceHistory(speciesId, n) returning the last n sale records (max 20 for client use).
+MarketUI: sparkline bars (Frames), Avg/Last labels, TextSize >= 12, ReducedMotion skips grow animation.
 
-Add to GameConfig: GameConfig.Market.PriceHistoryMaxRecords = 50, GameConfig.Market.PriceHistoryCacheSec = 300.
-
-MarketUI enhancement (\`src/Client/UI/MarketUI.lua\`):
-- When the player selects a species filter or views a listing for a specific species, call GetPriceHistory(speciesId, 20).
-- Render a sparkline chart below the listing list:
-  - A horizontal row of Frame bars inside a UIListLayout (no external libraries).
-  - Bar height proportional to price relative to min/max in the dataset.
-  - Bar min-width 4px, gap 2px between bars.
-  - Respects ReducedMotionEnabled — skip the bar grow-in animation if true.
-- Show text labels: "Avg: [X] coins" and "Last sold: [Y] coins" in TextSize ≥ 12.
-- No profile schema changes — history is its own DataStore, not stored in player data.`
+Separate DataStore — no profile bump.`
 },
 
 "mobile-polish": {
   title: "Mobile UI Polish Pass",
-  cat: "Content", badge: "badge-b",
-  desc: "A full audit of every interactive element and animation path against the CLAUDE.md mobile-first rules. Fix everything in-place; no new abstractions.",
+  cat: "Content", badge: "badge-b", week: "Week 4",
+  desc: "Verification checklist after ui-overhaul — 44px, touch, ReducedMotion, thumb zone.",
   prompt:
-`Perform a mobile-first UI audit across \`src/Client/UI/\` and \`src/Client/Controllers/\`. Fix issues in-place. Do not add new abstractions — patch each file directly.
+`Mobile-first audit of \`src/Client/UI/\` and \`src/Client/Controllers/\`. Run AFTER ui-overhaul and ui-remaining-screens unless skipped. Patch in place — no new frameworks.
 
-Work through this checklist in order:
+Checklist:
+1. All buttons >= 44px at 1x (CastMeter, HarborEdit, MarketUI, BaitShopUI, RodSelectUI, QuestTrackerUI, InventoryUI).
+2. TextSize >= 12 everywhere on 380px portrait.
+3. HarborEditController: TouchStarted/Moved/Ended parallel to MouseButton1.
+4. FishingController: cast hold works on Touch.
+5. ScrollingFrames: InventoryUI, MarketUI, AquariumUI — elastic scroll.
+6. Route stray TweenService calls through MotionUtil for ReducedMotionEnabled.
+7. Primary actions in bottom 40% on 380x667.
 
-1. Hit targets — every TextButton and ImageButton must be ≥ 44px in at least one dimension at base 1× scale.
-   Check these specifically: CastMeter confirm/tap button, HarborEdit grid cells, MarketUI buy/list buttons, BaitShopUI purchase button, RodSelectUI tier cards, QuestTrackerUI claim button, InventoryUI sell button.
+Read CLAUDE.md before editing.`
+},
 
-2. Font floor — every TextLabel and TextButton must have TextSize ≥ 12 (or, if TextScaled = true, the container must be sized so the text never renders below 12px on a 380px-wide viewport). Flag and fix any that can drop below 12px.
+"lighthouse-polish": {
+  title: "Lighthouse Polish (optional QA)",
+  cat: "Content", badge: "badge-b", week: "QA",
+  desc: "Server-side rarity bump is ALREADY in FishingService (_lighthouseCache, RarityBumpChance). Do not reimplement cache logic. Optional client VFX + Studio verification.",
+  prompt:
+`QA and optional polish for the Lighthouse — server logic already exists in \`src/Server/Services/FishingService.lua\` (_lighthouseCache, proximity radius from BuildingCatalog, GameConfig.Buildings.Lighthouse.RarityBumpChance).
 
-3. Touch inputs in HarborEditController — if the building drag-and-drop only listens to MouseButton1 events, add parallel handlers for UserInputService.TouchStarted / TouchMoved / TouchEnded. Touch and mouse code paths should share the same underlying placement logic.
+Do NOT re-add lighthouse cache or rarity roll logic.
 
-4. Cast meter input in FishingController — verify the cast-hold mechanic handles UserInputType.Touch via InputBegan/InputEnded in addition to MouseButton1. If not, add it.
+Tasks:
+1. Studio test: place Lighthouse tiers 1–3, cast inside/outside 30/55/90 stud radii, confirm mythic/rare rate shifts in Output or admin stats.
+2. Optional client VFX in HarborVisualController or WorldFXController: subtle ground ring Particles at lighthouse base (no strobing > 3Hz), disabled when ReducedMotionEnabled.
+3. Fix any BuildingAnchor position mismatch when using MCP meshes (read MCP_HarborBuildings.md).
 
-5. ScrollingFrame settings — in InventoryUI, MarketUI, and AquariumUI verify each ScrollingFrame has ScrollingEnabled = true and an appropriate ScrollingDirection set. Enable elastic scroll behavior (ElasticBehavior = Enum.ElasticBehavior.Always) for the cozy feel.
-
-6. ReducedMotion coverage — grep all controllers for direct TweenService:Create calls not going through MotionUtil. For each one found, route it through MotionUtil so ReducedMotionEnabled is respected automatically.
-
-7. Portrait thumb zones — primary action buttons (cast confirm, sell, buy, list item) should be anchored in the bottom 40% of the screen on a 380×667 portrait viewport. Adjust AnchorPoint and Position.Y if needed.
-
-After each fix, leave a one-line inline comment only if the reason is non-obvious (CLAUDE.md convention).`
+If bugs found in existing server logic, minimal fix only — document what was wrong.`
 },
 
 "cosmetic-shop": {
   title: "Cosmetic Shop (Robux)",
-  cat: "Monetization", badge: "badge-p",
-  desc: "The first real-money feature. All items are visual-only per CLAUDE.md's \"Sell identity, not progress\" pillar. ProcessReceipt must be idempotent — check before granting.",
+  cat: "Monetization", badge: "badge-p", week: "Post-month",
+  desc: "Visual-only monetization per CLAUDE.md pillar 2.",
   prompt:
-`Create \`src/Shared/Config/CosmeticCatalog.lua\` and expand \`src/Server/Services/ShopService.lua\` with a Robux cosmetic shop.
+`Create \`src/Shared/Config/CosmeticCatalog.lua\` and expand ShopService for Robux cosmetics.
 
-CRITICAL CONSTRAINT (CLAUDE.md): every cosmetic must be visual only — zero stat changes, zero catch-rate bonuses, zero pay-to-win. A free player and a paying player fishing side-by-side must feel equally effective.
+CRITICAL (CLAUDE.md): zero gameplay stats, zero catch bonuses, zero coins for sale.
 
-CosmeticCatalog.lua structure:
-return {
-  { id="rod_wrap_coral",    displayName="Coral Rod Wrap",      category="rodWrap",     robuxPrice=99,  assetId="rbxassetid://0", previewImageId="rbxassetid://0" },
-  { id="decor_lantern_01",  displayName="Harbor Lantern",      category="harborDecor", robuxPrice=79,  assetId="rbxassetid://0", previewImageId="rbxassetid://0" },
-  -- ... add 15–20 total entries across rodWrap | harborDecor | character | boatSkin
-}
+CosmeticCatalog: rodWrap | harborDecor | character | boatSkin entries with robuxPrice + preview ids.
 
-ShopService additions:
-1. PurchaseCosmetic(player, cosmeticId):
-   - Validate cosmeticId exists in CosmeticCatalog.
-   - Call MarketplaceService:PromptProductPurchase(player, GameConfig.Shop.CosmeticProductIds[cosmeticId]).
-   - Store product IDs in GameConfig.Shop.CosmeticProductIds = { [cosmeticId] = robuxProductId } as placeholders.
+ShopService: PurchaseCosmetic → PromptProductPurchase; ProcessReceipt idempotent; profile.ownedCosmetics additive array.
 
-2. ProcessReceipt handler (register with MarketplaceService.ProcessReceipt):
-   - Look up cosmeticId from receipt.ProductId via a reverse-lookup table.
-   - Use PlayerDataService to check if cosmeticId is already in profile.ownedCosmetics (idempotent).
-   - If not owned, add it and save. Return Enum.ProductPurchaseDecision.PurchaseGranted.
-   - If already owned, still return PurchaseGranted (safe duplicate).
+CosmeticShopUI: Try On local only, Buy fires server. Wire RodSelect + HarborVisual decor application.
 
-3. Profile schema addition: ownedCosmetics = {} array of cosmeticId (additive, safe default, no version bump).
-
-4. New RemoteSignal: CosmeticGranted fires to the client with { cosmeticId } after successful grant.
-
-CosmeticShopUI + CosmeticShopController:
-- Tabbed panel: Rod Wraps | Harbor Decor | Character | Boat Skins.
-- Each item card: previewImageId thumbnail, displayName, Robux price badge (use MarketplaceService:GetProductInfo for the live price display).
-- "Try On" button: local-only preview — update the character or prop model client-side without firing any RemoteEvent. Revert on panel close.
-- "Buy" button: fires PurchaseCosmetic via RemoteEvent, then Roblox's native purchase prompt appears.
-
-Wire cosmetic application:
-- Rod wraps: RodSelectController applies the rod wrap assetId as a texture/mesh override when the rod is rendered.
-- Harbor decor: HarborVisualController places the decor Part when an owned decor cosmeticId is present in profile.
-- Character: apply on character spawn via ShopService's CharacterAdded hook.`
+No TidesProfile_v1 bump.`
 },
 
 "season-pass": {
   title: "Seasonal Pass",
-  cat: "Monetization", badge: "badge-p",
-  desc: "A 28-day cosmetic-only progression track. SeasonXP comes from quests, fishing, and building. Free tier rewards at milestones; one Robux purchase unlocks all 30 tiers. Nothing that affects catch rates or coin income.",
+  cat: "Monetization", badge: "badge-p", week: "Post-month",
+  desc: "Cosmetic-only 28-day track — SeasonXP must not affect fishing or income.",
   prompt:
-`Create \`src/Server/Services/SeasonService.lua\` following Knit service conventions. This is a cosmetic-only feature — SeasonXP must never improve fishing effectiveness, market income, or any gameplay stat.
+`Create \`src/Server/Services/SeasonService.lua\`. SeasonXP grants cosmetics only — never rod power, catch rate, or coin income (CLAUDE.md).
 
-Season configuration (add to GameConfig):
-GameConfig.Season = {
-  DurationDays    = 28,
-  TotalTiers      = 30,
-  XpPerTier       = 200,
-  FreeRewardTiers = {1, 5, 10, 15, 20, 25, 30},  -- cosmetics on free track
-  XpSources = {
-    DailyQuestComplete  = 50,
-    RareFishCaught      = 25,
-    MythicFishCaught    = 100,
-    BuildingUpgraded    = 30,
-  },
-}
+GameConfig.Season: DurationDays=28, TotalTiers=30, XpPerTier=200, XpSources from quests/fishing/building (cosmetic pacing only).
 
-SeasonService responsibilities:
-1. On server start, check GameConfig.Season for the current season's startAt timestamp. If os.time() > startAt + DurationDays*86400, rotate: increment seasonId (e.g. "season_002"), set new startAt = endAt of previous season.
-2. SeasonXP grant: listen to FishingService.CaughtServer (check rarity for Rare/Mythic bonus), QuestService.QuestCompleted, HarborService.BuildingUpgraded. Call SeasonService:GrantXP(player, amount).
-3. GrantXP: add to profile.seasonProgress.xp, recalculate tier = math.floor(xp / XpPerTier), fire SeasonTierUp RemoteSignal if tier increased.
-4. On season rotation, archive profile.seasonProgress to profile.archivedSeasons[seasonId] and reset seasonProgress to defaults.
+profile.seasonProgress + archivedSeasons — additive reconcile.
 
-Profile schema addition (additive, safe default):
-seasonProgress = { seasonId="season_001", xp=0, tier=0, claimedTiers={}, isPremium=false }
-archivedSeasons = {}
+SeasonPassUI: tier track, premium lock, ClaimSeasonTier idempotent.
 
-New RemoteEvents:
-- ClaimSeasonTier(tier): validate tier is complete and unclaimed. Grant cosmetic from CosmeticCatalog by seasonTierRewards[tier]. Idempotent.
-- UpgradeToPremium(): trigger MarketplaceService purchase for GameConfig.Season.PremiumProductId.
-
-SeasonPassUI + SeasonPassController:
-- Vertical 30-tier scroll track. Each tier shows cosmetic thumbnail, tier number, XP required.
-- Current tier highlighted; XP bar showing progress to next tier.
-- Lock/unlock state per tier: free tiers unlock on completion; premium tiers show a lock with Robux icon until isPremium = true.
-- Claim buttons call ClaimSeasonTier. "Go Premium" button triggers UpgradeToPremium.`
+Flag at end: drip-feed — do not enable until post-month schedule.`
 },
 
 "events": {
   title: "Seasonal Events System",
-  cat: "Future", badge: "badge-p",
-  desc: "Time-limited events (festival fish, token shops, weather overrides) driven by a schedule in GameConfig. An /setevent admin command bypasses the time check for testing. No punishing absence — fish available all day, tokens don't expire.",
+  cat: "Future", badge: "badge-p", week: "Post-month",
+  desc: "Time-limited events, no punishing absence mechanics.",
   prompt:
-`Create \`src/Server/Services/EventService.lua\` for time-limited seasonal game events.
+`Create \`src/Server/Services/EventService.lua\` with GameConfig.Events.Schedule.
 
-Event schema — stored in GameConfig.Events.Schedule (array of tables):
-{
-  eventId       = "harbor_festival_2026",
-  displayName   = "Harbor Festival",
-  startAt       = 1750000000,  -- Unix timestamp
-  endAt         = 1751209600,
-  specialFish   = {
-    -- FishCatalog-compatible entries (same schema as FishCatalog.json)
-    { id="festival_flounder", displayName="Festival Flounder", rarity="Common", biomes={"Shoreline","Pier"}, ... }
-  },
-  weatherOverride = "FestiveClear",   -- WeatherService recognizes this state name
-  tokenShopItems  = {
-    { cosmeticId="decor_festival_banner", tokenCost=30 },
-  },
+EventService: evaluate schedule every 60s, EventStarted/EventEnded signals.
+
+FishingService: transient eventFishPool merge (do not edit FishCatalog.json ids in place).
+
+WeatherService: optional weatherOverride during event.
+
+profile.eventTokens additive. AdminService /setevent for whitelisted testing.
+
+CLAUDE.md: fish available all day; tokens not silently wiped at end — archive unspent.`
+},
+
+"pillar-low-pressure": {
+  title: "Audit: Low-pressure sessions",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §1",
+  desc: "Sessions work in 5–15 minutes; no punishments for short play or disconnect.",
+  prompt:
+`Audit Tides of Trade against CLAUDE.md pillar 1 (low-pressure sessions). Read CLAUDE.md first. Report violations only — do not refactor unless fixing a clear bug.
+
+Check:
+1. Disconnect / leave: any lost inventory, coins, or quest progress on rejoin?
+2. Tutorial: no skip button; can player pause mid-flow without soft-lock?
+3. Building placement / smokehouse: cancel and refund paths — no punitive timers?
+4. Quests: yesterday grace window in QuestService — document behavior for absent players.
+5. Fishing: failed cast and escaped fish cost nothing meaningful.
+
+Output: markdown table { file:line, issue, severity, suggested fix }. No schema bump.`
+},
+
+"pillar-monetization": {
+  title: "Audit: Sell identity, not progress",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §2",
+  desc: "Monetization must be cosmetic/QoL only — no coins, catch boosts, or best-in-slot gear for sale.",
+  prompt:
+`Audit monetization surfaces against CLAUDE.md pillar 2. Grep for ProcessReceipt, PromptProductPurchase, DevProduct, GamePass, and any shop that grants rods, bait power, or coins.
+
+Verify:
+- ShopService / RodCatalog: no paywalled catch rate or rod stats.
+- GameConfig login streak cosmetics (cosmetic_streak_*) are placeholders only.
+- Roadmap post-month cards (cosmetic-shop, season-pass) not enabled in live config yet.
+
+List any code path that sells gameplay advantage. Fix only if already live and violating pillar. Flag future cards.`
+},
+
+"pillar-visible": {
+  title: "Audit: Visible transformation",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §3",
+  desc: "Harbor upgrades must read clearly from 30+ studs — meshes, tweens, tier scale.",
+  prompt:
+`Audit harbor visibility per CLAUDE.md pillar 3. In Studio (or via code review):
+
+1. BuildingModelFactory fallback vs ReplicatedStorage.Assets.Buildings meshes — which kinds lack real art?
+2. HarborVisualController upgrade tweens — tier change obvious at 30 studs?
+3. Footprint / PrimaryPart contract in MCP_HarborBuildings.md — any misaligned anchors?
+
+Deliverable: checklist per building kind (Dock, MarketStall, Smokehouse, Lighthouse, BaitShop, Aquarium, Guildhall) with tier 1–3 status. Link harbor-building-art roadmap task for gaps.`
+},
+
+"pillar-dripfeed": {
+  title: "Audit: Drip-feed mechanics",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §4",
+  desc: "Deep systems (crews, season pass, market arbitrage) stay gated until the monthly schedule.",
+  prompt:
+`Audit feature gating against CLAUDE.md pillar 4 (drip-feed). Search HUD, TutorialService, GameConfig flags, and UI entry points.
+
+Confirm NOT surfaced to new players before schedule:
+- Crew missions / board (crew-depth)
+- Season pass / EventService
+- Advanced market arbitrage UI
+
+Confirm Week 1 tutorial teaches only 6 core beats (TutorialConfig). List any UI button or quest that exposes week 3+ systems early. Propose GameConfig.UI.FeatureFlags or tutorial gates if leaks found.`
+},
+
+"pillar-world-alive": {
+  title: "Audit: World stays alive",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §5",
+  desc: "Tide, weather, and NPCs must not pause during dialogue or modals.",
+  prompt:
+`Audit world-alive behavior per CLAUDE.md pillar 5.
+
+Check TideService, WeatherService, WorldService, NPC pathing (Mira):
+1. Opening DialogueUI, InventoryUI, MarketUI — does tide/weather tick continue?
+2. Any RunService pause, timeScale = 0, or Lighting freeze on modal open?
+3. Tutorial highlight overlay — world still simulates underneath?
+
+Report file:line for any auto-pause. Fix only true pauses — cozy games keep the harbor breathing.`
+},
+
+"pillar-no-combat": {
+  title: "Audit: No combat / no progress loss",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §6",
+  desc: "No PvP, permadeath, or rage moments; failed actions cost nothing meaningful.",
+  prompt:
+`Audit against CLAUDE.md pillar 6. Search for combat, PvP, health, damage, permadeath, inventory wipe on fail.
+
+Fishing loop:
+- Failed cast / escape — confirm no bait loss or coin penalty unless explicitly designed in GameConfig (should be zero).
+- Reel fail — no item destruction.
+
+Harbor: demolish building — confirm refund/cancel paths (Smokehouse RefundAllSlots, HarborEdit confirm).
+
+Output: pass/fail per subsystem with evidence lines.`
+},
+
+"pillar-mobile": {
+  title: "Audit: Mobile-first + accessibility",
+  cat: "Design pillar", badge: "badge-g", week: "CLAUDE.md §7 + a11y",
+  desc: "44px touch targets, 12px fonts, ReducedMotion on decorative tweens.",
+  prompt:
+`Mobile + accessibility audit of \`src/Client/UI/\` and controllers. Test at 380×667 portrait in Studio Device Emulator.
+
+Checklist:
+1. Interactive controls >= 44px (UIUtil.MinTouchPx) — list violations with file:line.
+2. TextSize >= 12 effective (UIUtil.MinFontPx).
+3. GuiService.ReducedMotionEnabled: MotionUtil.tweenOrSnap on modals; no camera shake except cast splash / heavy fish per CLAUDE.md.
+4. No strobing effects > 3Hz.
+5. HarborEditController + FishingController: touch parallel to mouse.
+
+Grep: Color3.fromRGB in UI outside UIUtil (should be zero per UI_OVERHAUL.md).`
+},
+
+"pillar-server-auth": {
+  title: "Audit: Server-authoritative",
+  cat: "Design pillar", badge: "badge-g", week: "Architecture",
+  desc: "Client requests; server validates. No client-decided catches, prices, or building tiers.",
+  prompt:
+`Audit server authority per CLAUDE.md architecture rules.
+
+Sample RemoteEvents in FishingService, MarketService, HarborService, SmokehouseService, PlayerDataService:
+1. Client never sends final catch species, weight, price, or tier — server computes.
+2. Tunables live in GameConfig.lua — grep magic numbers in Services.
+3. RateLimiter used on spam-prone endpoints.
+
+List any Client method that trusts client-supplied economy or inventory state without validation. Severity-tagged report; fix exploitable paths only.`
 }
 
-EventService:
-- On init and every 60s, evaluate GameConfig.Events.Schedule; determine if an event is active (os.time() between startAt and endAt).
-- Fire EventStarted(eventId) when an event becomes active; EventEnded(eventId) when it ends.
-- FishingService listens to EventStarted → temporarily merge specialFish into the species pool (don't modify FishCatalog — keep a transient eventFishPool table in FishingService). Revert on EventEnded.
-- WeatherService listens to EventStarted → if event has a weatherOverride, force that state and skip transition rolls. Revert on EventEnded.
-- Profile schema addition: eventTokens = {} map of eventId → number (additive, safe default).
+};
 
-Expose on EventService:
-- GetActiveEvent() → current event record or nil
-- GrantTokens(player, eventId, amount) — called by QuestService for event-specific quest rewards
-- SpendTokens(player, eventId, cosmeticId) — validates tokenCost from tokenShopItems, calls ShopService:GrantCosmetic, deducts tokens
+const PROMPT_PREFIX = `Read CLAUDE.md first. Server-authoritative; tunables in GameConfig; no TidesProfile_v1 bump unless destructive.
 
-AdminService addition:
-- /setevent <eventId> command: force-activates the named event in GameConfig.Events.Schedule regardless of timestamps. Only fires for whitelisted admins. Useful for testing before the real start date.
+`;
 
-Design constraints (CLAUDE.md compliance):
-- Event fish are available all day, every hour — no "fish between 3–5pm" restrictions (no time-pressure mechanics).
-- Tokens earned during the event never expire mid-event. If the event ends before a player spends tokens, archive them to a separate spent/expired log (don't silently wipe).`
-}
-
-}; // end NODES
-
-// ── Drawer logic ──
 const drawer  = document.getElementById('drawer');
 const overlay = document.getElementById('overlay');
 const xbtn    = document.getElementById('xbtn');
@@ -768,58 +1043,128 @@ const drTitle = document.getElementById('drTitle');
 const drDesc  = document.getElementById('drDesc');
 const drPrompt= document.getElementById('drPrompt');
 const drBadge = document.getElementById('drBadge');
+const drWeek  = document.getElementById('drWeek');
 const cpbtn   = document.getElementById('cpbtn');
 const cptext  = document.getElementById('cptext');
-let   curPrompt = '';
+let curPrompt = '';
+let activeId = '';
 
-function open(id) {
+function highlightFlow(id) {
+  document.querySelectorAll('.fn[data-id]').forEach(n => n.classList.remove('hl'));
+  document.querySelectorAll('.card[data-id]').forEach(c => c.classList.remove('hl'));
+  if (!id) return;
+  const fn = document.querySelector('.fn[data-id="' + id + '"]');
+  const card = document.querySelector('.card[data-id="' + id + '"]');
+  if (fn) {
+    fn.classList.add('hl');
+    fn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
+  if (card) card.classList.add('hl');
+}
+
+function open(id, opts) {
   const n = NODES[id]; if (!n) return;
-  curPrompt = n.prompt;
-  drTitle.textContent  = n.title;
-  drDesc.textContent   = n.desc;
-  drPrompt.textContent = n.prompt;
-  drBadge.textContent  = n.cat;
-  drBadge.className    = 'badge ' + n.badge;
-  cptext.textContent   = 'Copy Prompt';
+  activeId = id;
+  curPrompt = PROMPT_PREFIX + n.prompt;
+  drTitle.textContent = n.title;
+  drDesc.textContent = n.desc;
+  drPrompt.textContent = curPrompt;
+  drBadge.textContent = n.cat;
+  drBadge.className = 'badge ' + n.badge;
+  drWeek.textContent = n.week ? (' · ' + n.week) : '';
+  cptext.textContent = 'Copy Prompt';
   cpbtn.classList.remove('done');
   drawer.classList.add('on');
   overlay.classList.add('on');
   document.body.style.overflow = 'hidden';
-  drTitle.focus();
+  if (!opts || !opts.skipHash) {
+    try { history.replaceState(null, '', '#' + id); } catch (_) {}
+  }
+  highlightFlow(id);
 }
 
 function close() {
   drawer.classList.remove('on');
   overlay.classList.remove('on');
   document.body.style.overflow = '';
+  activeId = '';
+  highlightFlow('');
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
 }
 
-document.querySelectorAll('.card[data-id]').forEach(c => {
-  c.addEventListener('click', () => open(c.dataset.id));
-  c.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(c.dataset.id); }});
-});
+function bindClickable(sel) {
+  document.querySelectorAll(sel).forEach(el => {
+    el.addEventListener('click', () => open(el.dataset.id));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(el.dataset.id); }
+    });
+  });
+}
+
+bindClickable('.card[data-id]');
+bindClickable('.fn[data-id]');
+bindClickable('.pchip[data-id]');
 
 xbtn.addEventListener('click', close);
 overlay.addEventListener('click', close);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
 cpbtn.addEventListener('click', () => {
-  navigator.clipboard.writeText(curPrompt).then(() => {
+  const done = () => {
     cptext.textContent = 'Copied!';
     cpbtn.classList.add('done');
     setTimeout(() => { cptext.textContent = 'Copy Prompt'; cpbtn.classList.remove('done'); }, 2200);
-  }).catch(() => {
-    // fallback for non-https
+  };
+  navigator.clipboard.writeText(curPrompt).then(done).catch(() => {
     const ta = document.createElement('textarea');
-    ta.value = curPrompt; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    ta.value = curPrompt;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
     document.body.removeChild(ta);
-    cptext.textContent = 'Copied!'; cpbtn.classList.add('done');
-    setTimeout(() => { cptext.textContent = 'Copy Prompt'; cpbtn.classList.remove('done'); }, 2200);
+    done();
   });
 });
 
-// ── Accordion ──
+document.getElementById('filters').addEventListener('click', e => {
+  const btn = e.target.closest('.fbtn');
+  if (!btn) return;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  const f = btn.dataset.filter;
+  document.querySelectorAll('.card[data-id]').forEach(card => {
+    if (f === 'all') { card.classList.remove('hidden'); return; }
+    if (f === 'progress') {
+      card.classList.toggle('hidden', card.dataset.progress !== 'in-progress');
+      return;
+    }
+    const cat = card.dataset.cat;
+    const show =
+      (f === 'launch' && cat === 'launch') ||
+      (f === 'near' && cat === 'near') ||
+      (f === 'content' && cat === 'content') ||
+      (f === 'monetize' && cat === 'monetize');
+    card.classList.toggle('hidden', !show);
+  });
+  document.querySelectorAll('.fn[data-id]').forEach(fn => {
+    if (f === 'all') { fn.style.display = ''; return; }
+    if (f === 'progress') {
+      fn.style.display = fn.dataset.progress === 'in-progress' ? '' : 'none';
+      return;
+    }
+    const id = fn.dataset.id;
+    const card = document.querySelector('.card[data-id="' + id + '"]');
+    if (!card) { fn.style.display = ''; return; }
+    fn.style.display = card.classList.contains('hidden') ? 'none' : '';
+  });
+});
+
+(function initHash() {
+  const id = (location.hash || '').replace(/^#/, '');
+  if (id && NODES[id]) open(id, { skipHash: true });
+})();
+
 const accHead = document.getElementById('accHead');
 const accBody = document.getElementById('accBody');
 accHead.addEventListener('click', () => {

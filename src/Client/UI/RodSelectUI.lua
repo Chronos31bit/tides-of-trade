@@ -5,19 +5,19 @@
 -- Locked rods are dimmed and non-interactive. Equipped rod has gold border.
 --
 -- Public API:
---   RodSelectUI.show(rods, playerXp, equippedRodId, onEquip) -> Handle
+--   RodSelectUI.show(rods, playerLevel, equippedRodId, onEquip) -> Handle
 --   Handle.close()
---   Handle.refresh(equippedRodId, playerXp)
+--   Handle.refresh(equippedRodId, playerLevel)
 
 local UIUtil = require(script.Parent.UIUtil)
 
 local P = UIUtil.Palette
 
 local HEADER_H = 54
-local ROW_H    = 72   -- height of each rod row
+local ROW_H    = 84   -- height of each rod row (bumped from 72 to fit 12px floor labels)
 local ROW_PAD  = 10   -- inner horizontal padding
 local STRIP_W  = 52   -- coloured left strip width
-local BTN_W    = 82   -- equip button width
+local BTN_W    = 88   -- equip button width
 local LIST_PAD = 8    -- top/bottom padding inside scroll list
 
 local RodSelectUI = {}
@@ -28,7 +28,7 @@ export type RodDef = {
 	tier: number,
 	rank: string,
 	rankColor: Color3,
-	unlockXp: number,
+	unlockLevel: number,
 	castWindowBonus: number,
 	catchWeightBonus: number,
 	color: Color3,
@@ -36,7 +36,7 @@ export type RodDef = {
 
 export type Handle = {
 	close:   () -> (),
-	refresh: (equippedRodId: string, playerXp: number) -> (),
+	refresh: (equippedRodId: string, playerLevel: number) -> (),
 }
 
 -- ====================================================================
@@ -44,20 +44,20 @@ export type Handle = {
 -- ====================================================================
 
 local function buildRow(
-	parent:   ScrollingFrame,
-	rod:      RodDef,
-	playerXp: number,
-	equipped: boolean,
-	order:    number,
-	onEquip:  () -> ()
+	parent:       ScrollingFrame,
+	rod:          RodDef,
+	playerLevel:  number,
+	equipped:     boolean,
+	order:        number,
+	onEquip:      () -> ()
 ): Frame
-	local locked = playerXp < rod.unlockXp
+	local locked = playerLevel < rod.unlockLevel
 
 	-- ── Outer row frame ──────────────────────────────────────────────────
 	local row = Instance.new("Frame")
 	row.Name             = rod.id
 	row.Size             = UDim2.new(1, 0, 0, ROW_H)
-	row.BackgroundColor3 = locked and Color3.fromRGB(18, 40, 50) or P.TealDark
+	row.BackgroundColor3 = locked and P.TealDeeper or P.TealDark
 	row.BorderSizePixel  = 0
 	row.LayoutOrder      = order
 
@@ -125,10 +125,10 @@ local function buildRow(
 	-- Rod name: bold, rarity-coloured for unlocked rods.
 	local nameLbl = Instance.new("TextLabel")
 	nameLbl.BackgroundTransparency = 1
-	nameLbl.Position         = UDim2.new(0, centerX, 0, 9)
-	nameLbl.Size             = UDim2.new(1, centerW, 0, 16)
+	nameLbl.Position         = UDim2.new(0, centerX, 0, 8)
+	nameLbl.Size             = UDim2.new(1, centerW, 0, 18)
 	nameLbl.Font             = Enum.Font.GothamBold
-	nameLbl.TextSize         = 13
+	nameLbl.TextSize         = 14
 	nameLbl.TextColor3       = locked and P.CreamSoft or rod.rankColor
 	nameLbl.TextXAlignment   = Enum.TextXAlignment.Left
 	nameLbl.TextTruncate     = Enum.TextTruncate.AtEnd
@@ -141,8 +141,8 @@ local function buildRow(
 	pill.BackgroundTransparency = locked and 0.2 or 0.3
 	pill.BorderSizePixel        = 0
 	pill.AutomaticSize          = Enum.AutomaticSize.X
-	pill.Size                   = UDim2.new(0, 0, 0, 16)
-	pill.Position               = UDim2.new(0, centerX, 0, 28)
+	pill.Size                   = UDim2.new(0, 0, 0, 20)
+	pill.Position               = UDim2.new(0, centerX, 0, 30)
 	local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(1, 0); pc.Parent = pill
 	local ps = Instance.new("UIStroke")
 	ps.Color       = locked and P.CreamSoft or rod.rankColor
@@ -150,60 +150,52 @@ local function buildRow(
 	ps.Transparency = locked and 0.7 or 0.2
 	ps.Parent = pill
 	local pp = Instance.new("UIPadding")
-	pp.PaddingLeft = UDim.new(0, 6); pp.PaddingRight = UDim.new(0, 6)
+	pp.PaddingLeft = UDim.new(0, 8); pp.PaddingRight = UDim.new(0, 8)
 	pp.Parent = pill
-	local pillText = Instance.new("TextLabel")
-	pillText.BackgroundTransparency = 1
-	pillText.Size             = UDim2.new(0, 0, 1, 0)
-	pillText.AutomaticSize    = Enum.AutomaticSize.X
-	pillText.Font             = Enum.Font.GothamBold
-	pillText.TextSize         = 9
-	pillText.TextColor3       = locked and P.CreamSoft or rod.rankColor
-	pillText.Text             = rod.rank:upper()
-	pillText.Parent = pill
+	UIUtil.makeLabel(rod.rank:upper(), "caption", {
+		Size             = UDim2.new(0, 0, 1, 0),
+		AutomaticSize    = Enum.AutomaticSize.X,
+		Font             = Enum.Font.GothamBold,
+		TextColor3       = locked and P.CreamSoft or rod.rankColor,
+		Parent           = pill,
+	})
 	pill.Parent = row
 
-	-- Stats line: cast window + weight, on one line.
-	local windowStr = rod.castWindowBonus > 0
-		and ("+%.0f%% window"):format(rod.castWindowBonus * 100)
-		or "Base window"
+	-- Stats line: rarity multiplier + weight, on one line.
+	local rarityStr = (rod.rarityMultiplier and rod.rarityMultiplier > 1.0)
+		and ("\xC3\x97%.1f rarity"):format(rod.rarityMultiplier)
+		or "Base rarity"
 	local weightStr = rod.catchWeightBonus > 0
 		and ("+%.1f kg"):format(rod.catchWeightBonus)
 		or "Base wt"
-	local statsLbl = Instance.new("TextLabel")
-	statsLbl.BackgroundTransparency = 1
-	statsLbl.Position       = UDim2.new(0, centerX, 0, 47)
-	statsLbl.Size           = UDim2.new(1, centerW, 0, 13)
-	statsLbl.Font           = Enum.Font.Gotham
-	statsLbl.TextSize       = 10
-	statsLbl.TextColor3     = locked and P.WoodLight or P.TealLight
-	statsLbl.TextXAlignment = Enum.TextXAlignment.Left
-	statsLbl.Text           = windowStr .. "  ·  " .. weightStr
-	statsLbl.Parent = row
+	UIUtil.makeLabel(rarityStr .. "  ·  " .. weightStr, "caption", {
+		Position       = UDim2.new(0, centerX, 0, 52),
+		Size           = UDim2.new(1, centerW, 0, 16),
+		TextColor3     = locked and P.WoodLight or P.TealLight,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent         = row,
+	})
 
-	-- XP status line (below stats, small).
-	local xpStr: string
-	local xpColor: Color3
+	-- Level requirement line (below stats).
+	local lvlStr: string
+	local lvlColor: Color3
 	if locked then
-		xpStr   = ("%d XP to unlock"):format(rod.unlockXp)
-		xpColor = P.Danger
-	elseif rod.unlockXp == 0 then
-		xpStr   = "Starter rod"
-		xpColor = P.CreamSoft
+		lvlStr   = ("Level %d to unlock"):format(rod.unlockLevel)
+		lvlColor = P.Danger
+	elseif rod.unlockLevel <= 1 then
+		lvlStr   = "Starter rod"
+		lvlColor = P.CreamSoft
 	else
-		xpStr   = "Unlocked"
-		xpColor = P.Success
+		lvlStr   = "Unlocked"
+		lvlColor = P.Success
 	end
-	local xpLbl = Instance.new("TextLabel")
-	xpLbl.BackgroundTransparency = 1
-	xpLbl.Position       = UDim2.new(0, centerX, 0, 58)
-	xpLbl.Size           = UDim2.new(1, centerW, 0, 12)
-	xpLbl.Font           = Enum.Font.Gotham
-	xpLbl.TextSize       = 9
-	xpLbl.TextColor3     = xpColor
-	xpLbl.TextXAlignment = Enum.TextXAlignment.Left
-	xpLbl.Text           = xpStr
-	xpLbl.Parent = row
+	UIUtil.makeLabel(lvlStr, "caption", {
+		Position       = UDim2.new(0, centerX, 0, 68),
+		Size           = UDim2.new(1, centerW, 0, 14),
+		TextColor3     = lvlColor,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent         = row,
+	})
 
 	-- ── Equip button (right-anchored) ─────────────────────────────────────
 	local btnText, btnColor
@@ -239,13 +231,13 @@ end
 
 function RodSelectUI.show(
 	rods:          {RodDef},
-	playerXp:      number,
+	playerLevel:   number,
 	equippedRodId: string,
 	onEquip:       (rodId: string) -> ()
 ): Handle
 
 	local gui = UIUtil.makeScreenGui("RodSelectUI")
-	gui.DisplayOrder = 20
+	gui.DisplayOrder = UIUtil.DisplayOrder.Modal
 
 	local backdrop = Instance.new("TextButton")
 	backdrop.Text                  = ""
@@ -284,14 +276,13 @@ function RodSelectUI.show(
 	})
 	titleLabel.Parent = header
 
-	local closeBtn = UIUtil.makeButton("✕", function() gui:Destroy() end, {
+	local closeBtn = UIUtil.makeCloseButton(function() gui:Destroy() end, {
+		Parent           = header,
 		AnchorPoint      = Vector2.new(1, 0.5),
 		Position         = UDim2.new(1, -8, 0.5, 0),
-		Size             = UDim2.fromOffset(44, 44),
+		Size             = UDim2.fromOffset(UIUtil.MinTouchPx, UIUtil.MinTouchPx),
 		BackgroundColor3 = P.Wood,
-		variant          = "secondary",
 	})
-	closeBtn.Parent = header
 
 	local divider = Instance.new("Frame")
 	divider.BackgroundColor3       = P.TealDeeper
@@ -330,12 +321,12 @@ function RodSelectUI.show(
 
 	layout.Parent = list
 
-	local function buildAll(curEquipped: string, curXp: number)
+	local function buildAll(curEquipped: string, curLevel: number)
 		for _, c in ipairs(list:GetChildren()) do
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		for i, rod in ipairs(rods) do
-			buildRow(list, rod, curXp, rod.id == curEquipped, i, function()
+			buildRow(list, rod, curLevel, rod.id == curEquipped, i, function()
 				onEquip(rod.id)
 			end)
 		end
@@ -346,14 +337,14 @@ function RodSelectUI.show(
 		end)
 	end
 
-	buildAll(equippedRodId, playerXp)
+	buildAll(equippedRodId, playerLevel)
 
 	backdrop.Activated:Connect(function() gui:Destroy() end)
 
 	return {
 		close = function() gui:Destroy() end,
-		refresh = function(newEquipped: string, newXp: number)
-			if gui.Parent then buildAll(newEquipped, newXp) end
+		refresh = function(newEquipped: string, newLevel: number)
+			if gui.Parent then buildAll(newEquipped, newLevel) end
 		end,
 	}
 end

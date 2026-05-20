@@ -16,6 +16,13 @@ local MarketController = Knit.CreateController({
 	_lastDemand = { multiplier = 1.0 },
 })
 
+local BUY_FAIL_MSG: {[string]: string} = {
+	listing_unavailable = "That listing is gone.",
+	not_enough_coins = "Not enough coins.",
+	no_profile = "Profile not ready yet.",
+	datastore_error = "Market is busy — try again.",
+}
+
 function MarketController:KnitStart()
 	local MarketService = Knit.GetService("MarketService")
 
@@ -42,11 +49,12 @@ end
 function MarketController:Open()
 	if self._handle then self._handle.close() end
 	local MarketService = Knit.GetService("MarketService")
+	local NotificationController = Knit.GetController("NotificationController")
 	self._handle = MarketUI.show(self._lastListings, self._lastDemand, function(listingId)
 		MarketService:Buy(listingId):andThen(function(res)
 			if not res.ok then
-				-- TODO: replace with a proper toast UI (see HUDController).
-				print("[Market] Buy failed:", res.reason)
+				local reason = res.reason or ""
+				NotificationController:Toast(BUY_FAIL_MSG[reason] or "Purchase failed.")
 			end
 		end)
 	end)

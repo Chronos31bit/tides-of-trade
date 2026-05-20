@@ -33,6 +33,7 @@ local Types        = require(ReplicatedStorage.Shared.Types)
 local UidUtil      = require(ReplicatedStorage.Shared.Util.UidUtil)
 local TimeUtil     = require(ReplicatedStorage.Shared.Util.TimeUtil)
 local FishCatalog  = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local RateLimiter  = require(ReplicatedStorage.Shared.Util.RateLimiter)
 
 type Template = QuestTemplates.Template
 type Quest = Types.Quest
@@ -49,6 +50,9 @@ local QuestService = Knit.CreateService({
 		QuestCompleted  = Knit.CreateSignal(),  -- (questId)
 		-- Streak day advanced. Auto-granted reward is included.
 		StreakAdvanced  = Knit.CreateSignal(),  -- (streakDay, reward)
+		-- Targeted toasts (no full snapshot replicate).
+		QuestCompletedToast = Knit.CreateSignal(),  -- ({ questId, renderedText })
+		StreakMilestone     = Knit.CreateSignal(),  -- ({ day })
 	},
 
 	-- Per-player debounce handles for the QuestsChanged push.
@@ -518,6 +522,10 @@ function QuestService:_applyEvent(player: Player, trigger: string, event: any)
 				q.completed = true
 				completedSomething = true
 				self.Client.QuestCompleted:Fire(player, q.id)
+				self.Client.QuestCompletedToast:Fire(player, {
+					questId = q.id,
+					renderedText = q.renderedText or "",
+				})
 			end
 		end
 	end
@@ -634,6 +642,10 @@ function QuestService:_handleLoginStreak(player: Player)
 	if streak.current > streak.longest then streak.longest = streak.current end
 	streak.lastLoginUtcDay = today
 
+	if table.find(GameConfig.Quests.StreakMilestoneToastDays, streak.current) then
+		self.Client.StreakMilestone:Fire(player, { day = streak.current })
+	end
+
 	local reward = rewardForStreakDay(streak.current)
 	if reward then
 		self:_grantRewards(player, reward)
@@ -646,6 +658,10 @@ end
 -- ====================================================================
 function QuestService.Client:Claim(player: Player, questId: string): {ok: boolean, reason: string?, reward: any?}
 	local self = self.Server
+	if not self._claimLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+	if typeof(questId) ~= "string" or #questId == 0 or #questId > 64 then
+		return { ok = false, reason = "bad_quest_id" }
+	end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
 
@@ -725,6 +741,11 @@ end
 -- LIFECYCLE
 -- ====================================================================
 function QuestService:KnitStart()
+	-- Silent-drop limiter on the reward-granting Claim path. Tuned generously
+	-- so honest play never trips (3 dailies + grace = peak ~6/min in any
+	-- realistic scenario).
+	self._claimLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxQuestClaimsPerMinute, 60)
+
 	-- Detect which signals are available; warn on missing.
 	self._availableTriggers = detectAvailableTriggers()
 	for _, tpl in ipairs(QuestTemplates.All) do
@@ -772,6 +793,7 @@ function QuestService:KnitStart()
 		local handle = self._persistTimers[player]
 		if handle then task.cancel(handle) end
 		self._persistTimers[player] = nil
+		self._claimLimiter:reset(player)
 	end)
 
 	-- ----------------- signal listeners -----------------

@@ -5,31 +5,47 @@
 -- the card to dismiss early. Tier-colored 3px border; Mythics get a slow
 -- amber↔coral color cycle for the duration of the card's life.
 
-local TweenService = game:GetService("TweenService")
+local RunService   = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local UIUtil      = require(script.Parent.UIUtil)
-local MotionUtil  = require(ReplicatedStorage.Shared.Util.MotionUtil)
-local GameConfig  = require(ReplicatedStorage.Shared.Config.GameConfig)
+local UIUtil        = require(script.Parent.UIUtil)
+local MotionUtil    = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local GameConfig    = require(ReplicatedStorage.Shared.Config.GameConfig)
+local FishMutations = require(ReplicatedStorage.Shared.Util.FishMutations)
 
 local CatchRevealUI = {}
 
 local P = UIUtil.Palette
 local FT = GameConfig.Fishing.FeelTuning
 
--- ====================================================================
--- TIER COLORS — single source of truth for the rarity → color mapping.
--- Used by the border, badge fill, and (for mythic) the color cycle.
--- ====================================================================
-local TIER_COLORS = {
-	Common   = Color3.fromRGB(180, 180, 180),
-	Uncommon = Color3.fromRGB( 70, 200, 110),
-	Rare     = Color3.fromRGB( 60, 140, 240),
-	Mythic   = Color3.fromRGB(240, 160,  40),
-}
--- Mythic cycle target — the *other* color the border lerps to when on a
--- mythic catch. Coral pairs with amber for a fire/treasure vibe.
-local MYTHIC_CYCLE_TARGET = Color3.fromRGB(240, 100, 100)
+-- Rarity + modifier colors live in UIUtil.Palette (single source of truth).
+-- TIER_CYCLE_TARGETS used to live here too; it's now UIUtil.Palette.RarityCycle.
+
+local _modDisplayNames: {[string]: string} = {}
+local _modData: {[string]: any} = {}
+for _, m in ipairs(GameConfig.FishModifiers) do
+	_modDisplayNames[m.id] = m.displayName
+	_modData[m.id] = m
+end
+
+local function _modEffectText(modId: string): string
+	local m = _modData[modId]
+	if not m then return "" end
+	-- Priority: sellPriceMul > xpMul > weightMul > coinInstant > lureBonus
+	if m.sellPriceMul then
+		local pct = math.round((m.sellPriceMul - 1) * 100)
+		return (pct >= 0 and "+" or "") .. pct .. "% sell"
+	elseif m.xpMul then
+		return "×" .. m.xpMul .. " XP"
+	elseif m.weightMul then
+		return "×" .. m.weightMul .. " wt"
+	elseif m.coinInstant then
+		return "+" .. m.coinInstant .. "× gold"
+	elseif m.lureBonus then
+		return "+" .. m.lureBonus .. " lure"
+	end
+	return ""
+end
 
 export type CatchPayload = {
 	fish: { displayName: string, rarity: string, basePrice: number, id: string? },
@@ -38,6 +54,7 @@ export type CatchPayload = {
 	xpGained: number?,
 	perfect: boolean?,      -- reel was perfect-zone (triggers coin bonus)
 	castPerfect: boolean?,  -- cast marker hit the inner gold strip (triggers weight bonus)
+	modifiers: {string}?,   -- modifier ids applied at catch time
 }
 
 export type RevealHandle = {
@@ -53,10 +70,15 @@ end
 
 function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	local gui = UIUtil.makeScreenGui("CatchReveal", nil, { respectTopbar = true })
+	gui.DisplayOrder = UIUtil.DisplayOrder.CatchReveal
 
 	local rarity = payload.fish.rarity or "Common"
-	local tierColor = TIER_COLORS[rarity] or TIER_COLORS.Common
-	local perfectColor = TIER_COLORS.Mythic  -- prompt says perfect always uses mythic amber
+	local tierColor    = UIUtil.rarityColor(rarity)
+	local perfectColor = UIUtil.Palette.Legendary  -- gold for perfect catch indicators
+
+	-- Expand card height by 24 px when modifiers are present so pills don't crowd the coin label.
+	local mods = payload.modifiers or {}
+	local cardExtraH = #mods > 0 and 24 or 0
 
 	-- ----------------------------------------------------------------
 	-- CARD — solid teal panel, tier-colored stroke, rounded.
@@ -66,7 +88,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	card.AnchorPoint = Vector2.new(0.5, 1)
 	-- Starts offscreen below; positioned to slide in.
 	card.Position = UDim2.new(0.5, 0, 1, 240)
-	card.Size = UDim2.fromOffset(360, 132)
+	card.Size = UDim2.fromOffset(360, 132 + cardExtraH)
 	card.BackgroundColor3 = P.TealDark
 	card.BorderSizePixel = 0
 	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 14); corner.Parent = card
@@ -88,18 +110,83 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	tapCatcher.Parent = card
 
 	-- ----------------------------------------------------------------
-	-- ICON PLACEHOLDER — 80x80 dark square in the top-left.
-	-- TODO: when AssetIds.Images.FishIconSheet is populated, set the
-	-- ImageRectOffset/Size to the species' slot in the sheet.
+	-- FISH MODEL VIEWPORT — 80×80 ViewportFrame rendering the species'
+	-- 3D model from ReplicatedStorage.Assets.Fish.<id>.
+	-- Camera auto-frames the bounding box from a slight angle.
+	-- Falls back to a plain dark square if the model is missing.
 	-- ----------------------------------------------------------------
-	local icon = Instance.new("Frame")
-	icon.Name = "IconPlaceholder"
-	icon.Position = UDim2.new(0, 16, 0, 16)
-	icon.Size = UDim2.fromOffset(80, 80)
-	icon.BackgroundColor3 = P.TealDeeper
-	icon.BorderSizePixel = 0
-	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(0, 10); ic.Parent = icon
-	icon.Parent = card
+	local vpf = Instance.new("ViewportFrame")
+	vpf.Name = "FishViewport"
+	vpf.Position = UDim2.new(0, 16, 0, 16)
+	vpf.Size = UDim2.fromOffset(80, 80)
+	vpf.BackgroundColor3 = P.TealDeeper
+	vpf.BorderSizePixel = 0
+	vpf.LightColor = P.ThumbLight
+	vpf.LightDirection = Vector3.new(-1, -2, -1)
+	local vc = Instance.new("UICorner"); vc.CornerRadius = UDim.new(0, 10); vc.Parent = vpf
+	vpf.Parent = card
+
+	local rotTask: thread? = nil
+
+	local _fishId = payload.fish.id
+	local _fishAssets = ReplicatedStorage:FindFirstChild("Assets")
+		and ReplicatedStorage.Assets:FindFirstChild("Fish")
+	local _template = _fishAssets and _fishId and _fishAssets:FindFirstChild(_fishId)
+	if _template then
+		local wm = Instance.new("WorldModel")
+		wm.Parent = vpf
+		local clone = _template:Clone()
+		clone.Parent = wm
+		-- Attach prefix particles at reduced rate for the reveal viewport.
+		if #mods > 0 then
+			for _, d in ipairs(clone:GetDescendants()) do
+				if d:IsA("BasePart") then
+					FishMutations.attach(d :: BasePart, mods, { viewport = true, intensity = 0.6 })
+					break
+				end
+			end
+		end
+
+		local cam = Instance.new("Camera")
+		cam.FieldOfView = 40
+		vpf.CurrentCamera = cam
+		cam.Parent = vpf
+
+		-- Auto-frame: calculate bounding box and step camera back enough to fit.
+		local ok, pivotCF, extents = pcall(function(): (CFrame, Vector3)
+			return clone:GetBoundingBox()
+		end)
+		if ok and pivotCF then
+			local maxDim = math.max(extents.X, extents.Y, extents.Z)
+			local dist   = math.max(maxDim * 1.5, 4)
+			local height = dist * 0.4
+			local pivot  = pivotCF.Position
+			local angle  = 0
+
+			if MotionUtil.reducedMotionEnabled() then
+				-- Static angle under reduced motion.
+				cam.CFrame = CFrame.lookAt(
+					pivot + Vector3.new(dist * 0.7, height, dist * 0.7), pivot
+				)
+			else
+				-- Orbit 60 °/s; cancelled in dismiss().
+				rotTask = task.spawn(function()
+					local last = os.clock()
+					while vpf.Parent do
+						local now = os.clock()
+						angle = (angle + 60 * (now - last)) % 360
+						last = now
+						local rad = math.rad(angle)
+						cam.CFrame = CFrame.lookAt(
+							pivot + Vector3.new(math.cos(rad) * dist, height, math.sin(rad) * dist),
+							pivot
+						)
+						RunService.Heartbeat:Wait()
+					end
+				end)
+			end
+		end
+	end
 
 	-- ----------------------------------------------------------------
 	-- TEXT BLOCK
@@ -172,6 +259,74 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	coinLbl.Parent = card
 
 	-- ----------------------------------------------------------------
+	-- MODIFIER PILLS — one pill per modifier id, below the weight label.
+	-- Staggered fade-in (0.08s per pill). Capped at 3 visible; "+N" label.
+	-- Each pill shows "Name • effect" (e.g. "Shiny • +25% sell").
+	-- Skipped entirely if no modifiers.
+	-- ----------------------------------------------------------------
+	if #mods > 0 then
+		local pillRow = Instance.new("Frame")
+		pillRow.BackgroundTransparency = 1
+		pillRow.Position = UDim2.new(0, 108, 0, nameTopY + 52)
+		pillRow.Size = UDim2.new(1, -120, 0, 24)
+		pillRow.Parent = card
+		local rowLayout = Instance.new("UIListLayout")
+		rowLayout.FillDirection = Enum.FillDirection.Horizontal
+		rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		rowLayout.Padding = UDim.new(0, 4)
+		rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		rowLayout.Parent = pillRow
+
+		local reduced = MotionUtil.reducedMotionEnabled()
+		local maxVisible = math.min(#mods, 3)
+		for i = 1, maxVisible do
+			local modId = mods[i]
+			local color = UIUtil.modifierColor(modId)
+			local effectText = _modEffectText(modId)
+			local labelText = (_modDisplayNames[modId] or modId) .. (effectText ~= "" and (" • " .. effectText) or "")
+			local pill = Instance.new("Frame")
+			pill.Size = UDim2.fromOffset(0, 22)
+			pill.AutomaticSize = Enum.AutomaticSize.X
+			pill.BackgroundColor3 = color
+			pill.BackgroundTransparency = 1
+			pill.BorderSizePixel = 0
+			pill.LayoutOrder = i
+			local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, UIUtil.Radii.sm); pc.Parent = pill
+			local pp = Instance.new("UIPadding")
+			pp.PaddingLeft  = UDim.new(0, UIUtil.Spacing.sm)
+			pp.PaddingRight = UDim.new(0, UIUtil.Spacing.sm)
+			pp.Parent = pill
+			local pillLbl = UIUtil.makeLabel(labelText, "caption", {
+				Size = UDim2.fromScale(1, 1),
+				Font = Enum.Font.GothamBold,
+				TextColor3 = P.Cream,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextTransparency = 1,
+				Parent = pill,
+			})
+			pill.Parent = pillRow
+			if reduced then
+				MotionUtil.tween(pill,    TweenInfo.new(0.2), { BackgroundTransparency = 0.25 })
+				MotionUtil.tween(pillLbl, TweenInfo.new(0.2), { TextTransparency = 0 })
+			else
+				task.delay((i - 1) * 0.08, function()
+					if not pill.Parent then return end
+					MotionUtil.tween(pill,    TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.25 })
+					MotionUtil.tween(pillLbl, TweenInfo.new(0.18), { TextTransparency = 0 })
+				end)
+			end
+		end
+		if #mods > 3 then
+			UIUtil.makeLabel("+" .. (#mods - 3), "caption", {
+				Size = UDim2.fromOffset(32, 22),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				LayoutOrder = 4,
+				Parent = pillRow,
+			})
+		end
+	end
+
+	-- ----------------------------------------------------------------
 	-- RARITY BADGE — small tier-tinted pill in the bottom-right corner.
 	-- ----------------------------------------------------------------
 	local badge = Instance.new("Frame")
@@ -188,27 +343,43 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	badgeLbl.Size = UDim2.fromScale(1, 1)
 	badgeLbl.Font = Enum.Font.GothamBold
 	badgeLbl.TextSize = 12
-	-- Pick text color for contrast — dark on uncommon/mythic, light on rare/common.
-	badgeLbl.TextColor3 = (rarity == "Rare" or rarity == "Common") and P.Cream or P.Ink
+	-- Dark text on light/gold backgrounds; light text on saturated dark backgrounds.
+	local needsDarkText = rarity == "Common" or rarity == "Uncommon" or rarity == "Legendary" or rarity == "Divine"
+	badgeLbl.TextColor3 = needsDarkText and P.Ink or P.Cream
 	badgeLbl.Text = rarity:upper()
 	badgeLbl.Parent = badge
 
 	-- ----------------------------------------------------------------
-	-- MYTHIC BORDER CYCLE — slow color tween between amber and coral.
-	-- Runs for as long as the card exists; killed in dismiss().
+	-- ANIMATED BORDER CYCLE — color ping-pong for Legendary, Mythic, Divine.
+	-- Divine additionally oscillates stroke Thickness (3px ↔ 5px over 2s).
+	-- Both tasks run for the card's lifetime and are killed in dismiss().
 	-- ----------------------------------------------------------------
 	local cycleTask: thread? = nil
-	if rarity == "Mythic" and not MotionUtil.reducedMotionEnabled() then
+	local thickTask: thread? = nil
+	local cycleTarget = UIUtil.Palette.RarityCycle[rarity]
+	if cycleTarget and not MotionUtil.reducedMotionEnabled() then
 		cycleTask = task.spawn(function()
-			local toCoral = true
+			local toTarget = true
 			while card.Parent do
-				local target = toCoral and MYTHIC_CYCLE_TARGET or tierColor
+				local target = toTarget and cycleTarget or tierColor
 				local tween = MotionUtil.tween(stroke, TweenInfo.new(FT.MythicBorderCycleDuration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Color = target })
 				tween.Completed:Wait()
 				tween:Destroy()
-				toCoral = not toCoral
+				toTarget = not toTarget
 			end
 		end)
+		if rarity == "Divine" then
+			thickTask = task.spawn(function()
+				local toThick = true
+				while card.Parent do
+					local target = toThick and 5 or 3
+					local tween = MotionUtil.tween(stroke, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Thickness = target })
+					tween.Completed:Wait()
+					tween:Destroy()
+					toThick = not toThick
+				end
+			end)
+		end
 	end
 
 	-- ----------------------------------------------------------------
@@ -244,7 +415,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	-- SLIDE IN — Back/Out for a satisfying overshoot. Reduced motion =
 	-- fade in only.
 	-- ----------------------------------------------------------------
-	local restPosition = UDim2.new(0.5, 0, 1, -110)
+	local restPosition = UDim2.new(0.5, 0, 1, -(110 + cardExtraH))
 	if MotionUtil.reducedMotionEnabled() then
 		card.Position = restPosition
 		card.BackgroundTransparency = 1
@@ -263,7 +434,9 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	local function dismiss()
 		if dismissed then return end
 		dismissed = true
-		if cycleTask then task.cancel(cycleTask); cycleTask = nil end
+		if rotTask    then task.cancel(rotTask);    rotTask    = nil end
+		if cycleTask  then task.cancel(cycleTask);  cycleTask  = nil end
+		if thickTask  then task.cancel(thickTask);  thickTask  = nil end
 		if MotionUtil.reducedMotionEnabled() then
 			local fade = MotionUtil.tween(card, TweenInfo.new(0.2), { BackgroundTransparency = 1 })
 			fade.Completed:Connect(function() fade:Destroy(); gui:Destroy() end)
