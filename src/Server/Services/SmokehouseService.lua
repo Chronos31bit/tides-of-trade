@@ -4,12 +4,14 @@
 -- server marks the slot ready. Claim moves a preserved Good into inventory.
 -- Cancel returns the fish while still smoking (cozy: no failure state).
 
+local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit            = require(ReplicatedStorage.Packages.Knit)
 local GameConfig      = require(ReplicatedStorage.Shared.Config.GameConfig)
 local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
 local UidUtil         = require(ReplicatedStorage.Shared.Util.UidUtil)
+local RateLimiter     = require(ReplicatedStorage.Shared.Util.RateLimiter)
 
 local PRESERVE_TIME = GameConfig.Buildings.Smokehouse.PreserveTimeSec
 
@@ -18,6 +20,7 @@ local SmokehouseService = Knit.CreateService({
 	Client = {
 		SmokehouseChanged = Knit.CreateSignal(),  -- (buildingUid, slots)
 	},
+	_smokeLimiter = nil :: any,
 })
 
 -- ====================================================================
@@ -69,6 +72,22 @@ end
 
 local function fireChanged(self: any, player: Player, buildingUid: string, building: any)
 	self.Client.SmokehouseChanged:Fire(player, buildingUid, building.preserveSlots or {})
+end
+
+-- ====================================================================
+-- LIFECYCLE
+-- ====================================================================
+
+function SmokehouseService:KnitInit()
+	self._smokeLimiter = RateLimiter.new(
+		GameConfig.AntiExploit.MaxSmokehouseOpsPerMinute, 60
+	)
+end
+
+function SmokehouseService:KnitStart()
+	Players.PlayerRemoving:Connect(function(player)
+		self._smokeLimiter:reset(player)
+	end)
 end
 
 -- ====================================================================
@@ -136,6 +155,7 @@ end
 -- ====================================================================
 
 function SmokehouseService.Client:GetSlots(player: Player, buildingUid: string): {[number]: any}?
+	if not self.Server._smokeLimiter:check(player) then return nil end
 	local building = findOwnedBuilding(player, buildingUid)
 	if not building or building.kind ~= "Smokehouse" then return nil end
 	local slots = ensurePreserveSlots(building)
@@ -147,6 +167,7 @@ end
 
 function SmokehouseService.Client:PlaceFishInSmokehouse(player: Player, buildingUid: string, fishUid: string): {ok: boolean, reason: string?, slotIndex: number?}
 	local self = self.Server
+	if not self._smokeLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 	local building, _data = findOwnedBuilding(player, buildingUid)
 	if not building then return { ok = false, reason = "not_found" } end
 	if building.kind ~= "Smokehouse" then return { ok = false, reason = "not_smokehouse" } end
@@ -174,9 +195,17 @@ end
 
 function SmokehouseService.Client:CancelFishInSmokehouse(player: Player, buildingUid: string, slotIndex: number): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._smokeLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 	local building = findOwnedBuilding(player, buildingUid)
 	if not building then return { ok = false, reason = "not_found" } end
 	if building.kind ~= "Smokehouse" then return { ok = false, reason = "not_smokehouse" } end
+	if typeof(slotIndex) ~= "number"
+		or slotIndex ~= math.floor(slotIndex)
+		or slotIndex < 1
+		or slotIndex > smokehouseCapacity(building)
+	then
+		return { ok = false, reason = "bad_slot" }
+	end
 
 	local slots = ensurePreserveSlots(building)
 	local slot = slots[slotIndex]
@@ -199,9 +228,17 @@ end
 
 function SmokehouseService.Client:ClaimPreservedFish(player: Player, buildingUid: string, slotIndex: number): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._smokeLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 	local building = findOwnedBuilding(player, buildingUid)
 	if not building then return { ok = false, reason = "not_found" } end
 	if building.kind ~= "Smokehouse" then return { ok = false, reason = "not_smokehouse" } end
+	if typeof(slotIndex) ~= "number"
+		or slotIndex ~= math.floor(slotIndex)
+		or slotIndex < 1
+		or slotIndex > smokehouseCapacity(building)
+	then
+		return { ok = false, reason = "bad_slot" }
+	end
 
 	local slots = ensurePreserveSlots(building)
 	local slot = slots[slotIndex]

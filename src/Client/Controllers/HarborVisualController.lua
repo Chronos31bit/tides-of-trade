@@ -624,6 +624,12 @@ function HarborVisualController:KnitStart()
 
 	-- Server join-replay often fires before this controller connects.
 	HarborVisualService:RequestWorldReplay():andThen(function()
+		-- RequestWorldReplay is a RemoteFunction. The server fires one
+		-- HarborVisualUpdate RemoteEvent per building and then returns true.
+		-- Both use the same ordered channel, but the RemoteEvent callbacks
+		-- are deferred into the next task-scheduler step. Yielding one frame
+		-- lets those queued _onUpdate calls run before we count models.
+		task.wait()
 		local root = self:_ensureRoot()
 		local count = 0
 		for _, child in ipairs(root:GetChildren()) do
