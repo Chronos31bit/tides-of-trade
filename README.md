@@ -101,6 +101,10 @@ rojo serve
 
 Then in Roblox Studio: **Plugins ▸ Rojo ▸ Connect** (port 34872 by default).
 
+### Roblox Studio MCP (Cursor agent)
+
+To let the Cursor agent run Luau and edit your open place from chat, enable Studio MCP and connect Cursor. See [scripts/Studio/MCP_Setup.md](scripts/Studio/MCP_Setup.md). Use **only** global `~/.cursor/mcp.json` (not a duplicate project config). After changes, **fully restart Cursor** with your place already open in Studio; the MCP row must show tools, not "No tools…".
+
 > **DataStore note**: DataStores don't write to disk in Studio unless
 > "Enable Studio Access to API Services" is on under **Game Settings ▸
 > Security**. Without it, profile data won't persist between Studio sessions

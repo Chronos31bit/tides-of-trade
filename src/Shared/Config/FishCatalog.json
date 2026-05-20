@@ -11,7 +11,8 @@
     "xp": "XP granted on catch",
     "weightRange": "[minKg, maxKg] — affects price multiplier (price = base * (1 + (weight-min)/(max-min) * 0.5))",
     "rodMinTier": "1..5 — required rod tier to even hook this fish",
-    "greenZoneSize": "0..1 — fraction of timing meter that's the success zone. Smaller = harder."
+    "greenZoneSize": "0..1 — fraction of timing meter that's the success zone. Smaller = harder.",
+    "modelPath": "ReplicatedStorage child path for the fish's 3D model (e.g. Assets.Fish.harbor_mackerel)"
   },
   "fish": [
     {
@@ -26,7 +27,8 @@
       "xp": 12,
       "weightRange": [0.4, 1.6],
       "rodMinTier": 1,
-      "greenZoneSize": 0.32
+      "greenZoneSize": 0.32,
+      "modelPath": "Assets.Fish.harbor_mackerel"
     },
     {
       "id": "speckled_perch",
@@ -40,7 +42,8 @@
       "xp": 14,
       "weightRange": [0.6, 2.0],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.speckled_perch"
     },
     {
       "id": "silver_sardine",
@@ -54,7 +57,8 @@
       "xp": 10,
       "weightRange": [0.2, 0.6],
       "rodMinTier": 1,
-      "greenZoneSize": 0.34
+      "greenZoneSize": 0.34,
+      "modelPath": "Assets.Fish.silver_sardine"
     },
     {
       "id": "driftwood_minnow",
@@ -68,7 +72,8 @@
       "xp": 10,
       "weightRange": [0.2, 0.5],
       "rodMinTier": 1,
-      "greenZoneSize": 0.34
+      "greenZoneSize": 0.34,
+      "modelPath": "Assets.Fish.driftwood_minnow"
     },
     {
       "id": "pier_bream",
@@ -82,7 +87,8 @@
       "xp": 11,
       "weightRange": [0.5, 1.5],
       "rodMinTier": 1,
-      "greenZoneSize": 0.32
+      "greenZoneSize": 0.32,
+      "modelPath": "Assets.Fish.pier_bream"
     },
     {
       "id": "brackish_smelt",
@@ -96,7 +102,8 @@
       "xp": 10,
       "weightRange": [0.3, 0.8],
       "rodMinTier": 1,
-      "greenZoneSize": 0.33
+      "greenZoneSize": 0.33,
+      "modelPath": "Assets.Fish.brackish_smelt"
     },
     {
       "id": "spotted_goby",
@@ -110,7 +117,8 @@
       "xp": 10,
       "weightRange": [0.2, 0.7],
       "rodMinTier": 1,
-      "greenZoneSize": 0.33
+      "greenZoneSize": 0.33,
+      "modelPath": "Assets.Fish.spotted_goby"
     },
     {
       "id": "tidepool_blenny",
@@ -124,7 +132,8 @@
       "xp": 10,
       "weightRange": [0.2, 0.5],
       "rodMinTier": 1,
-      "greenZoneSize": 0.34
+      "greenZoneSize": 0.34,
+      "modelPath": "Assets.Fish.tidepool_blenny"
     },
     {
       "id": "lemon_pilchard",
@@ -138,7 +147,8 @@
       "xp": 10,
       "weightRange": [0.3, 0.9],
       "rodMinTier": 1,
-      "greenZoneSize": 0.33
+      "greenZoneSize": 0.33,
+      "modelPath": "Assets.Fish.lemon_pilchard"
     },
     {
       "id": "sandfly_anchovy",
@@ -152,7 +162,8 @@
       "xp": 10,
       "weightRange": [0.2, 0.4],
       "rodMinTier": 1,
-      "greenZoneSize": 0.34
+      "greenZoneSize": 0.34,
+      "modelPath": "Assets.Fish.sandfly_anchovy"
     },
     {
       "id": "reef_butterflyfish",
@@ -166,7 +177,8 @@
       "xp": 13,
       "weightRange": [0.4, 1.2],
       "rodMinTier": 1,
-      "greenZoneSize": 0.31
+      "greenZoneSize": 0.31,
+      "modelPath": "Assets.Fish.reef_butterflyfish"
     },
     {
       "id": "ribbon_wrasse",
@@ -180,7 +192,8 @@
       "xp": 11,
       "weightRange": [0.3, 1.0],
       "rodMinTier": 1,
-      "greenZoneSize": 0.32
+      "greenZoneSize": 0.32,
+      "modelPath": "Assets.Fish.ribbon_wrasse"
     },
     {
       "id": "coraltooth_damsel",
@@ -194,7 +207,8 @@
       "xp": 11,
       "weightRange": [0.3, 0.9],
       "rodMinTier": 1,
-      "greenZoneSize": 0.32
+      "greenZoneSize": 0.32,
+      "modelPath": "Assets.Fish.coraltooth_damsel"
     },
     {
       "id": "emberbelly_snapper",
@@ -208,7 +222,8 @@
       "xp": 14,
       "weightRange": [0.8, 2.4],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.emberbelly_snapper"
     },
     {
       "id": "peppermint_parrotfish",
@@ -222,7 +237,8 @@
       "xp": 13,
       "weightRange": [0.7, 2.2],
       "rodMinTier": 1,
-      "greenZoneSize": 0.31
+      "greenZoneSize": 0.31,
+      "modelPath": "Assets.Fish.peppermint_parrotfish"
     },
     {
       "id": "urchin_picker",
@@ -236,7 +252,8 @@
       "xp": 10,
       "weightRange": [0.4, 1.0],
       "rodMinTier": 1,
-      "greenZoneSize": 0.33
+      "greenZoneSize": 0.33,
+      "modelPath": "Assets.Fish.urchin_picker"
     },
     {
       "id": "greenstripe_tang",
@@ -250,7 +267,8 @@
       "xp": 12,
       "weightRange": [0.5, 1.4],
       "rodMinTier": 1,
-      "greenZoneSize": 0.31
+      "greenZoneSize": 0.31,
+      "modelPath": "Assets.Fish.greenstripe_tang"
     },
     {
       "id": "needle_seapike",
@@ -264,7 +282,8 @@
       "xp": 13,
       "weightRange": [0.6, 1.8],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.needle_seapike"
     },
     {
       "id": "kelp_grouper",
@@ -278,7 +297,8 @@
       "xp": 14,
       "weightRange": [1.2, 3.5],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.kelp_grouper"
     },
     {
       "id": "plate_flounder",
@@ -292,7 +312,8 @@
       "xp": 12,
       "weightRange": [0.8, 2.6],
       "rodMinTier": 1,
-      "greenZoneSize": 0.31
+      "greenZoneSize": 0.31,
+      "modelPath": "Assets.Fish.plate_flounder"
     },
     {
       "id": "quiet_cod",
@@ -306,7 +327,8 @@
       "xp": 14,
       "weightRange": [1.0, 3.5],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.quiet_cod"
     },
     {
       "id": "driftbarrel_pollock",
@@ -320,7 +342,8 @@
       "xp": 11,
       "weightRange": [0.6, 1.8],
       "rodMinTier": 1,
-      "greenZoneSize": 0.31
+      "greenZoneSize": 0.31,
+      "modelPath": "Assets.Fish.driftbarrel_pollock"
     },
     {
       "id": "saltcrest_haddock",
@@ -334,7 +357,8 @@
       "xp": 13,
       "weightRange": [0.7, 2.0],
       "rodMinTier": 1,
-      "greenZoneSize": 0.31
+      "greenZoneSize": 0.31,
+      "modelPath": "Assets.Fish.saltcrest_haddock"
     },
     {
       "id": "blueback_mackerel",
@@ -348,7 +372,8 @@
       "xp": 11,
       "weightRange": [0.5, 1.6],
       "rodMinTier": 1,
-      "greenZoneSize": 0.32
+      "greenZoneSize": 0.32,
+      "modelPath": "Assets.Fish.blueback_mackerel"
     },
     {
       "id": "thumbprint_dab",
@@ -362,7 +387,8 @@
       "xp": 10,
       "weightRange": [0.3, 1.0],
       "rodMinTier": 1,
-      "greenZoneSize": 0.33
+      "greenZoneSize": 0.33,
+      "modelPath": "Assets.Fish.thumbprint_dab"
     },
     {
       "id": "hollow_lanternfish",
@@ -376,7 +402,8 @@
       "xp": 15,
       "weightRange": [0.2, 0.6],
       "rodMinTier": 1,
-      "greenZoneSize": 0.29
+      "greenZoneSize": 0.29,
+      "modelPath": "Assets.Fish.hollow_lanternfish"
     },
     {
       "id": "shale_clinger",
@@ -390,7 +417,8 @@
       "xp": 12,
       "weightRange": [0.4, 1.2],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.shale_clinger"
     },
     {
       "id": "spinywhip_minnow",
@@ -404,7 +432,8 @@
       "xp": 11,
       "weightRange": [0.3, 0.9],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.spinywhip_minnow"
     },
     {
       "id": "ashvein_eelpout",
@@ -418,7 +447,8 @@
       "xp": 14,
       "weightRange": [0.6, 2.0],
       "rodMinTier": 1,
-      "greenZoneSize": 0.29
+      "greenZoneSize": 0.29,
+      "modelPath": "Assets.Fish.ashvein_eelpout"
     },
     {
       "id": "murk_loach",
@@ -432,7 +462,8 @@
       "xp": 13,
       "weightRange": [0.4, 1.4],
       "rodMinTier": 1,
-      "greenZoneSize": 0.30
+      "greenZoneSize": 0.30,
+      "modelPath": "Assets.Fish.murk_loach"
     },
     {
       "id": "gilded_herring",
@@ -446,7 +477,8 @@
       "xp": 32,
       "weightRange": [0.8, 2.5],
       "rodMinTier": 1,
-      "greenZoneSize": 0.26
+      "greenZoneSize": 0.26,
+      "modelPath": "Assets.Fish.gilded_herring"
     },
     {
       "id": "harbor_seahorse",
@@ -460,7 +492,8 @@
       "xp": 35,
       "weightRange": [0.3, 1.2],
       "rodMinTier": 1,
-      "greenZoneSize": 0.25
+      "greenZoneSize": 0.25,
+      "modelPath": "Assets.Fish.harbor_seahorse"
     },
     {
       "id": "tidecrest_mullet",
@@ -474,7 +507,8 @@
       "xp": 40,
       "weightRange": [1.5, 4.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.23
+      "greenZoneSize": 0.23,
+      "modelPath": "Assets.Fish.tidecrest_mullet"
     },
     {
       "id": "lantern_squid",
@@ -488,7 +522,8 @@
       "xp": 42,
       "weightRange": [0.8, 3.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.22
+      "greenZoneSize": 0.22,
+      "modelPath": "Assets.Fish.lantern_squid"
     },
     {
       "id": "moonjelly",
@@ -502,7 +537,8 @@
       "xp": 33,
       "weightRange": [1.5, 4.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.24
+      "greenZoneSize": 0.24,
+      "modelPath": "Assets.Fish.moonjelly"
     },
     {
       "id": "coppervein_snapper",
@@ -516,7 +552,8 @@
       "xp": 38,
       "weightRange": [2.0, 6.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.23
+      "greenZoneSize": 0.23,
+      "modelPath": "Assets.Fish.coppervein_snapper"
     },
     {
       "id": "quill_lionfish",
@@ -530,7 +567,8 @@
       "xp": 36,
       "weightRange": [1.0, 3.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.23
+      "greenZoneSize": 0.23,
+      "modelPath": "Assets.Fish.quill_lionfish"
     },
     {
       "id": "blackwave_eel",
@@ -544,7 +582,8 @@
       "xp": 32,
       "weightRange": [1.5, 5.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.24
+      "greenZoneSize": 0.24,
+      "modelPath": "Assets.Fish.blackwave_eel"
     },
     {
       "id": "tidehollow_pike",
@@ -558,7 +597,8 @@
       "xp": 42,
       "weightRange": [2.5, 7.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.22
+      "greenZoneSize": 0.22,
+      "modelPath": "Assets.Fish.tidehollow_pike"
     },
     {
       "id": "salt_glass_squid",
@@ -572,7 +612,8 @@
       "xp": 45,
       "weightRange": [1.2, 4.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.22
+      "greenZoneSize": 0.22,
+      "modelPath": "Assets.Fish.salt_glass_squid"
     },
     {
       "id": "ironcap_swordtail",
@@ -586,7 +627,8 @@
       "xp": 48,
       "weightRange": [3.5, 9.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.21
+      "greenZoneSize": 0.21,
+      "modelPath": "Assets.Fish.ironcap_swordtail"
     },
     {
       "id": "starlace_dogfish",
@@ -600,7 +642,8 @@
       "xp": 43,
       "weightRange": [2.8, 7.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.22
+      "greenZoneSize": 0.22,
+      "modelPath": "Assets.Fish.starlace_dogfish"
     },
     {
       "id": "duskwing_ray",
@@ -614,7 +657,8 @@
       "xp": 40,
       "weightRange": [4.0, 10.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.22
+      "greenZoneSize": 0.22,
+      "modelPath": "Assets.Fish.duskwing_ray"
     },
     {
       "id": "silvermist_carp",
@@ -628,7 +672,8 @@
       "xp": 30,
       "weightRange": [1.5, 5.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.25
+      "greenZoneSize": 0.25,
+      "modelPath": "Assets.Fish.silvermist_carp"
     },
     {
       "id": "coral_kingfisher_bass",
@@ -642,7 +687,8 @@
       "xp": 37,
       "weightRange": [2.5, 6.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.23
+      "greenZoneSize": 0.23,
+      "modelPath": "Assets.Fish.coral_kingfisher_bass"
     },
     {
       "id": "lacquer_skate",
@@ -656,7 +702,8 @@
       "xp": 50,
       "weightRange": [3.0, 8.5],
       "rodMinTier": 2,
-      "greenZoneSize": 0.21
+      "greenZoneSize": 0.21,
+      "modelPath": "Assets.Fish.lacquer_skate"
     },
     {
       "id": "opal_grouper",
@@ -670,7 +717,8 @@
       "xp": 46,
       "weightRange": [4.5, 11.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.21
+      "greenZoneSize": 0.21,
+      "modelPath": "Assets.Fish.opal_grouper"
     },
     {
       "id": "brinekissed_octopus",
@@ -684,7 +732,8 @@
       "xp": 48,
       "weightRange": [2.0, 6.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.21
+      "greenZoneSize": 0.21,
+      "modelPath": "Assets.Fish.brinekissed_octopus"
     },
     {
       "id": "ghost_pipefish",
@@ -698,7 +747,8 @@
       "xp": 34,
       "weightRange": [1.0, 3.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.24
+      "greenZoneSize": 0.24,
+      "modelPath": "Assets.Fish.ghost_pipefish"
     },
     {
       "id": "trench_lanternfish",
@@ -712,7 +762,8 @@
       "xp": 50,
       "weightRange": [1.0, 3.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.20
+      "greenZoneSize": 0.20,
+      "modelPath": "Assets.Fish.trench_lanternfish"
     },
     {
       "id": "ember_jellyhood",
@@ -726,7 +777,8 @@
       "xp": 50,
       "weightRange": [2.5, 7.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.20
+      "greenZoneSize": 0.20,
+      "modelPath": "Assets.Fish.ember_jellyhood"
     },
     {
       "id": "saltmane_sturgeon",
@@ -740,7 +792,8 @@
       "xp": 85,
       "weightRange": [4.0, 12.0],
       "rodMinTier": 2,
-      "greenZoneSize": 0.17
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.saltmane_sturgeon"
     },
     {
       "id": "copperback_tarpon",
@@ -754,7 +807,8 @@
       "xp": 95,
       "weightRange": [6.0, 18.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.15
+      "greenZoneSize": 0.15,
+      "modelPath": "Assets.Fish.copperback_tarpon"
     },
     {
       "id": "stormcoat_tuna",
@@ -768,7 +822,8 @@
       "xp": 90,
       "weightRange": [4.0, 14.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.16
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.stormcoat_tuna"
     },
     {
       "id": "brassmaw_marlin",
@@ -782,7 +837,8 @@
       "xp": 95,
       "weightRange": [8.0, 25.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.16
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.brassmaw_marlin"
     },
     {
       "id": "tide_warden_anglerfish",
@@ -796,7 +852,8 @@
       "xp": 100,
       "weightRange": [5.0, 15.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.15
+      "greenZoneSize": 0.15,
+      "modelPath": "Assets.Fish.tide_warden_anglerfish"
     },
     {
       "id": "shell_oracle_halibut",
@@ -810,7 +867,8 @@
       "xp": 90,
       "weightRange": [10.0, 30.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.16
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.shell_oracle_halibut"
     },
     {
       "id": "moonblade_swordfish",
@@ -824,7 +882,8 @@
       "xp": 98,
       "weightRange": [9.0, 22.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.15
+      "greenZoneSize": 0.15,
+      "modelPath": "Assets.Fish.moonblade_swordfish"
     },
     {
       "id": "brinepriest_arowana",
@@ -838,7 +897,248 @@
       "xp": 82,
       "weightRange": [3.0, 9.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.18
+      "greenZoneSize": 0.18,
+      "modelPath": "Assets.Fish.brinepriest_arowana"
+    },
+    {
+      "id": "cobalt_cuttlefish",
+      "displayName": "Cobalt Cuttlefish",
+      "rarity": "Rare",
+      "biomes": ["Reef", "DeepWater"],
+      "timeOfDay": ["Dusk", "Night"],
+      "weather": ["Fog", "Cloudy"],
+      "tide": "Any",
+      "basePrice": 195,
+      "xp": 88,
+      "weightRange": [1.5, 5.0],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.cobalt_cuttlefish"
+    },
+    {
+      "id": "ironjaw_drumfish",
+      "displayName": "Ironjaw Drumfish",
+      "rarity": "Rare",
+      "biomes": ["DeepWater", "Shoreline"],
+      "timeOfDay": ["Any"],
+      "weather": ["Storm", "Rain"],
+      "tide": "High",
+      "basePrice": 225,
+      "xp": 92,
+      "weightRange": [3.0, 9.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.ironjaw_drumfish"
+    },
+    {
+      "id": "veilscale_dragonet",
+      "displayName": "Veilscale Dragonet",
+      "rarity": "Rare",
+      "biomes": ["Reef"],
+      "timeOfDay": ["Dusk"],
+      "weather": ["Fog", "Cloudy"],
+      "tide": "Low",
+      "basePrice": 270,
+      "xp": 96,
+      "weightRange": [1.2, 4.5],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.15,
+      "modelPath": "Assets.Fish.veilscale_dragonet"
+    },
+    {
+      "id": "ashcrown_barracuda",
+      "displayName": "Ashcrown Barracuda",
+      "rarity": "Rare",
+      "biomes": ["DeepWater"],
+      "timeOfDay": ["Day", "Dusk"],
+      "weather": ["Clear"],
+      "tide": "Any",
+      "basePrice": 245,
+      "xp": 93,
+      "weightRange": [4.0, 12.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.ashcrown_barracuda"
+    },
+    {
+      "id": "aurora_trevally",
+      "displayName": "Aurora Trevally",
+      "rarity": "Rare",
+      "biomes": ["Shoreline", "Pier"],
+      "timeOfDay": ["Morning"],
+      "weather": ["Clear"],
+      "tide": "Any",
+      "basePrice": 165,
+      "xp": 84,
+      "weightRange": [2.0, 6.0],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.aurora_trevally"
+    },
+    {
+      "id": "nightveil_pompano",
+      "displayName": "Nightveil Pompano",
+      "rarity": "Rare",
+      "biomes": ["Pier", "Reef"],
+      "timeOfDay": ["Night"],
+      "weather": ["Clear", "Fog"],
+      "tide": "High",
+      "basePrice": 200,
+      "xp": 89,
+      "weightRange": [1.8, 5.5],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.nightveil_pompano"
+    },
+    {
+      "id": "saltwater_puffer",
+      "displayName": "Saltwater Puffer",
+      "rarity": "Rare",
+      "biomes": ["Reef"],
+      "timeOfDay": ["Day"],
+      "weather": ["Clear", "Cloudy"],
+      "tide": "Any",
+      "basePrice": 160,
+      "xp": 83,
+      "weightRange": [0.8, 2.5],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.saltwater_puffer"
+    },
+    {
+      "id": "amber_moray",
+      "displayName": "Amber Moray",
+      "rarity": "Rare",
+      "biomes": ["DeepWater", "Reef"],
+      "timeOfDay": ["Night"],
+      "weather": ["Any"],
+      "tide": "Any",
+      "basePrice": 230,
+      "xp": 91,
+      "weightRange": [2.0, 7.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.amber_moray"
+    },
+    {
+      "id": "tidal_guitarfish",
+      "displayName": "Tidal Guitarfish",
+      "rarity": "Rare",
+      "biomes": ["DeepWater"],
+      "timeOfDay": ["Day"],
+      "weather": ["Clear"],
+      "tide": "High",
+      "basePrice": 255,
+      "xp": 94,
+      "weightRange": [5.0, 14.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.15,
+      "modelPath": "Assets.Fish.tidal_guitarfish"
+    },
+    {
+      "id": "russet_boxfish",
+      "displayName": "Russet Boxfish",
+      "rarity": "Rare",
+      "biomes": ["Reef"],
+      "timeOfDay": ["Day"],
+      "weather": ["Clear"],
+      "tide": "Any",
+      "basePrice": 148,
+      "xp": 81,
+      "weightRange": [0.6, 2.0],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.18,
+      "modelPath": "Assets.Fish.russet_boxfish"
+    },
+    {
+      "id": "shallowsong_grouper",
+      "displayName": "Shallowsong Grouper",
+      "rarity": "Rare",
+      "biomes": ["Pier", "Reef"],
+      "timeOfDay": ["Dusk"],
+      "weather": ["Any"],
+      "tide": "Any",
+      "basePrice": 210,
+      "xp": 88,
+      "weightRange": [3.0, 8.5],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.shallowsong_grouper"
+    },
+    {
+      "id": "coldvein_whiting",
+      "displayName": "Coldvein Whiting",
+      "rarity": "Rare",
+      "biomes": ["DeepWater"],
+      "timeOfDay": ["Any"],
+      "weather": ["Fog", "Cloudy"],
+      "tide": "Any",
+      "basePrice": 190,
+      "xp": 86,
+      "weightRange": [1.2, 4.0],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.coldvein_whiting"
+    },
+    {
+      "id": "crestfall_pompano",
+      "displayName": "Crestfall Pompano",
+      "rarity": "Rare",
+      "biomes": ["Pier"],
+      "timeOfDay": ["Morning"],
+      "weather": ["Clear"],
+      "tide": "Any",
+      "basePrice": 172,
+      "xp": 84,
+      "weightRange": [1.5, 4.5],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.crestfall_pompano"
+    },
+    {
+      "id": "barnacle_sheepshead",
+      "displayName": "Barnacle Sheepshead",
+      "rarity": "Rare",
+      "biomes": ["Pier", "Shoreline"],
+      "timeOfDay": ["Day"],
+      "weather": ["Clear", "Cloudy"],
+      "tide": "Any",
+      "basePrice": 185,
+      "xp": 85,
+      "weightRange": [2.0, 5.5],
+      "rodMinTier": 2,
+      "greenZoneSize": 0.17,
+      "modelPath": "Assets.Fish.barnacle_sheepshead"
+    },
+    {
+      "id": "duskfin_wahoo",
+      "displayName": "Duskfin Wahoo",
+      "rarity": "Rare",
+      "biomes": ["DeepWater"],
+      "timeOfDay": ["Dusk"],
+      "weather": ["Clear"],
+      "tide": "High",
+      "basePrice": 280,
+      "xp": 97,
+      "weightRange": [6.0, 16.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.15,
+      "modelPath": "Assets.Fish.duskfin_wahoo"
+    },
+    {
+      "id": "marbled_triggerfish",
+      "displayName": "Marbled Triggerfish",
+      "rarity": "Rare",
+      "biomes": ["Reef"],
+      "timeOfDay": ["Day", "Dusk"],
+      "weather": ["Clear", "Cloudy"],
+      "tide": "Any",
+      "basePrice": 205,
+      "xp": 87,
+      "weightRange": [1.8, 5.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.16,
+      "modelPath": "Assets.Fish.marbled_triggerfish"
     },
     {
       "id": "cobalt_kraken_juvenile",
@@ -852,7 +1152,8 @@
       "xp": 135,
       "weightRange": [12.0, 32.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.14
+      "greenZoneSize": 0.14,
+      "modelPath": "Assets.Fish.cobalt_kraken_juvenile"
     },
     {
       "id": "driftwhale_calf",
@@ -866,7 +1167,8 @@
       "xp": 130,
       "weightRange": [15.0, 40.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.14
+      "greenZoneSize": 0.14,
+      "modelPath": "Assets.Fish.driftwhale_calf"
     },
     {
       "id": "trench_chorister",
@@ -880,7 +1182,8 @@
       "xp": 140,
       "weightRange": [6.0, 18.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.14
+      "greenZoneSize": 0.14,
+      "modelPath": "Assets.Fish.trench_chorister"
     },
     {
       "id": "ironscale_triggerfish",
@@ -894,7 +1197,8 @@
       "xp": 90,
       "weightRange": [4.0, 12.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.14
+      "greenZoneSize": 0.14,
+      "modelPath": "Assets.Fish.ironscale_triggerfish"
     },
     {
       "id": "velvetfin_razorback",
@@ -908,7 +1212,8 @@
       "xp": 110,
       "weightRange": [6.0, 18.0],
       "rodMinTier": 4,
-      "greenZoneSize": 0.12
+      "greenZoneSize": 0.12,
+      "modelPath": "Assets.Fish.velvetfin_razorback"
     },
     {
       "id": "abyssal_lanternray",
@@ -922,7 +1227,8 @@
       "xp": 130,
       "weightRange": [8.0, 25.0],
       "rodMinTier": 4,
-      "greenZoneSize": 0.11
+      "greenZoneSize": 0.11,
+      "modelPath": "Assets.Fish.abyssal_lanternray"
     },
     {
       "id": "cobalt_hammerhead",
@@ -936,7 +1242,8 @@
       "xp": 100,
       "weightRange": [10.0, 30.0],
       "rodMinTier": 3,
-      "greenZoneSize": 0.13
+      "greenZoneSize": 0.13,
+      "modelPath": "Assets.Fish.cobalt_hammerhead"
     },
     {
       "id": "gilded_ghostshark",
@@ -950,7 +1257,8 @@
       "xp": 140,
       "weightRange": [12.0, 35.0],
       "rodMinTier": 4,
-      "greenZoneSize": 0.11
+      "greenZoneSize": 0.11,
+      "modelPath": "Assets.Fish.gilded_ghostshark"
     },
     {
       "id": "thorn_chimera",
@@ -964,7 +1272,143 @@
       "xp": 150,
       "weightRange": [15.0, 40.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.10
+      "greenZoneSize": 0.10,
+      "modelPath": "Assets.Fish.thorn_chimera"
+    },
+    {
+      "id": "aurora_seahorse",
+      "displayName": "Aurora Seahorse",
+      "rarity": "Epic",
+      "biomes": ["Shoreline", "Pier"],
+      "timeOfDay": ["Night"],
+      "weather": ["Clear"],
+      "tide": "High",
+      "basePrice": 480,
+      "xp": 130,
+      "weightRange": [0.5, 2.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.13,
+      "modelPath": "Assets.Fish.aurora_seahorse"
+    },
+    {
+      "id": "crimson_deepskate",
+      "displayName": "Crimson Deepskate",
+      "rarity": "Epic",
+      "biomes": ["DeepWater", "Trench"],
+      "timeOfDay": ["Dusk"],
+      "weather": ["Fog"],
+      "tide": "Any",
+      "basePrice": 620,
+      "xp": 140,
+      "weightRange": [8.0, 22.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.11,
+      "modelPath": "Assets.Fish.crimson_deepskate"
+    },
+    {
+      "id": "spinelock_moray",
+      "displayName": "Spinelock Moray",
+      "rarity": "Epic",
+      "biomes": ["Trench"],
+      "timeOfDay": ["Night"],
+      "weather": ["Storm"],
+      "tide": "Low",
+      "basePrice": 750,
+      "xp": 148,
+      "weightRange": [5.0, 15.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.11,
+      "modelPath": "Assets.Fish.spinelock_moray"
+    },
+    {
+      "id": "glassback_gar",
+      "displayName": "Glassback Gar",
+      "rarity": "Epic",
+      "biomes": ["Shoreline"],
+      "timeOfDay": ["Morning"],
+      "weather": ["Fog"],
+      "tide": "Low",
+      "basePrice": 440,
+      "xp": 118,
+      "weightRange": [2.5, 8.0],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.13,
+      "modelPath": "Assets.Fish.glassback_gar"
+    },
+    {
+      "id": "prismatic_mantaray",
+      "displayName": "Prismatic Manta Ray",
+      "rarity": "Epic",
+      "biomes": ["DeepWater", "Reef"],
+      "timeOfDay": ["Night"],
+      "weather": ["Clear"],
+      "tide": "High",
+      "basePrice": 700,
+      "xp": 145,
+      "weightRange": [15.0, 40.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.11,
+      "modelPath": "Assets.Fish.prismatic_mantaray"
+    },
+    {
+      "id": "ashfang_wolffish",
+      "displayName": "Ashfang Wolffish",
+      "rarity": "Epic",
+      "biomes": ["Trench", "DeepWater"],
+      "timeOfDay": ["Night"],
+      "weather": ["Storm"],
+      "tide": "Any",
+      "basePrice": 780,
+      "xp": 152,
+      "weightRange": [8.0, 22.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.11,
+      "modelPath": "Assets.Fish.ashfang_wolffish"
+    },
+    {
+      "id": "jade_stingray",
+      "displayName": "Jade Stingray",
+      "rarity": "Epic",
+      "biomes": ["Reef", "DeepWater"],
+      "timeOfDay": ["Dusk"],
+      "weather": ["Fog"],
+      "tide": "Any",
+      "basePrice": 595,
+      "xp": 132,
+      "weightRange": [6.0, 18.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.12,
+      "modelPath": "Assets.Fish.jade_stingray"
+    },
+    {
+      "id": "spectral_oarfish",
+      "displayName": "Spectral Oarfish",
+      "rarity": "Epic",
+      "biomes": ["DeepWater"],
+      "timeOfDay": ["Night"],
+      "weather": ["Clear"],
+      "tide": "High",
+      "basePrice": 850,
+      "xp": 158,
+      "weightRange": [10.0, 30.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.10,
+      "modelPath": "Assets.Fish.spectral_oarfish"
+    },
+    {
+      "id": "sandstorm_puffer",
+      "displayName": "Sandstorm Puffer",
+      "rarity": "Epic",
+      "biomes": ["Reef", "Shoreline"],
+      "timeOfDay": ["Day"],
+      "weather": ["Clear"],
+      "tide": "Any",
+      "basePrice": 455,
+      "xp": 120,
+      "weightRange": [1.5, 4.5],
+      "rodMinTier": 3,
+      "greenZoneSize": 0.13,
+      "modelPath": "Assets.Fish.sandstorm_puffer"
     },
     {
       "id": "moonpearl_eel",
@@ -978,7 +1422,8 @@
       "xp": 280,
       "weightRange": [2.0, 6.0],
       "rodMinTier": 4,
-      "greenZoneSize": 0.10
+      "greenZoneSize": 0.10,
+      "modelPath": "Assets.Fish.moonpearl_eel"
     },
     {
       "id": "drowned_king",
@@ -992,7 +1437,8 @@
       "xp": 380,
       "weightRange": [80.0, 200.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.08
+      "greenZoneSize": 0.08,
+      "modelPath": "Assets.Fish.drowned_king"
     },
     {
       "id": "stormtide_sovereign",
@@ -1006,7 +1452,8 @@
       "xp": 300,
       "weightRange": [25.0, 70.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.09
+      "greenZoneSize": 0.09,
+      "modelPath": "Assets.Fish.stormtide_sovereign"
     },
     {
       "id": "voidwhisker_catfish",
@@ -1020,7 +1467,8 @@
       "xp": 380,
       "weightRange": [30.0, 90.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.08
+      "greenZoneSize": 0.08,
+      "modelPath": "Assets.Fish.voidwhisker_catfish"
     },
     {
       "id": "pearlscale_colossus",
@@ -1034,7 +1482,8 @@
       "xp": 420,
       "weightRange": [40.0, 110.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.08
+      "greenZoneSize": 0.08,
+      "modelPath": "Assets.Fish.pearlscale_colossus"
     },
     {
       "id": "emberscale_titan",
@@ -1048,7 +1497,53 @@
       "xp": 480,
       "weightRange": [50.0, 130.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.07
+      "greenZoneSize": 0.07,
+      "modelPath": "Assets.Fish.emberscale_titan"
+    },
+    {
+      "id": "sunken_oracle",
+      "displayName": "The Sunken Oracle",
+      "rarity": "Legendary",
+      "biomes": ["Trench"],
+      "timeOfDay": ["Dusk"],
+      "weather": ["Clear"],
+      "tide": "Low",
+      "basePrice": 2800,
+      "xp": 440,
+      "weightRange": [30.0, 80.0],
+      "rodMinTier": 5,
+      "greenZoneSize": 0.08,
+      "modelPath": "Assets.Fish.sunken_oracle"
+    },
+    {
+      "id": "abyssal_phantom",
+      "displayName": "Abyssal Phantom",
+      "rarity": "Legendary",
+      "biomes": ["DeepWater", "Trench"],
+      "timeOfDay": ["Night"],
+      "weather": ["Fog"],
+      "tide": "Any",
+      "basePrice": 1600,
+      "xp": 290,
+      "weightRange": [12.0, 35.0],
+      "rodMinTier": 4,
+      "greenZoneSize": 0.09,
+      "modelPath": "Assets.Fish.abyssal_phantom"
+    },
+    {
+      "id": "tidewraith_leviathan",
+      "displayName": "Tidewraith Leviathan",
+      "rarity": "Legendary",
+      "biomes": ["Trench"],
+      "timeOfDay": ["Night"],
+      "weather": ["Storm", "Fog"],
+      "tide": "High",
+      "basePrice": 2100,
+      "xp": 360,
+      "weightRange": [25.0, 70.0],
+      "rodMinTier": 5,
+      "greenZoneSize": 0.08,
+      "modelPath": "Assets.Fish.tidewraith_leviathan"
     },
     {
       "id": "harborlight_wraith",
@@ -1062,7 +1557,8 @@
       "xp": 300,
       "weightRange": [8.0, 20.0],
       "rodMinTier": 4,
-      "greenZoneSize": 0.09
+      "greenZoneSize": 0.09,
+      "modelPath": "Assets.Fish.harborlight_wraith"
     },
     {
       "id": "cathedral_squid",
@@ -1076,7 +1572,23 @@
       "xp": 320,
       "weightRange": [40.0, 100.0],
       "rodMinTier": 4,
-      "greenZoneSize": 0.09
+      "greenZoneSize": 0.09,
+      "modelPath": "Assets.Fish.cathedral_squid"
+    },
+    {
+      "id": "world_serpent_juvenile",
+      "displayName": "World Serpent Juvenile",
+      "rarity": "Mythic",
+      "biomes": ["Trench"],
+      "timeOfDay": ["Night"],
+      "weather": ["Storm"],
+      "tide": "High",
+      "basePrice": 2200,
+      "xp": 400,
+      "weightRange": [40.0, 120.0],
+      "rodMinTier": 5,
+      "greenZoneSize": 0.08,
+      "modelPath": "Assets.Fish.world_serpent_juvenile"
     },
     {
       "id": "tidegod_leviathan",
@@ -1090,7 +1602,8 @@
       "xp": 1000,
       "weightRange": [80.0, 250.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.06
+      "greenZoneSize": 0.06,
+      "modelPath": "Assets.Fish.tidegod_leviathan"
     },
     {
       "id": "crystalspine_arowana",
@@ -1104,7 +1617,8 @@
       "xp": 800,
       "weightRange": [60.0, 180.0],
       "rodMinTier": 5,
-      "greenZoneSize": 0.06
+      "greenZoneSize": 0.06,
+      "modelPath": "Assets.Fish.crystalspine_arowana"
     }
   ]
 }

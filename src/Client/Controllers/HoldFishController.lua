@@ -11,7 +11,7 @@ local TweenService      = game:GetService("TweenService")
 local Knit              = require(ReplicatedStorage.Packages.Knit)
 local UIUtil            = require(script.Parent.Parent.UI.UIUtil)
 local GameConfig        = require(ReplicatedStorage.Shared.Config.GameConfig)
-local FishParticles     = require(ReplicatedStorage.Shared.Util.FishParticles)
+local FishMutations     = require(ReplicatedStorage.Shared.Util.FishMutations)
 
 local P = UIUtil.Palette
 
@@ -19,8 +19,10 @@ local HoldFishController = Knit.CreateController({ Name = "HoldFishController" }
 
 local _heldModel: Model?          = nil
 local _toastGui: ScreenGui?       = nil
+local _mutHandle: any             = nil
 
 local function destroyHeld()
+	if _mutHandle then _mutHandle:Destroy(); _mutHandle = nil end
 	if _heldModel then _heldModel:Destroy(); _heldModel = nil end
 	if _toastGui  then _toastGui:Destroy();  _toastGui  = nil end
 end
@@ -113,7 +115,7 @@ function HoldFishController:HoldFish(
 	weld.Part1 = attachPart
 	weld.Parent = attachPart
 
-	FishParticles.attach(attachPart, modifiers or {})
+	_mutHandle = FishMutations.attach(attachPart, modifiers or {})
 
 	_heldModel = clone
 

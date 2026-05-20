@@ -12,7 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UIUtil        = require(script.Parent.UIUtil)
 local MotionUtil    = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local GameConfig    = require(ReplicatedStorage.Shared.Config.GameConfig)
-local FishParticles = require(ReplicatedStorage.Shared.Util.FishParticles)
+local FishMutations = require(ReplicatedStorage.Shared.Util.FishMutations)
 
 local CatchRevealUI = {}
 
@@ -44,6 +44,29 @@ local TIER_CYCLE_TARGETS = {
 -- MODIFIER COLORS + DISPLAY NAMES
 -- ====================================================================
 local MOD_COLORS: {[string]: Color3} = {
+	-- New roll-eligible set
+	rainbow      = Color3.fromRGB(255, 120, 200),
+	golden       = Color3.fromRGB(255, 215,  60),
+	silver       = Color3.fromRGB(220, 225, 240),
+	frozen       = Color3.fromRGB(140, 220, 255),
+	inferno      = Color3.fromRGB(255, 130,  50),
+	shocked      = Color3.fromRGB(255, 240,  80),
+	radioactive  = Color3.fromRGB(120, 255, 100),
+	crystal      = Color3.fromRGB(200, 230, 255),
+	colossal     = Color3.fromRGB(120, 220, 130),
+	tiny         = Color3.fromRGB(255, 255, 255),
+	bloodlust    = Color3.fromRGB(220,  40,  40),
+	voidtouched  = Color3.fromRGB(170,  80, 255),
+	ghostly      = Color3.fromRGB(240, 245, 255),
+	disco        = Color3.fromRGB(255,  80, 200),
+	ancientcore  = Color3.fromRGB(220, 170,  90),
+	-- World-state
+	tide_kissed  = Color3.fromRGB( 60, 200, 220),
+	storm_forged = Color3.fromRGB(180,  80, 255),
+	moon_touched = Color3.fromRGB(200, 200, 255),
+	dawn_blessed = Color3.fromRGB(255, 200, 120),
+	fog_shrouded = Color3.fromRGB(160, 180, 200),
+	-- Deprecated (legacy items only)
 	shiny        = Color3.fromRGB(255, 220,  60),
 	giant        = Color3.fromRGB(120, 200, 120),
 	glowing      = Color3.fromRGB(100, 180, 255),
@@ -54,11 +77,6 @@ local MOD_COLORS: {[string]: Color3} = {
 	cursed       = Color3.fromRGB(120,  40, 160),
 	magnetic     = Color3.fromRGB( 80, 200, 220),
 	barnacled    = Color3.fromRGB(140, 180, 100),
-	tide_kissed  = Color3.fromRGB( 60, 200, 220),
-	storm_forged = Color3.fromRGB(180,  80, 255),
-	moon_touched = Color3.fromRGB(200, 200, 255),
-	dawn_blessed = Color3.fromRGB(255, 200, 120),
-	fog_shrouded = Color3.fromRGB(160, 180, 200),
 }
 local _modDisplayNames: {[string]: string} = {}
 local _modData: {[string]: any} = {}
@@ -179,7 +197,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		if #mods > 0 then
 			for _, d in ipairs(clone:GetDescendants()) do
 				if d:IsA("BasePart") then
-					FishParticles.attach(d :: BasePart, mods, 0.35)
+					FishMutations.attach(d :: BasePart, mods, { viewport = true, intensity = 0.6 })
 					break
 				end
 			end

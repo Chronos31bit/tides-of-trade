@@ -11,7 +11,7 @@ local UIUtil             = require(script.Parent.UIUtil)
 local FishCatalogRaw     = require(ReplicatedStorage.Shared.Config.FishCatalog)
 local GameConfig         = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MotionUtil         = require(ReplicatedStorage.Shared.Util.MotionUtil)
-local FishParticles      = require(ReplicatedStorage.Shared.Util.FishParticles)
+local FishMutations      = require(ReplicatedStorage.Shared.Util.FishMutations)
 
 local P = UIUtil.Palette
 
@@ -39,6 +39,29 @@ local RARITY_COLORS: {[string]: Color3} = {
 	Divine    = Color3.fromRGB(200, 220, 255),
 }
 local MOD_COLORS: {[string]: Color3} = {
+	-- New roll-eligible set
+	rainbow      = Color3.fromRGB(255, 120, 200),
+	golden       = Color3.fromRGB(255, 215,  60),
+	silver       = Color3.fromRGB(220, 225, 240),
+	frozen       = Color3.fromRGB(140, 220, 255),
+	inferno      = Color3.fromRGB(255, 130,  50),
+	shocked      = Color3.fromRGB(255, 240,  80),
+	radioactive  = Color3.fromRGB(120, 255, 100),
+	crystal      = Color3.fromRGB(200, 230, 255),
+	colossal     = Color3.fromRGB(120, 220, 130),
+	tiny         = Color3.fromRGB(255, 255, 255),
+	bloodlust    = Color3.fromRGB(220,  40,  40),
+	voidtouched  = Color3.fromRGB(170,  80, 255),
+	ghostly      = Color3.fromRGB(240, 245, 255),
+	disco        = Color3.fromRGB(255,  80, 200),
+	ancientcore  = Color3.fromRGB(220, 170,  90),
+	-- World-state
+	tide_kissed  = Color3.fromRGB( 60, 200, 220),
+	storm_forged = Color3.fromRGB(180,  80, 255),
+	moon_touched = Color3.fromRGB(200, 200, 255),
+	dawn_blessed = Color3.fromRGB(255, 200, 120),
+	fog_shrouded = Color3.fromRGB(160, 180, 200),
+	-- Deprecated (legacy items only)
 	shiny        = Color3.fromRGB(255, 220,  60),
 	giant        = Color3.fromRGB(120, 200, 120),
 	glowing      = Color3.fromRGB(100, 180, 255),
@@ -49,17 +72,17 @@ local MOD_COLORS: {[string]: Color3} = {
 	cursed       = Color3.fromRGB(120,  40, 160),
 	magnetic     = Color3.fromRGB( 80, 200, 220),
 	barnacled    = Color3.fromRGB(140, 180, 100),
-	tide_kissed  = Color3.fromRGB( 60, 200, 220),
-	storm_forged = Color3.fromRGB(180,  80, 255),
-	moon_touched = Color3.fromRGB(200, 200, 255),
-	dawn_blessed = Color3.fromRGB(255, 200, 120),
-	fog_shrouded = Color3.fromRGB(160, 180, 200),
 }
 -- Priority order for picking the card-frame glow color when 2+ modifiers stack.
+-- Lower priority number = wins. Rarest/flashiest modifiers come first.
 local MOD_PRIORITY: {[string]: number} = {
-	prismatic=1, shiny=2, glowing=3, giant=4, elder=5,
-	moon_touched=6, storm_forged=7, dawn_blessed=8, ancient=9,
-	tide_kissed=10, lucky=11, magnetic=12, cursed=13, fog_shrouded=14, barnacled=15,
+	rainbow=1, voidtouched=2, golden=3, bloodlust=4, radioactive=5,
+	inferno=6, frozen=7, disco=8, crystal=9, ancientcore=10,
+	silver=11, shocked=12, colossal=13, ghostly=14, tiny=15,
+	moon_touched=20, storm_forged=21, dawn_blessed=22, tide_kissed=23, fog_shrouded=24,
+	-- Deprecated trailing — lowest priority so legacy mods don't shadow new ones.
+	prismatic=30, shiny=31, glowing=32, giant=33, elder=34,
+	ancient=35, lucky=36, magnetic=37, cursed=38, barnacled=39,
 }
 
 local _modDisplayNames: {[string]: string} = {}
@@ -432,7 +455,7 @@ function InventoryUI.show(
 				if #mods > 0 then
 					for _, d in ipairs(clone:GetDescendants()) do
 						if d:IsA("BasePart") then
-							FishParticles.attach(d :: BasePart, mods, 0.35)
+							FishMutations.attach(d :: BasePart, mods, { viewport = true, intensity = 0.6 })
 							break
 						end
 					end
