@@ -137,8 +137,8 @@ local function indexToOrigin(index: number): CFrame
 	-- index 0..(PLOT_GRID_DIM^2 - 1) -> world position
 	local row = math.floor(index / PLOT_GRID_DIM)
 	local col = index % PLOT_GRID_DIM
-	-- Plot origin = top-left corner of the plot in world.
-	return CFrame.new(col * PLOT_SPACING_STUDS, 0, row * PLOT_SPACING_STUDS)
+	-- Plot origin = top-left corner of the plot in world (raised above water).
+	return CFrame.new(col * PLOT_SPACING_STUDS, GameConfig.Harbor.PlotElevationStuds, row * PLOT_SPACING_STUDS)
 end
 
 function HarborService:_assignPlot(player: Player)
@@ -183,13 +183,14 @@ function HarborService:_assignPlot(player: Player)
 	folder.Parent = Workspace
 	self._plotFolders[player] = folder
 
-	-- Plot footprint plate — sits *on* the water (water is at Y≈0, plate at
-	-- Y=0.5..1.5). Acts as the dock surface the player walks on.
+	-- Plot footprint plate — dock surface. Top = PlotElevationStuds + 1.5 studs.
 	local plate = Instance.new("Part")
 	plate.Anchored = true
 	plate.CanCollide = true
 	plate.Size = Vector3.new(GameConfig.Harbor.PlotSizeStuds, 1, GameConfig.Harbor.PlotSizeStuds)
-	plate.Position = origin.Position + Vector3.new(GameConfig.Harbor.PlotSizeStuds / 2, 1, GameConfig.Harbor.PlotSizeStuds / 2)
+	-- Plate center Y: PlotPlateTopStuds is the surface; plate is 1 stud thick.
+	local plateCenterY = GameConfig.Harbor.PlotPlateTopStuds - 0.5
+	plate.Position = origin.Position + Vector3.new(GameConfig.Harbor.PlotSizeStuds / 2, plateCenterY, GameConfig.Harbor.PlotSizeStuds / 2)
 	plate.Material = Enum.Material.WoodPlanks
 	plate.Color = Color3.fromRGB(120, 90, 60)
 	plate.Name = "PlotPlate"

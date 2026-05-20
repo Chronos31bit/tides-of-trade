@@ -99,6 +99,10 @@ GameConfig.Harbor = {
 	-- snap cleanly. 80/4 = 20x20 grid of placement cells per plot.
 	PlotSizeStuds = 80,
 	GridCellStuds = 4,
+	-- How far above world Y=0 (water line) the plot corner sits.
+	PlotElevationStuds = 7,
+	-- Y offset from plot corner to the walkable plate surface (1-stud plate centered at Y=1).
+	PlotPlateTopStuds = 1.5,
 
 	-- Cap concurrent buildings per plot to keep the network and physics budget
 	-- in check with StreamingEnabled.
@@ -520,23 +524,40 @@ GameConfig.Rods = {
 -- and future market-price integration. Stable ids — never rename.
 -- ====================================================================
 GameConfig.FishModifiers = {
-	-- ── Random modifiers — rolled independently per catch ────────────────
-	{ id = "shiny",        displayName = "Shiny",        dropChance = 0.015, coinInstant = 1.0,               sellPriceMul = 1.25 },
-	{ id = "giant",        displayName = "Giant",        dropChance = 0.050, weightMul = 1.4                                      },
-	{ id = "glowing",      displayName = "Glowing",      dropChance = 0.060,               xpMul = 1.5                           },
-	{ id = "lucky",        displayName = "Lucky",        dropChance = 0.030, lureBonus = 1                                       },
-	{ id = "ancient",      displayName = "Ancient",      dropChance = 0.020,               xpMul = 3.0,       sellPriceMul = 1.50 },
-	{ id = "prismatic",    displayName = "Prismatic",    dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
-	{ id = "elder",        displayName = "Elder",        dropChance = 0.008,               xpMul = 5.0,       sellPriceMul = 1.80 },
-	{ id = "cursed",       displayName = "Cursed",       dropChance = 0.035,               xpMul = 3.0,       sellPriceMul = 0.50 },
-	{ id = "magnetic",     displayName = "Magnetic",     dropChance = 0.025, lureBonus = 3                                       },
-	{ id = "barnacled",    displayName = "Barnacled",    dropChance = 0.045, weightMul = 1.6                                     },
+	-- ── NEW random modifiers — GAG-style mesh mutations (see ModifierMutations.lua) ──
+	{ id = "rainbow",      displayName = "Rainbow",      dropChance = 0.005, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
+	{ id = "golden",       displayName = "Golden",       dropChance = 0.012, coinInstant = 1.0,                sellPriceMul = 1.60 },
+	{ id = "silver",       displayName = "Silver",       dropChance = 0.025,                                   sellPriceMul = 1.30 },
+	{ id = "frozen",       displayName = "Frozen",       dropChance = 0.045, weightMul = 1.15,                 sellPriceMul = 1.20 },
+	{ id = "inferno",      displayName = "Inferno",      dropChance = 0.030,                xpMul = 2.0                          },
+	{ id = "shocked",      displayName = "Shocked",      dropChance = 0.040,                xpMul = 1.5,       lureBonus = 1     },
+	{ id = "radioactive",  displayName = "Radioactive",  dropChance = 0.018,                xpMul = 2.5,       sellPriceMul = 1.25 },
+	{ id = "crystal",      displayName = "Crystal",      dropChance = 0.020,                                   sellPriceMul = 1.40 },
+	{ id = "colossal",     displayName = "Colossal",     dropChance = 0.040, weightMul = 1.5                                     },
+	{ id = "tiny",         displayName = "Tiny",         dropChance = 0.030, coinInstant = 0.5, weightMul = 0.4                  },
+	{ id = "bloodlust",    displayName = "Bloodlust",    dropChance = 0.025,                xpMul = 3.0,       sellPriceMul = 0.60 },
+	{ id = "voidtouched",  displayName = "Voidtouched",  dropChance = 0.008,                xpMul = 4.0,       sellPriceMul = 1.70 },
+	{ id = "ghostly",      displayName = "Ghostly",      dropChance = 0.030,                                   lureBonus = 2     },
+	{ id = "disco",        displayName = "Disco",        dropChance = 0.012, coinInstant = 1.5,                sellPriceMul = 1.30 },
+	{ id = "ancientcore",  displayName = "Ancient Core", dropChance = 0.018,                xpMul = 3.0,       sellPriceMul = 1.50 },
 	-- ── World-state modifiers — dropChance=0, assigned by world state ───
 	{ id = "tide_kissed",  displayName = "Tide-Kissed",  dropChance = 0,                    sellPriceMul = 1.25 },
 	{ id = "storm_forged", displayName = "Storm-Forged", dropChance = 0,                    sellPriceMul = 1.50 },
 	{ id = "moon_touched", displayName = "Moon-Touched", dropChance = 0,     xpMul = 1.25,  sellPriceMul = 1.15 },
 	{ id = "dawn_blessed", displayName = "Dawn-Blessed", dropChance = 0,     xpMul = 1.20,  sellPriceMul = 1.10 },
 	{ id = "fog_shrouded", displayName = "Fog-Shrouded", dropChance = 0,     lureBonus = 1, sellPriceMul = 1.20 },
+	-- ── DEPRECATED — never roll (dropChance=0). Kept for legacy inventory items.
+	-- ── ModifierMutations.lua still defines visuals for each so old fish render correctly.
+	{ id = "shiny",        displayName = "Shiny",        dropChance = 0, deprecated = true, coinInstant = 1.0, sellPriceMul = 1.25 },
+	{ id = "giant",        displayName = "Giant",        dropChance = 0, deprecated = true, weightMul = 1.4 },
+	{ id = "glowing",      displayName = "Glowing",      dropChance = 0, deprecated = true, xpMul = 1.5 },
+	{ id = "lucky",        displayName = "Lucky",        dropChance = 0, deprecated = true, lureBonus = 1 },
+	{ id = "ancient",      displayName = "Ancient",      dropChance = 0, deprecated = true, xpMul = 3.0, sellPriceMul = 1.50 },
+	{ id = "prismatic",    displayName = "Prismatic",    dropChance = 0, deprecated = true, coinInstant = 2.0, weightMul = 2.0, xpMul = 2.0, sellPriceMul = 2.0 },
+	{ id = "elder",        displayName = "Elder",        dropChance = 0, deprecated = true, xpMul = 5.0, sellPriceMul = 1.80 },
+	{ id = "cursed",       displayName = "Cursed",       dropChance = 0, deprecated = true, xpMul = 3.0, sellPriceMul = 0.50 },
+	{ id = "magnetic",     displayName = "Magnetic",     dropChance = 0, deprecated = true, lureBonus = 3 },
+	{ id = "barnacled",    displayName = "Barnacled",    dropChance = 0, deprecated = true, weightMul = 1.6 },
 }
 
 -- ====================================================================
@@ -577,6 +598,29 @@ GameConfig.DataStores = {
 -- is also applied to the card's outer frame stroke.
 -- ====================================================================
 GameConfig.ModifierGlow = {
+	-- New roll-eligible set
+	rainbow      = { Color = Color3.fromRGB(255, 120, 200), Thickness = 3.0, Transparency = 0.10 },
+	golden       = { Color = Color3.fromRGB(255, 215,  60), Thickness = 2.5, Transparency = 0.15 },
+	silver       = { Color = Color3.fromRGB(220, 225, 240), Thickness = 2.0, Transparency = 0.25 },
+	frozen       = { Color = Color3.fromRGB(140, 220, 255), Thickness = 2.0, Transparency = 0.20 },
+	inferno      = { Color = Color3.fromRGB(255, 130,  50), Thickness = 2.5, Transparency = 0.15 },
+	shocked      = { Color = Color3.fromRGB(255, 240,  80), Thickness = 2.0, Transparency = 0.20 },
+	radioactive  = { Color = Color3.fromRGB(120, 255, 100), Thickness = 2.5, Transparency = 0.15 },
+	crystal      = { Color = Color3.fromRGB(200, 230, 255), Thickness = 2.0, Transparency = 0.25 },
+	colossal     = { Color = Color3.fromRGB(120, 220, 130), Thickness = 2.0, Transparency = 0.25 },
+	tiny         = { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5, Transparency = 0.30 },
+	bloodlust    = { Color = Color3.fromRGB(220,  40,  40), Thickness = 2.5, Transparency = 0.15 },
+	voidtouched  = { Color = Color3.fromRGB(170,  80, 255), Thickness = 2.5, Transparency = 0.15 },
+	ghostly      = { Color = Color3.fromRGB(240, 245, 255), Thickness = 2.0, Transparency = 0.30 },
+	disco        = { Color = Color3.fromRGB(255,  80, 200), Thickness = 2.5, Transparency = 0.20 },
+	ancientcore  = { Color = Color3.fromRGB(220, 170,  90), Thickness = 2.0, Transparency = 0.25 },
+	-- World-state
+	tide_kissed  = { Color = Color3.fromRGB( 60, 200, 180), Thickness = 2.0, Transparency = 0.25 },
+	storm_forged = { Color = Color3.fromRGB(120, 120, 200), Thickness = 2.5, Transparency = 0.20 },
+	moon_touched = { Color = Color3.fromRGB(200, 200, 255), Thickness = 2.0, Transparency = 0.20 },
+	dawn_blessed = { Color = Color3.fromRGB(255, 180, 100), Thickness = 2.0, Transparency = 0.20 },
+	fog_shrouded = { Color = Color3.fromRGB(180, 200, 210), Thickness = 1.5, Transparency = 0.30 },
+	-- Deprecated (kept for legacy items)
 	shiny        = { Color = Color3.fromRGB(255, 230,  80), Thickness = 2.0, Transparency = 0.20 },
 	giant        = { Color = Color3.fromRGB( 80, 200, 255), Thickness = 2.0, Transparency = 0.30 },
 	glowing      = { Color = Color3.fromRGB(255, 200,  60), Thickness = 2.5, Transparency = 0.15 },
@@ -587,11 +631,6 @@ GameConfig.ModifierGlow = {
 	cursed       = { Color = Color3.fromRGB(180,  40,  40), Thickness = 2.0, Transparency = 0.25 },
 	magnetic     = { Color = Color3.fromRGB( 60, 180, 220), Thickness = 1.5, Transparency = 0.30 },
 	barnacled    = { Color = Color3.fromRGB(140, 120,  80), Thickness = 1.5, Transparency = 0.35 },
-	tide_kissed  = { Color = Color3.fromRGB( 60, 200, 180), Thickness = 2.0, Transparency = 0.25 },
-	storm_forged = { Color = Color3.fromRGB(120, 120, 200), Thickness = 2.5, Transparency = 0.20 },
-	moon_touched = { Color = Color3.fromRGB(200, 200, 255), Thickness = 2.0, Transparency = 0.20 },
-	dawn_blessed = { Color = Color3.fromRGB(255, 180, 100), Thickness = 2.0, Transparency = 0.20 },
-	fog_shrouded = { Color = Color3.fromRGB(180, 200, 210), Thickness = 1.5, Transparency = 0.30 },
 }
 
 -- ====================================================================
@@ -631,383 +670,26 @@ GameConfig.FishHeld = {
 }
 
 -- ====================================================================
--- MODIFIER PARTICLES — GAG-style layered ParticleEmitter config.
--- Each modifier is an ARRAY of layer tables (up to 3 layers).
--- Layer 1: ambient aura (large, soft, slow, semi-transparent).
--- Layer 2: sparkle stars (medium, bright, fast, spinning).
--- Layer 3: prismatic only — inner burst layer.
--- Used by src/Shared/Util/FishParticles.lua (client-only).
--- Rate is the base at 1× scale; rateScale ~0.35 for UI viewports.
+-- FISH BITE FEEDBACK — client-only (FishingController._onBite).
+-- Replace SoundId with a real water-splash asset before shipping.
 -- ====================================================================
-local _NS  = NumberSequence.new
-local _NK  = NumberSequenceKeypoint.new
-local _CS  = ColorSequence.new
-local _CK  = ColorSequenceKeypoint.new
-local _NR  = NumberRange.new
-
--- Sparkle/star texture — swap if you want a different shape.
-local _SP = "rbxassetid://6282433556"
-
--- Reusable transparency curves.
--- Aura: soft glow envelope (mostly transparent, peak at 40%)
-local _T_AURA = _NS({ _NK(0, 1), _NK(0.2, 0.5), _NK(0.6, 0.55), _NK(1, 1) })
--- Sparkle: snaps opaque then fades (Grow-a-Garden feel)
-local _T_SPARK = _NS({ _NK(0, 0.9), _NK(0.1, 0), _NK(0.75, 0), _NK(1, 1) })
--- Smoke: ramps up then fades (cloud billow)
-local _T_SMOKE = _NS({ _NK(0, 1), _NK(0.15, 0.35), _NK(0.65, 0.5), _NK(1, 1) })
-
-GameConfig.ModifierParticles = {
-
-	shiny = {
-		{ -- golden ambient aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(255, 240, 80)), _CK(1, Color3.fromRGB(255, 200, 20)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 10, Lifetime = _NR(1.5, 2.2),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 1.1), _NK(0.7, 0.85), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.1, 0.5), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- gold sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 250, 150)), _CK(0.5, Color3.fromRGB(255, 215, 40)), _CK(1, Color3.fromRGB(240, 170, 0)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 45, Lifetime = _NR(0.6, 1.1),
-			Size = _NS({ _NK(0, 0), _NK(0.1, 0.42), _NK(0.65, 0.28), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(2.0, 5.0), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-280, 280),
-		},
-	},
-
-	giant = {
-		{ -- big green growth aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(50, 200, 70)), _CK(0.5, Color3.fromRGB(120, 255, 130)), _CK(1, Color3.fromRGB(40, 170, 55)) }),
-			LightEmission  = 0.7, LightInfluence = 0.2,
-			Rate = 12, Lifetime = _NR(1.8, 3.0),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 1.4), _NK(0.7, 1.0), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.1, 0.6), SpreadAngle = Vector2.new(180, 180),
-			Acceleration = Vector3.new(0, 0.5, 0),
-		},
-		{ -- bright green sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(130, 255, 140)), _CK(1, Color3.fromRGB(60, 220, 80)) }),
-			LightEmission  = 0.9, LightInfluence = 0.0,
-			Rate = 30, Lifetime = _NR(0.7, 1.3),
-			Size = _NS({ _NK(0, 0), _NK(0.1, 0.38), _NK(0.65, 0.22), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.5, 4.0), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-200, 200),
-		},
-	},
-
-	glowing = {
-		{ -- pure white light orb aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(200, 230, 255)), _CK(0.4, Color3.fromRGB(255, 255, 255)), _CK(1, Color3.fromRGB(160, 210, 255)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 14, Lifetime = _NR(1.2, 2.0),
-			Size = _NS({ _NK(0, 0), _NK(0.25, 1.3), _NK(0.65, 1.0), _NK(1, 0) }),
-			Transparency = _NS({ _NK(0, 1), _NK(0.15, 0.3), _NK(0.65, 0.45), _NK(1, 1) }),
-			Speed = _NR(0.0, 0.3), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- bright blue-white sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 255, 255)), _CK(0.5, Color3.fromRGB(180, 220, 255)), _CK(1, Color3.fromRGB(140, 190, 255)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 50, Lifetime = _NR(0.5, 1.0),
-			Size = _NS({ _NK(0, 0), _NK(0.1, 0.40), _NK(0.65, 0.25), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.5, 4.5), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-220, 220),
-		},
-	},
-
-	lucky = {
-		{ -- soft purple aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(190, 90, 255)), _CK(0.5, Color3.fromRGB(230, 160, 255)), _CK(1, Color3.fromRGB(170, 70, 240)) }),
-			LightEmission  = 0.8, LightInfluence = 0.1,
-			Rate = 10, Lifetime = _NR(1.4, 2.2),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 0.95), _NK(0.7, 0.70), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.1, 0.5), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- purple lucky sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(240, 170, 255)), _CK(0.5, Color3.fromRGB(210, 100, 255)), _CK(1, Color3.fromRGB(180, 80, 240)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 38, Lifetime = _NR(0.7, 1.2),
-			Size = _NS({ _NK(0, 0), _NK(0.12, 0.40), _NK(0.7, 0.25), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(2.0, 4.5), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-260, 260),
-		},
-	},
-
-	ancient = {
-		{ -- amber ember glow
-			Color          = _CS({ _CK(0, Color3.fromRGB(255, 190, 50)), _CK(0.5, Color3.fromRGB(200, 110, 20)), _CK(1, Color3.fromRGB(80, 30, 5)) }),
-			LightEmission  = 0.9, LightInfluence = 0.0,
-			Rate = 14, Lifetime = _NR(2.0, 3.5),
-			Size = _NS({ _NK(0, 0), _NK(0.2, 0.80), _NK(0.7, 0.55), _NK(1, 0) }),
-			Transparency = _T_SMOKE,
-			Speed = _NR(0.3, 1.0), SpreadAngle = Vector2.new(20, 20),
-			Acceleration = Vector3.new(0, 1.5, 0),
-		},
-		{ -- bright amber spark stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 230, 100)), _CK(0.5, Color3.fromRGB(255, 160, 30)), _CK(1, Color3.fromRGB(180, 80, 0)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 28, Lifetime = _NR(0.8, 1.6),
-			Size = _NS({ _NK(0, 0.15), _NK(0.2, 0.35), _NK(0.8, 0.18), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.0, 3.0), SpreadAngle = Vector2.new(25, 25),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-150, 150),
-			Acceleration = Vector3.new(0, 2.0, 0),
-		},
-	},
-
-	prismatic = {
-		{ -- massive rainbow aura — fills the area
-			Color          = _CS({
-				_CK(0,   Color3.fromRGB(255,  60,  80)),
-				_CK(0.2, Color3.fromRGB(255, 200,  40)),
-				_CK(0.4, Color3.fromRGB( 60, 230,  80)),
-				_CK(0.6, Color3.fromRGB( 40, 160, 255)),
-				_CK(0.8, Color3.fromRGB(180,  40, 255)),
-				_CK(1,   Color3.fromRGB(255,  60,  80)),
-			}),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 18, Lifetime = _NR(1.4, 2.2),
-			Size = _NS({ _NK(0, 0), _NK(0.25, 1.5), _NK(0.65, 1.1), _NK(1, 0) }),
-			Transparency = _NS({ _NK(0, 1), _NK(0.15, 0.3), _NK(0.65, 0.45), _NK(1, 1) }),
-			Speed = _NR(0.1, 0.5), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- rainbow sparkle stars — the showpiece
-			Texture = _SP,
-			Color   = _CS({
-				_CK(0,    Color3.fromRGB(255,  80,  80)),
-				_CK(0.15, Color3.fromRGB(255, 180,  40)),
-				_CK(0.30, Color3.fromRGB(230, 255,  40)),
-				_CK(0.45, Color3.fromRGB( 40, 230,  80)),
-				_CK(0.60, Color3.fromRGB( 40, 160, 255)),
-				_CK(0.75, Color3.fromRGB(160,  40, 255)),
-				_CK(0.88, Color3.fromRGB(255,  40, 180)),
-				_CK(1,    Color3.fromRGB(255,  80,  80)),
-			}),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 70, Lifetime = _NR(0.5, 1.1),
-			Size = _NS({ _NK(0, 0), _NK(0.1, 0.50), _NK(0.6, 0.32), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(2.5, 6.5), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-360, 360),
-		},
-		{ -- inner tight burst of white-hot stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 255, 255)), _CK(0.5, Color3.fromRGB(255, 240, 200)), _CK(1, Color3.fromRGB(255, 200, 150)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 25, Lifetime = _NR(0.25, 0.55),
-			Size = _NS({ _NK(0, 0.20), _NK(0.3, 0.30), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(0.5, 1.8), SpreadAngle = Vector2.new(50, 50),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-500, 500),
-		},
-	},
-
-	elder = {
-		{ -- heavy deep-purple mist
-			Color          = _CS({ _CK(0, Color3.fromRGB(80, 40, 180)), _CK(0.5, Color3.fromRGB(150, 110, 240)), _CK(1, Color3.fromRGB(50, 20, 120)) }),
-			LightEmission  = 0.6, LightInfluence = 0.3,
-			Rate = 10, Lifetime = _NR(2.5, 4.0),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 1.2), _NK(0.7, 0.9), _NK(1, 0) }),
-			Transparency = _T_SMOKE,
-			Speed = _NR(0.2, 0.7), SpreadAngle = Vector2.new(40, 40),
-			Acceleration = Vector3.new(0, 0.8, 0),
-		},
-		{ -- elder sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(200, 160, 255)), _CK(0.5, Color3.fromRGB(255, 220, 255)), _CK(1, Color3.fromRGB(160, 100, 240)) }),
-			LightEmission  = 0.9, LightInfluence = 0.0,
-			Rate = 20, Lifetime = _NR(1.0, 1.8),
-			Size = _NS({ _NK(0, 0), _NK(0.12, 0.38), _NK(0.7, 0.22), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.0, 3.0), SpreadAngle = Vector2.new(50, 50),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-180, 180),
-		},
-	},
-
-	cursed = {
-		{ -- dark billowing smoke
-			Color          = _CS({ _CK(0, Color3.fromRGB(150, 10, 10)), _CK(0.4, Color3.fromRGB(80, 5, 5)), _CK(1, Color3.fromRGB(15, 0, 0)) }),
-			LightEmission  = 0.0, LightInfluence = 1.0,
-			Rate = 18, Lifetime = _NR(2.0, 3.5),
-			Size = _NS({ _NK(0, 0), _NK(0.2, 1.0), _NK(0.7, 0.75), _NK(1, 0) }),
-			Transparency = _T_SMOKE,
-			Speed = _NR(0.4, 1.2), SpreadAngle = Vector2.new(65, 65),
-			Acceleration = Vector3.new(0, 0.8, 0),
-		},
-		{ -- sinister red spark stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(220, 40, 40)), _CK(0.5, Color3.fromRGB(160, 20, 20)), _CK(1, Color3.fromRGB(80, 5, 5)) }),
-			LightEmission  = 0.8, LightInfluence = 0.1,
-			Rate = 22, Lifetime = _NR(0.5, 1.2),
-			Size = _NS({ _NK(0, 0.10), _NK(0.2, 0.30), _NK(0.8, 0.15), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.5, 4.0), SpreadAngle = Vector2.new(70, 70),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-300, 300),
-		},
-	},
-
-	magnetic = {
-		{ -- cyan electric charge aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(60, 220, 255)), _CK(0.5, Color3.fromRGB(180, 245, 255)), _CK(1, Color3.fromRGB(40, 200, 240)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 12, Lifetime = _NR(0.8, 1.5),
-			Size = _NS({ _NK(0, 0), _NK(0.25, 0.9), _NK(0.6, 0.65), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.1, 0.5), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- electric bolt sparks flying out
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(220, 255, 255)), _CK(0.5, Color3.fromRGB(80, 235, 255)), _CK(1, Color3.fromRGB(40, 195, 230)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 60, Lifetime = _NR(0.15, 0.45),
-			Size = _NS({ _NK(0, 0.25), _NK(0.35, 0.20), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(5.0, 11.0), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-500, 500),
-		},
-	},
-
-	barnacled = {
-		{ -- murky green bubble aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(100, 160, 70)), _CK(0.5, Color3.fromRGB(140, 195, 100)), _CK(1, Color3.fromRGB(70, 130, 50)) }),
-			LightEmission  = 0.1, LightInfluence = 0.9,
-			Rate = 10, Lifetime = _NR(1.5, 2.8),
-			Size = _NS({ _NK(0, 0.1), _NK(0.3, 0.7), _NK(0.8, 0.6), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.2, 0.8), SpreadAngle = Vector2.new(12, 12),
-			Acceleration = Vector3.new(0, 1.0, 0),
-		},
-		{ -- rising bubble sparkles
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(175, 220, 120)), _CK(1, Color3.fromRGB(100, 165, 70)) }),
-			LightEmission  = 0.3, LightInfluence = 0.7,
-			Rate = 18, Lifetime = _NR(1.0, 2.0),
-			Size = _NS({ _NK(0, 0.12), _NK(0.4, 0.30), _NK(0.9, 0.28), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(0.5, 1.5), SpreadAngle = Vector2.new(10, 10),
-			Acceleration = Vector3.new(0, 1.5, 0),
-		},
-	},
-
-	tide_kissed = {
-		{ -- teal water shimmer aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(40, 210, 205)), _CK(0.5, Color3.fromRGB(100, 240, 235)), _CK(1, Color3.fromRGB(30, 175, 195)) }),
-			LightEmission  = 0.5, LightInfluence = 0.4,
-			Rate = 10, Lifetime = _NR(1.2, 2.0),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 0.85), _NK(0.7, 0.60), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.1, 0.6), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- droplet sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(160, 250, 245)), _CK(0.5, Color3.fromRGB(60, 225, 215)), _CK(1, Color3.fromRGB(30, 180, 200)) }),
-			LightEmission  = 0.7, LightInfluence = 0.2,
-			Rate = 32, Lifetime = _NR(0.6, 1.2),
-			Size = _NS({ _NK(0, 0.15), _NK(0.25, 0.35), _NK(0.8, 0.18), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.5, 4.5), SpreadAngle = Vector2.new(38, 38),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-180, 180),
-		},
-	},
-
-	storm_forged = {
-		{ -- storm cloud aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(120, 60, 200)), _CK(0.5, Color3.fromRGB(200, 150, 255)), _CK(1, Color3.fromRGB(80, 30, 160)) }),
-			LightEmission  = 0.7, LightInfluence = 0.2,
-			Rate = 12, Lifetime = _NR(1.0, 1.8),
-			Size = _NS({ _NK(0, 0), _NK(0.25, 1.1), _NK(0.65, 0.80), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.1, 0.6), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- violent lightning spark stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 240, 255)), _CK(0.4, Color3.fromRGB(210, 130, 255)), _CK(1, Color3.fromRGB(120, 40, 220)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 60, Lifetime = _NR(0.12, 0.35),
-			Size = _NS({ _NK(0, 0.12), _NK(0.3, 0.38), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(6.0, 14.0), SpreadAngle = Vector2.new(100, 100),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-600, 600),
-		},
-	},
-
-	moon_touched = {
-		{ -- silver moonlight glow aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(210, 220, 255)), _CK(0.4, Color3.fromRGB(255, 255, 255)), _CK(1, Color3.fromRGB(190, 210, 255)) }),
-			LightEmission  = 0.8, LightInfluence = 0.1,
-			Rate = 10, Lifetime = _NR(2.0, 3.2),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 1.1), _NK(0.7, 0.80), _NK(1, 0) }),
-			Transparency = _NS({ _NK(0, 1), _NK(0.2, 0.4), _NK(0.65, 0.5), _NK(1, 1) }),
-			Speed = _NR(0.0, 0.3), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- silver moon sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 255, 255)), _CK(0.5, Color3.fromRGB(215, 225, 255)), _CK(1, Color3.fromRGB(190, 205, 255)) }),
-			LightEmission  = 0.9, LightInfluence = 0.0,
-			Rate = 30, Lifetime = _NR(1.2, 2.2),
-			Size = _NS({ _NK(0, 0), _NK(0.12, 0.42), _NK(0.75, 0.26), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(0.5, 2.0), SpreadAngle = Vector2.new(180, 180),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-140, 140),
-			Acceleration = Vector3.new(0, 0.5, 0),
-		},
-	},
-
-	dawn_blessed = {
-		{ -- warm golden ray aura
-			Color          = _CS({ _CK(0, Color3.fromRGB(255, 230, 100)), _CK(0.5, Color3.fromRGB(255, 180, 50)), _CK(1, Color3.fromRGB(255, 140, 20)) }),
-			LightEmission  = 0.9, LightInfluence = 0.0,
-			Rate = 10, Lifetime = _NR(1.5, 2.5),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 1.0), _NK(0.7, 0.70), _NK(1, 0) }),
-			Transparency = _T_AURA,
-			Speed = _NR(0.2, 0.8), SpreadAngle = Vector2.new(16, 16),
-			Acceleration = Vector3.new(0, 1.0, 0),
-		},
-		{ -- sunrise sparkle stars
-			Texture = _SP,
-			Color   = _CS({ _CK(0, Color3.fromRGB(255, 245, 160)), _CK(0.5, Color3.fromRGB(255, 200, 60)), _CK(1, Color3.fromRGB(255, 145, 20)) }),
-			LightEmission  = 1.0, LightInfluence = 0.0,
-			Rate = 28, Lifetime = _NR(0.8, 1.6),
-			Size = _NS({ _NK(0, 0), _NK(0.12, 0.40), _NK(0.7, 0.24), _NK(1, 0) }),
-			Transparency = _T_SPARK,
-			Speed = _NR(1.0, 3.0), SpreadAngle = Vector2.new(18, 18),
-			Rotation = _NR(0, 360), RotSpeed = _NR(-160, 160),
-			Acceleration = Vector3.new(0, 1.5, 0),
-		},
-	},
-
-	fog_shrouded = {
-		{ -- primary dense fog cloud
-			Color          = _CS({ _CK(0, Color3.fromRGB(195, 210, 218)), _CK(0.5, Color3.fromRGB(168, 182, 192)), _CK(1, Color3.fromRGB(135, 150, 160)) }),
-			LightEmission  = 0.0, LightInfluence = 1.0,
-			Rate = 10, Lifetime = _NR(3.0, 5.0),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 1.6), _NK(0.75, 1.2), _NK(1, 0) }),
-			Transparency = _NS({ _NK(0, 1), _NK(0.15, 0.55), _NK(0.7, 0.65), _NK(1, 1) }),
-			Speed = _NR(0.05, 0.35), SpreadAngle = Vector2.new(180, 180),
-		},
-		{ -- secondary wisp layer (slightly faster, smaller)
-			Color          = _CS({ _CK(0, Color3.fromRGB(210, 220, 225)), _CK(1, Color3.fromRGB(155, 168, 178)) }),
-			LightEmission  = 0.0, LightInfluence = 1.0,
-			Rate = 8, Lifetime = _NR(1.8, 3.0),
-			Size = _NS({ _NK(0, 0), _NK(0.3, 0.70), _NK(0.75, 0.50), _NK(1, 0) }),
-			Transparency = _NS({ _NK(0, 1), _NK(0.2, 0.6), _NK(0.75, 0.7), _NK(1, 1) }),
-			Speed = _NR(0.1, 0.6), SpreadAngle = Vector2.new(180, 180),
-			Acceleration = Vector3.new(0, 0.3, 0),
-		},
-	},
-
+GameConfig.FishBite = {
+	SoundId              = "rbxassetid://0",  -- placeholder
+	SoundVolume          = 0.7,
+	CameraNudgeMagnitude = 0.3,
+	CameraNudgeDuration  = 0.30,
+	ButtonPulseScale     = 1.15,
+	ButtonPulseDuration  = 0.15,
+	VignetteAlpha        = 0.08,
+	VignetteFadeDuration = 0.30,
 }
+
+-- ====================================================================
+-- MODIFIER VISUALS — GAG-style mesh mutations.
+-- Per-modifier visual treatments (color cycle, material swap, Highlight,
+-- PointLight) live in src/Shared/Config/ModifierMutations.lua, driven
+-- by src/Shared/Util/FishMutations.lua (client-only).
+-- ====================================================================
 
 -- ====================================================================
 -- BIOME TEST HUB — Studio-only. Values consumed by BiomeTestService and

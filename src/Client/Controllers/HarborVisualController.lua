@@ -26,10 +26,11 @@ local HapticService     = game:GetService("HapticService")
 
 local Knit            = require(ReplicatedStorage.Packages.Knit)
 local Trove           = require(ReplicatedStorage.Packages.Trove)
-local GridUtil        = require(ReplicatedStorage.Shared.Util.GridUtil)
-local GameConfig      = require(ReplicatedStorage.Shared.Config.GameConfig)
-local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
-local MotionUtil      = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local GridUtil              = require(ReplicatedStorage.Shared.Util.GridUtil)
+local GameConfig            = require(ReplicatedStorage.Shared.Config.GameConfig)
+local BuildingCatalog       = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+local MotionUtil            = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local BuildingModelFactory  = require(ReplicatedStorage.Shared.Util.BuildingModelFactory)
 
 local VT = GameConfig.Harbor.VisualTuning
 
@@ -129,12 +130,16 @@ function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFr
 	if asset then
 		model = asset:Clone()
 	else
-		warn(("[HarborVisualController] Missing asset %s tier %d, using fallback"):format(building.kind, building.tier))
-		model = self:_neutralPlaceholder(footprint)
+		warn(("[HarborVisualController] Missing asset %s tier %d, using procedural fallback"):format(building.kind, building.tier))
+		model = BuildingModelFactory.build(building.kind, building.tier, footprint)
+		model.Name = building.uid
 	end
 
 	local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
-	model:PivotTo(worldCF)
+	if not model.PrimaryPart then
+		warn(("[HarborVisualController] %s tier %d missing PrimaryPart"):format(building.kind, building.tier))
+	end
+	GridUtil.placeModelOnPlate(model, worldCF)
 
 	model.Name = building.uid
 	model:SetAttribute("plotOwnerId", plotOwnerId)
@@ -203,8 +208,19 @@ function HarborVisualController:_onUpdate(payload: any)
 	local existing = state.buildings[building.uid]
 
 	if oldTier == nil then
-		-- Fresh spawn (replay or first place). Idempotent.
-		if existing then return end
+		-- Fresh spawn (replay or first place). Re-position if we already have a model
+		-- so Rojo hot-reloads fix placement without requiring demolish + rejoin.
+		if existing and existing.model and existing.model.Parent then
+			local def = BuildingCatalog[building.kind]
+			local footprint = (def and def.footprint) or { 2, 2 }
+			local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
+			GridUtil.placeModelOnPlate(existing.model, worldCF)
+			return
+		end
+		if existing then
+			existing.trove:Destroy()
+			state.buildings[building.uid] = nil
+		end
 		self:_spawnFresh(plotOwnerId, plotOrigin, building, newTier)
 	elseif newTier > oldTier then
 		self:_animateUpgrade(plotOwnerId, plotOrigin, building, oldTier, newTier)

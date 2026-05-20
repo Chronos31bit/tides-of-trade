@@ -102,9 +102,7 @@ function GridUtil.gridToWorld(plotOrigin: CFrame, gridX: number, gridZ: number, 
 		w, d = d, w
 	end
 	local local_ = GridUtil.gridToLocal(gridX, gridZ)
-	-- PLATE_TOP matches HarborService's plate (Y=1 thick plate centered at Y=1,
-	-- so top of plate is at Y=1.5). Buildings rest on this surface.
-	local PLATE_TOP = 1.5
+	local PLATE_TOP = GameConfig.Harbor.PlotPlateTopStuds
 	local centerX = local_.X + (w * CELL) / 2
 	local centerZ = local_.Z + (d * CELL) / 2
 	return plotOrigin
@@ -112,8 +110,48 @@ function GridUtil.gridToWorld(plotOrigin: CFrame, gridX: number, gridZ: number, 
 		* CFrame.Angles(0, math.rad(rotation), 0)
 end
 
+-- Place a building so its bbox bottom-center sits on plateCF (position + Y rotation).
+-- Does not rely on Model pivot or PrimaryPart — fixes bbox-center sink.
+function GridUtil.placeModelOnPlate(model: Model, plateCF: CFrame)
+	-- 1) Raise/lower so bbox bottom meets plate surface Y.
+	local bbCF, bbSize = model:GetBoundingBox()
+	local SURFACE_EPS = 0.05
+	local lift = plateCF.Position.Y - (bbCF.Position.Y - bbSize.Y / 2) + SURFACE_EPS
+	if math.abs(lift) > 0.001 then
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") then
+				desc.CFrame = desc.CFrame + Vector3.new(0, lift, 0)
+			end
+		end
+	end
+
+	-- 2) Slide XZ so bottom-center matches plate footprint center.
+	bbCF, bbSize = model:GetBoundingBox()
+	local pivotPos = Vector3.new(bbCF.Position.X, bbCF.Position.Y - bbSize.Y / 2, bbCF.Position.Z)
+	local xz = Vector3.new(plateCF.Position.X - pivotPos.X, 0, plateCF.Position.Z - pivotPos.Z)
+	if xz.Magnitude > 0.001 then
+		for _, desc in model:GetDescendants() do
+			if desc:IsA("BasePart") then
+				desc.CFrame = desc.CFrame + xz
+			end
+		end
+		pivotPos += xz
+	end
+
+	-- 3) Rotate around footprint bottom-center to match building rotation.
+	local _, targetRy, _ = plateCF:ToEulerAnglesYXZ()
+	local rot = CFrame.Angles(0, targetRy, 0)
+	local pivotCF = CFrame.new(pivotPos)
+	for _, desc in model:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.CFrame = pivotCF * rot * pivotCF:Inverse() * desc.CFrame
+		end
+	end
+end
+
 GridUtil.CELLS_PER_AXIS = CELLS_PER_AXIS
 GridUtil.CELL = CELL
 GridUtil.PLOT = PLOT
+GridUtil.PLATE_TOP = GameConfig.Harbor.PlotPlateTopStuds
 
 return GridUtil

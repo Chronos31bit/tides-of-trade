@@ -414,10 +414,11 @@ function HarborEditController:_updateGhost()
 	if self._rotation == 90 or self._rotation == 270 then w, d = d, w end
 	gx = math.clamp(gx, 0, GridUtil.CELLS_PER_AXIS - w)
 	gz = math.clamp(gz, 0, GridUtil.CELLS_PER_AXIS - d)
-	local localPos = GridUtil.gridToLocal(gx, gz)
 	local sizeStuds = Vector3.new(w * GridUtil.CELL, 8, d * GridUtil.CELL)
 	self._ghost.Size = sizeStuds
-	self._ghost.CFrame = self._plotOrigin * CFrame.new(localPos.X + sizeStuds.X / 2, sizeStuds.Y / 2, localPos.Z + sizeStuds.Z / 2)
+	-- Match GridUtil.gridToWorld: footprint bottom-center on the plate, then lift ghost center.
+	local worldCF = GridUtil.gridToWorld(self._plotOrigin, gx, gz, def.footprint, self._rotation)
+	self._ghost.CFrame = worldCF * CFrame.new(0, sizeStuds.Y / 2, 0)
 	self._ghost:SetAttribute("gx", gx)
 	self._ghost:SetAttribute("gz", gz)
 
