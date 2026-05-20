@@ -232,6 +232,11 @@ end
 
 function FishingService:KnitInit()
 	self._castLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxCastsPerMinute, 60)
+	-- Coarse limiter shared across the three reel-pipeline remotes
+	-- (ClaimCast, ReleaseReel, ReportEscape). Upstream is already gated by
+	-- StartCast's limiter; this is defense-in-depth against stuck-pending
+	-- spam. Silent-drop per CLAUDE.md cozy pillar.
+	self._reelLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxReelClaimsPerMinute, 60)
 end
 
 function FishingService:KnitStart()
@@ -241,6 +246,7 @@ function FishingService:KnitStart()
 		self._assistMultiplier[player] = nil
 		self._lighthouseCache[player.UserId] = nil
 		self._castLimiter:reset(player)
+		self._reelLimiter:reset(player)
 	end)
 
 	-- Populate cache for players who already have a lighthouse from a prior session.
@@ -475,6 +481,10 @@ end
 -- player enters the reel phase.
 function FishingService.Client:ClaimCast(player: Player, castId: string, marker: number): {result: string, reason: string?}
 	local self = self.Server
+	if not self._reelLimiter:check(player) then return { result = "error", reason = "rate_limit" } end
+	if typeof(castId) ~= "string" or #castId == 0 or #castId > 64 then
+		return { result = "error", reason = "bad_cast_id" }
+	end
 	local pending = self._pendingCasts[player]
 	if not pending or pending.castId ~= castId or pending.phase ~= "casting" then
 		return { result = "error", reason = "no_pending_cast" }
@@ -549,6 +559,10 @@ end
 -- (coins still come from selling, not catching).
 function FishingService.Client:ReleaseReel(player: Player, castId: string, perfectFraction: number): {success: boolean, reason: string?, perfect: boolean?}
 	local self = self.Server
+	if not self._reelLimiter:check(player) then return { success = false, reason = "rate_limit" } end
+	if typeof(castId) ~= "string" or #castId == 0 or #castId > 64 then
+		return { success = false, reason = "bad_cast_id" }
+	end
 	local pending = self._pendingCasts[player]
 	if not pending or pending.castId ~= castId or pending.phase ~= "reeling" then
 		return { success = false, reason = "no_pending_reel" }
@@ -678,6 +692,10 @@ end
 -- 3b) Client says "the fish slipped off the line". Consolation XP, no item.
 function FishingService.Client:ReportEscape(player: Player, castId: string): {success: boolean, reason: string?}
 	local self = self.Server
+	if not self._reelLimiter:check(player) then return { success = false, reason = "rate_limit" } end
+	if typeof(castId) ~= "string" or #castId == 0 or #castId > 64 then
+		return { success = false, reason = "bad_cast_id" }
+	end
 	local pending = self._pendingCasts[player]
 	if not pending or pending.castId ~= castId or pending.phase ~= "reeling" then
 		return { success = false, reason = "no_pending_reel" }

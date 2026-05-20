@@ -257,11 +257,14 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	-- World CFrame at the footprint bottom-center (shared math with the client).
 	local worldCF = GridUtil.gridToWorld(origin, building.gridX, building.gridZ, def.footprint, building.rotation)
 
-	-- TODO: replace this invisible stub with a cloned Model from
-	-- ReplicatedStorage.Assets.Buildings[building.kind] (one Model per tier,
-	-- or a single Model whose PrimaryPart is scaled/recolored per tier).
-	-- Each tier's visual must be obviously different from 30 studs away
-	-- (pillar 3) — minimum 1.5× Scale per tier on the PrimaryPart.
+	-- Visible model: client-only via HarborVisualController (Path A).
+	-- Asset path: ReplicatedStorage.Assets.Buildings.<kind>.tier<N>.Visual
+	-- (see scripts/Studio/MCP_HarborBuildings.md). Server never clones meshes.
+	local fw, fd = def.footprint[1], def.footprint[2]
+	if building.rotation == 90 or building.rotation == 270 then
+		fw, fd = fd, fw
+	end
+	local cell = GameConfig.Harbor.GridCellStuds
 	local anchor = Instance.new("Part")
 	anchor.Name = building.uid
 	anchor.Anchored = true
@@ -269,10 +272,9 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 	anchor.CanQuery = true   -- must be true so _raycastForAnchor (demolish/upgrade hover) can hit it
 	anchor.CanTouch = false
 	anchor.Transparency = 1
-	anchor.Size = Vector3.new(1, 1, 1)
-	-- Anchor sits a bit above the plate so ProximityPrompts trigger range
-	-- works naturally for players standing at ground level.
-	anchor.CFrame = worldCF * CFrame.new(0, 2, 0)
+	anchor.Size = Vector3.new(fw * cell, 1, fd * cell)
+	-- Footprint-sized invisible hitbox; lifted so ProximityPrompts trigger at ground level.
+	anchor.CFrame = worldCF * CFrame.new(0, 0.5 + 2, 0)
 	anchor:SetAttribute("kind", building.kind)
 	anchor:SetAttribute("tier", building.tier)
 	anchor:SetAttribute("ownerUserId", player.UserId)

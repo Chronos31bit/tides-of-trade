@@ -420,6 +420,7 @@ function BuildingModelFactory.build(kind: string, tier: number, footprint: {numb
 	local w, d = studs(footprint)
 	local model = builder(tier, w, d)
 	model.Name = kind .. "_T" .. tier
+	model:SetAttribute("ProceduralPlaceholder", true)
 	return model
 end
 

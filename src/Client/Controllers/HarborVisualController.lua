@@ -31,6 +31,7 @@ local GameConfig            = require(ReplicatedStorage.Shared.Config.GameConfig
 local BuildingCatalog       = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
 local MotionUtil            = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local BuildingModelFactory  = require(ReplicatedStorage.Shared.Util.BuildingModelFactory)
+local BuildingAssetUtil     = require(ReplicatedStorage.Shared.Util.BuildingAssetUtil)
 
 local VT = GameConfig.Harbor.VisualTuning
 
@@ -85,40 +86,6 @@ function HarborVisualController:_plotState(plotOwnerId: number)
 end
 
 -- ====================================================================
--- ASSET LOOKUP — with WaitForChild on first call (server's placeholder
--- script may finish a beat after this controller starts). Falls back to
--- a neutral block if anything's missing, so a typo or missing folder
--- never leaves a building invisible.
--- ====================================================================
-function HarborVisualController:_findAssetModel(kind: string, tier: number): Model?
-	local assets = ReplicatedStorage:WaitForChild("Assets", 5)
-	if not assets then return nil end
-	local buildings = assets:WaitForChild("Buildings", 5)
-	if not buildings then return nil end
-	local kindFolder = buildings:FindFirstChild(kind)
-	if not kindFolder then return nil end
-	local tierFolder = kindFolder:FindFirstChild("tier" .. tier)
-	if not tierFolder then return nil end
-	local model = tierFolder:FindFirstChild("Visual")
-	if model and model:IsA("Model") then return model end
-	return nil
-end
-
-function HarborVisualController:_neutralPlaceholder(footprint: {number}): Model
-	local model = Instance.new("Model")
-	model.Name = "FallbackVisual"
-	local base = Instance.new("Part")
-	base.Anchored = true; base.CanCollide = true
-	base.Color = Color3.fromRGB(220, 60, 200)
-	base.Material = Enum.Material.Neon
-	base.Size = Vector3.new(footprint[1] * GridUtil.CELL, 4, footprint[2] * GridUtil.CELL)
-	base.CFrame = CFrame.new(0, 2, 0)
-	base.Parent = model
-	model.PrimaryPart = base
-	return model
-end
-
--- ====================================================================
 -- BUILD / POSITION
 -- ====================================================================
 local function normalizeBuildingTier(kind: string, tier: any): number
@@ -135,19 +102,24 @@ function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFr
 	building = table.clone(building)
 	building.tier = tier
 
-	local asset = self:_findAssetModel(building.kind, tier)
+	local asset = BuildingAssetUtil.getVisualTemplate(building.kind, tier)
 	local model
 	if asset then
 		model = asset:Clone()
 	else
-		warn(("[HarborVisualController] No mesh at ReplicatedStorage.Assets.Buildings.%s.tier%d.Visual — using solid-color placeholder. See scripts/Studio/MCP_HarborBuildings.md"):format(building.kind, tier))
+		warn(("[HarborVisualController] No mesh at ReplicatedStorage.Assets.Buildings.%s.tier%d.Visual — using procedural placeholder. See scripts/Studio/MCP_HarborBuildings.md"):format(building.kind, tier))
 		model = BuildingModelFactory.build(building.kind, tier, footprint)
-		model.Name = building.uid
 	end
+	model.Name = building.uid
 
-	local tierScales = VT.TierModelScale
-	local tierScale = (tierScales and tierScales[tier]) or 1
-	pcall(function() model:ScaleTo(tierScale) end)
+	-- Studio meshes are already tier-sized; only scale procedural fallbacks.
+	if model:GetAttribute("ProceduralPlaceholder") then
+		local tierScales = VT.TierModelScale
+		local tierScale = (tierScales and tierScales[tier]) or 1
+		pcall(function() model:ScaleTo(tierScale) end)
+	else
+		pcall(function() model:ScaleTo(1) end)
+	end
 
 	local worldCF = GridUtil.gridToWorld(plotOrigin, building.gridX, building.gridZ, footprint, building.rotation)
 	if not model.PrimaryPart then
@@ -189,10 +161,11 @@ local function tweenAllToOriginalTransparency(model: Model, info: TweenInfo, tro
 		if part:IsA("BasePart") then
 			local target = part:GetAttribute("origTransparency")
 			if typeof(target) ~= "number" then target = 0 end
-			local t = TweenService:Create(part, info, { Transparency = target })
-			t:Play()
-			trove:Add(t)
-			t.Completed:Connect(function() t:Destroy() end)
+			local t = MotionUtil.tweenOrSnap(part, info, { Transparency = target })
+			if t then
+				trove:Add(t)
+				t.Completed:Connect(function() t:Destroy() end)
+			end
 		end
 	end
 end
@@ -200,10 +173,11 @@ end
 local function tweenAllTransparencyTo(model: Model, target: number, info: TweenInfo, trove: any)
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
-			local t = TweenService:Create(part, info, { Transparency = target })
-			t:Play()
-			trove:Add(t)
-			t.Completed:Connect(function() t:Destroy() end)
+			local t = MotionUtil.tweenOrSnap(part, info, { Transparency = target })
+			if t then
+				trove:Add(t)
+				t.Completed:Connect(function() t:Destroy() end)
+			end
 		end
 	end
 end

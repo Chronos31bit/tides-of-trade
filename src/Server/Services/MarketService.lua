@@ -212,7 +212,10 @@ end
 function MarketService:KnitInit()
 	self._marketStore = DataStoreService:GetDataStore(GameConfig.DataStores.MarketStore)
 	self._demandStore = DataStoreService:GetDataStore(GameConfig.DataStores.DemandStore)
-	self._listLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxListingsPerMinute, 60)
+	self._listLimiter      = RateLimiter.new(GameConfig.AntiExploit.MaxListingsPerMinute, 60)
+	self._buyLimiter       = RateLimiter.new(GameConfig.AntiExploit.MaxBuysPerMinute, 60)
+	self._cancelLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxCancelsPerMinute, 60)
+	self._quickSellLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxQuickSellsPerMinute, 60)
 	self._cache = {}
 end
 
@@ -245,9 +248,12 @@ function MarketService:KnitStart()
 		end)
 	end)
 
-	-- Player leave: clean up rate limiter.
+	-- Player leave: clean up rate limiters.
 	Players.PlayerRemoving:Connect(function(player)
 		self._listLimiter:reset(player)
+		self._buyLimiter:reset(player)
+		self._cancelLimiter:reset(player)
+		self._quickSellLimiter:reset(player)
 	end)
 
 	-- Demand toast fires on KnitStart refresh, but clients often connect later.
@@ -408,6 +414,12 @@ end
 -- pays the seller (minus fee), and removes the listing.
 function MarketService.Client:Buy(player: Player, listingId: string): {ok: boolean, reason: string?}
 	local self = self.Server
+	-- Rate limit + typeof guard: Buy spends coins and writes DataStore; cheap
+	-- to defend, silent-drop on over-limit per CLAUDE.md cozy pillar.
+	if not self._buyLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+	if typeof(listingId) ~= "string" or #listingId == 0 or #listingId > 64 then
+		return { ok = false, reason = "bad_listing_id" }
+	end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
 
@@ -555,6 +567,10 @@ end
 -- Cancel your own listing — get the item back, no fee.
 function MarketService.Client:Cancel(player: Player, listingId: string): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._cancelLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+	if typeof(listingId) ~= "string" or #listingId == 0 or #listingId > 64 then
+		return { ok = false, reason = "bad_listing_id" }
+	end
 	local cancelledListing
 	local ok = pcall(function()
 		self._marketStore:UpdateAsync(MARKET_INDEX_KEY, function(old)
@@ -606,6 +622,10 @@ end
 -- ====================================================================
 function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: boolean, reason: string?, coinsEarned: number?}
 	local self = self.Server
+	if not self._quickSellLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
+	if typeof(itemUid) ~= "string" or #itemUid == 0 or #itemUid > 64 then
+		return { ok = false, reason = "bad_uid" }
+	end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local item = PlayerDataService:FindItemByUid(player, itemUid)
 	if not item then return { ok = false, reason = "not_owned" } end

@@ -1,6 +1,6 @@
 --!strict
 -- HarborEditController.lua
--- Build mode. Renders a translucent "ghost" preview part at the cursor's
+-- Build mode. Renders a translucent tier-1 building ghost at the cursor's
 -- snapped grid position. Confirm calls HarborService:Place which is fully
 -- server-validated. We do client-side validation just for UX (red ghost when
 -- placement would fail) — the source of truth is the server.
@@ -16,7 +16,12 @@ local SoundService     = game:GetService("SoundService")
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local GridUtil   = require(ReplicatedStorage.Shared.Util.GridUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local BuildingAssetUtil    = require(ReplicatedStorage.Shared.Util.BuildingAssetUtil)
+local BuildingModelFactory = require(ReplicatedStorage.Shared.Util.BuildingModelFactory)
 local HarborEditUI = require(script.Parent.Parent.UI.HarborEditUI)
+
+local GHOST_OK_COLOR = Color3.fromRGB(120, 200, 220)
+local GHOST_BAD_COLOR = Color3.fromRGB(220, 100, 100)
 
 -- Finds or lazily creates the coin-clink Sound in SoundService.
 -- SoundId is intentionally blank until a real asset is uploaded; Play() on
@@ -36,7 +41,7 @@ local HarborEditController = Knit.CreateController({
 	Name = "HarborEditController",
 	_active = false,
 	_ui = nil :: any,
-	_ghost = nil :: BasePart?,
+	_ghost = nil :: Model?,
 	_kind = nil :: string?,
 	_rotation = 0,
 	_plotOrigin = nil :: CFrame?,
@@ -230,20 +235,30 @@ function HarborEditController:_selectKind(kind: string)
 	self._kind = kind
 	if self._ui then self._ui.setRotationHint(self._rotation) end
 	if self._ghost then self._ghost:Destroy() end
-	-- Build a translucent placeholder. Real game would clone a model from
-	-- ReplicatedStorage.Assets.Buildings[kind].
 	local def = self._catalog[kind]
 	if not def then return end
-	local part = Instance.new("Part")
-	part.Anchored = true
-	part.CanCollide = false
-	part.Transparency = 0.5
-	part.Material = Enum.Material.SmoothPlastic
-	part.Color = Color3.fromRGB(120, 200, 220)
-	local w, d = def.footprint[1], def.footprint[2]
-	part.Size = Vector3.new(w * GridUtil.CELL, 8, d * GridUtil.CELL)
-	part.Parent = Workspace
-	self._ghost = part
+
+	local footprint = def.footprint
+	local template = BuildingAssetUtil.getVisualTemplate(kind, 1)
+	local ghost: Model
+	if template then
+		ghost = template:Clone()
+	else
+		ghost = BuildingModelFactory.build(kind, 1, footprint)
+	end
+	ghost.Name = "PlacementGhost"
+	for _, desc in ghost:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.Anchored = true
+			desc.CanCollide = false
+			desc.CanQuery = false
+			desc.CanTouch = false
+			desc.Transparency = math.clamp(desc.Transparency + 0.35, 0, 0.85)
+			desc.Color = GHOST_OK_COLOR
+		end
+	end
+	ghost.Parent = Workspace
+	self._ghost = ghost
 end
 
 -- Heartbeat: positions the placement ghost AND updates the demolish hover
@@ -354,11 +369,8 @@ function HarborEditController:_updateGhost()
 	if self._rotation == 90 or self._rotation == 270 then w, d = d, w end
 	gx = math.clamp(gx, 0, GridUtil.CELLS_PER_AXIS - w)
 	gz = math.clamp(gz, 0, GridUtil.CELLS_PER_AXIS - d)
-	local sizeStuds = Vector3.new(w * GridUtil.CELL, 8, d * GridUtil.CELL)
-	self._ghost.Size = sizeStuds
-	-- Match GridUtil.gridToWorld: footprint bottom-center on the plate, then lift ghost center.
 	local worldCF = GridUtil.gridToWorld(self._plotOrigin, gx, gz, def.footprint, self._rotation)
-	self._ghost.CFrame = worldCF * CFrame.new(0, sizeStuds.Y / 2, 0)
+	GridUtil.placeModelOnPlate(self._ghost, worldCF)
 	self._ghost:SetAttribute("gx", gx)
 	self._ghost:SetAttribute("gz", gz)
 
@@ -370,7 +382,12 @@ function HarborEditController:_updateGhost()
 	local mine = HarborVisualController:GetBuildingsForOwner(Players.LocalPlayer.UserId)
 	local occ = GridUtil.buildOccupancy(mine)
 	local ok = GridUtil.checkPlacement(occ, gx, gz, def.footprint, self._rotation)
-	self._ghost.Color = ok and Color3.fromRGB(120, 200, 220) or Color3.fromRGB(220, 100, 100)
+	local tint = ok and GHOST_OK_COLOR or GHOST_BAD_COLOR
+	for _, desc in self._ghost:GetDescendants() do
+		if desc:IsA("BasePart") then
+			desc.Color = tint
+		end
+	end
 end
 
 function HarborEditController:_confirm()

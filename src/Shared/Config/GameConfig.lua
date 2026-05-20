@@ -561,9 +561,28 @@ GameConfig.Crew = {
 -- ====================================================================
 GameConfig.AntiExploit = {
 	-- Per-player rate limits. Server drops requests above these thresholds.
-	MaxCastsPerMinute     = 30,
-	MaxListingsPerMinute  = 5,
-	MaxBuildOpsPerMinute  = 60,
+	-- Tuning rule (cozy pillar): set generously so legit play never trips.
+	-- Limits are silent-drop only — never surface "you're going too fast"
+	-- to the player. Server logs over-limit events for analytics.
+	MaxCastsPerMinute       = 30,
+	MaxListingsPerMinute    = 5,
+	MaxBuildOpsPerMinute    = 60,
+	MaxBuysPerMinute        = 20,  -- comfortable bulk-buy ceiling
+	MaxQuickSellsPerMinute  = 60,  -- one per inventory slot, fast
+	MaxCancelsPerMinute     = 20,  -- mirrors buys
+	MaxQuestClaimsPerMinute = 20,  -- 3 dailies + grace; 20 is well above any honest peak
+	MaxCrewOpsPerMinute     = 10,  -- create/join/leave; rare in honest play
+	MaxCrewChatsPerMinute   = 20,  -- ~1 every 3s, generous for chatty crews
+	MaxEmotesPerMinute      = 30,  -- one every 2s; dance parties still work
+	MaxVisitsPerMinute      = 6,   -- TeleportService is heavy; visiting is intentional
+	MaxAquariumOpsPerMinute = 60,
+	MaxSmokehouseOpsPerMinute = 30,
+	MaxShopOpsPerMinute     = 20,
+	MaxRodEquipsPerMinute   = 20,
+	MaxBaitEquipsPerMinute  = 30,
+	MaxTutorialOpsPerMinute = 30,
+	MaxSnapshotPullsPerMinute = 30, -- coarse limiter on read-only getters
+	MaxReelClaimsPerMinute  = 60,   -- one per cast; upstream gated by StartCast
 
 	-- If a client claims a catch outside this window after server says "fish
 	-- on the line", reject. Tight window = exploiters can't replay old hooks.
