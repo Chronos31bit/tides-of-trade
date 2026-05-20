@@ -26,6 +26,7 @@ local Types        = require(ReplicatedStorage.Shared.Types)
 local UidUtil      = require(ReplicatedStorage.Shared.Util.UidUtil)
 local RateLimiter  = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local FishCatalog  = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local EconomyUtil  = require(ReplicatedStorage.Shared.Util.EconomyUtil)
 local Signal       = require(ReplicatedStorage.Packages.Signal)
 
 local MARKET_INDEX_KEY = "market_index"  -- single key under MarketStore that holds the list
@@ -37,11 +38,24 @@ for _, m in ipairs(GameConfig.FishModifiers) do
 	if m.sellPriceMul then _modSellMul[m.id] = m.sellPriceMul end
 end
 
+local fishById: {[string]: any} = {}
+for _, f in ipairs(FishCatalog.fish) do
+	fishById[f.id] = f
+end
+
+local function speciesDisplayName(speciesId: string?): string
+	if not speciesId then return "Item" end
+	local f = fishById[speciesId]
+	return (f and f.displayName) or speciesId
+end
+
 local MarketService = Knit.CreateService({
 	Name = "MarketService",
 	Client = {
 		ListingsUpdated = Knit.CreateSignal(),  -- (listings) — periodic broadcast
 		DemandRotated   = Knit.CreateSignal(),  -- (speciesId, multiplier)
+		ItemSold        = Knit.CreateSignal(),  -- ({ displayName, price }) — seller only
+		DemandSpike     = Knit.CreateSignal(),  -- ({ speciesId, displayName }) — all clients
 	},
 
 	-- Server-internal Signal: fires for both QuickSell (local NPC stall) and
@@ -61,6 +75,8 @@ local MarketService = Knit.CreateService({
 	_cacheStaleAt = 0,
 	_listLimiter = nil :: any,
 	_demandSpike = { speciesId = nil, multiplier = 1.0, expiresAt = 0 },
+	-- Avoid re-toasting the same daily demand on every cross-server refresh.
+	_lastDemandToastDay = nil :: string?,
 })
 
 -- ====================================================================
@@ -80,14 +96,41 @@ local function rollDemandSpecies(): string
 	return pool[math.random(1, #pool)]
 end
 
+-- Per-player toast (join replay + refresh). Does not use the global day gate.
+function MarketService:_notifyDemandSpike(player: Player)
+	local speciesId = self._demandSpike.speciesId
+	if not speciesId or os.time() >= (self._demandSpike.expiresAt or 0) then
+		return
+	end
+	self.Client.DemandSpike:Fire(player, {
+		speciesId = speciesId,
+		displayName = speciesDisplayName(speciesId),
+	})
+end
+
+-- Cross-server / new-UTC-day broadcast dedupe (MessagingService fan-out).
+function MarketService:_fireDemandSpikeBroadcast(speciesId: string, utcDay: string?)
+	local TimeUtil = require(ReplicatedStorage.Shared.Util.TimeUtil)
+	local day = utcDay or TimeUtil.currentUTCDay()
+	if self._lastDemandToastDay == day then
+		return
+	end
+	self._lastDemandToastDay = day
+	for _, player in ipairs(Players:GetPlayers()) do
+		self:_notifyDemandSpike(player)
+	end
+end
+
 function MarketService:_refreshDemand()
 	local TimeUtil = require(ReplicatedStorage.Shared.Util.TimeUtil)
 	local today = TimeUtil.currentUTCDay()
 
+	local rolledNew = false
 	local result = self._demandStore:UpdateAsync(DEMAND_KEY, function(old)
 		if old and old.day == today then
 			return nil -- no update needed; another server already set today
 		end
+		rolledNew = true
 		return {
 			day = today,
 			speciesId = rollDemandSpecies(),
@@ -104,9 +147,15 @@ function MarketService:_refreshDemand()
 			multiplier = current.multiplier,
 			expiresAt = os.time() + TimeUtil.secondsUntilUTCMidnight(),
 		}
-		-- Notify all players on this server.
+		-- Notify all players on this server (toast + market banner data).
 		for _, player in ipairs(Players:GetPlayers()) do
 			self.Client.DemandRotated:Fire(player, current.speciesId, current.multiplier)
+			if current.speciesId then
+				self:_notifyDemandSpike(player)
+			end
+		end
+		if rolledNew and current.speciesId then
+			self:_fireDemandSpikeBroadcast(current.speciesId, current.day)
 		end
 		-- Tell other servers in case they haven't refreshed yet.
 		pcall(function()
@@ -189,6 +238,9 @@ function MarketService:KnitStart()
 				for _, player in ipairs(Players:GetPlayers()) do
 					self.Client.DemandRotated:Fire(player, data.speciesId, data.multiplier)
 				end
+				if data.day then
+					self:_fireDemandSpikeBroadcast(data.speciesId, data.day)
+				end
 			end
 		end)
 	end)
@@ -197,6 +249,24 @@ function MarketService:KnitStart()
 	Players.PlayerRemoving:Connect(function(player)
 		self._listLimiter:reset(player)
 	end)
+
+	-- Demand toast fires on KnitStart refresh, but clients often connect later.
+	local function replayDemandToastFor(player: Player)
+		task.spawn(function()
+			local deadline = os.clock() + 20
+			while os.clock() < deadline do
+				if self._demandSpike.speciesId then
+					self:_notifyDemandSpike(player)
+					return
+				end
+				task.wait(0.25)
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(replayDemandToastFor)
+	for _, player in ipairs(Players:GetPlayers()) do
+		replayDemandToastFor(player)
+	end
 
 	-- Periodic refresh: pull listings every 30s so even without messaging we
 	-- eventually converge. Also re-rolls demand at UTC midnight.
@@ -456,6 +526,13 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	-- directly; no direct OnSoldAtMarket call needed.
 	if seller then
 		self.SoldServer:Fire(seller, payout, "market")
+		local displayName = "Item"
+		if boughtListing.itemKind == "Fish" and boughtListing.speciesId then
+			displayName = speciesDisplayName(boughtListing.speciesId)
+		elseif boughtListing.goodId then
+			displayName = boughtListing.goodId
+		end
+		self.Client.ItemSold:Fire(seller, { displayName = displayName, price = payout })
 	end
 
 	-- Invalidate caches.
@@ -547,8 +624,13 @@ function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: b
 		-- when you've got time to wait for buyers.
 		payout = math.floor(f.basePrice * mul * 0.6)
 	elseif item.kind == "Good" then
-		-- Goods catalog isn't built yet; flat rate for now.
-		payout = 30 * (item.count or 1)
+		local speciesId = EconomyUtil.parsePreservedSpeciesId(item.goodId)
+		if speciesId then
+			payout = EconomyUtil.getPreservedGoodQuickSellPayout(speciesId, item.weightKg)
+		else
+			-- Non-preserved goods catalog isn't built yet; flat rate for now.
+			payout = 30 * (item.count or 1)
+		end
 	end
 
 	if payout <= 0 then return { ok = false, reason = "no_value" } end

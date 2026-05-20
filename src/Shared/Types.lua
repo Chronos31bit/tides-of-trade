@@ -26,6 +26,8 @@ export type GoodItem = {
 	kind: "Good",       -- preserved goods, lures, etc.
 	goodId: string,     -- e.g. "preserved_mackerel", "rare_lure"
 	count: number,
+	-- Set on preserved_* goods so sell price can use the source catch weight.
+	weightKg: number?,
 }
 
 export type InventoryItem = FishItem | GoodItem
@@ -36,6 +38,16 @@ export type InventoryItem = FishItem | GoodItem
 -- A placed building on a player's plot. Position is stored in grid coords
 -- (not world studs) so the same data works regardless of plot location.
 
+-- Smokehouse slot: fish smokes here until ready, then claim moves a Good
+-- into inventory. Keys are 1..smokehouseSlots (tier capacity).
+export type PreserveSlot = {
+	speciesId: string,
+	startedAt: number,
+	weightKg: number,
+	ready: boolean?,   -- set by SmokehouseService tick when PreserveTimeSec elapsed
+	goodId: string?,    -- "preserved_" .. speciesId when ready
+}
+
 export type PlacedBuilding = {
 	uid: string,
 	kind: string,       -- BuildingCatalog key
@@ -44,6 +56,7 @@ export type PlacedBuilding = {
 	gridZ: number,
 	rotation: number,   -- 0|90|180|270 degrees
 	placedAt: number,
+	preserveSlots: {[number]: PreserveSlot}?,  -- Smokehouse only
 }
 
 -- ====================================================================

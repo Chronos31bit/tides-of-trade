@@ -140,7 +140,7 @@ function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFr
 	if asset then
 		model = asset:Clone()
 	else
-		warn(("[HarborVisualController] Missing asset %s tier %d, using procedural fallback"):format(building.kind, building.tier))
+		warn(("[HarborVisualController] No mesh at ReplicatedStorage.Assets.Buildings.%s.tier%d.Visual — using solid-color placeholder. See scripts/Studio/MCP_HarborBuildings.md"):format(building.kind, tier))
 		model = BuildingModelFactory.build(building.kind, tier, footprint)
 		model.Name = building.uid
 	end
@@ -212,8 +212,16 @@ end
 -- UPDATE DISPATCH
 -- ====================================================================
 function HarborVisualController:_onUpdate(payload: any)
+	if typeof(payload) ~= "table" or typeof(payload.plotOwnerId) ~= "number" then
+		warn("[HarborVisualController] Ignoring HarborVisualUpdate with invalid payload")
+		return
+	end
 	local plotOwnerId: number = payload.plotOwnerId
-	local plotOrigin: CFrame  = payload.plotOrigin
+	local plotOrigin = GridUtil.unpackPlotOrigin(payload.plotOrigin)
+	if not plotOrigin then
+		warn("[HarborVisualController] HarborVisualUpdate missing plotOrigin")
+		return
+	end
 	local building: any       = payload.building
 	local oldTier: number?    = payload.oldTier
 	local newTier: number     = payload.newTier
@@ -626,13 +634,37 @@ function HarborVisualController:KnitStart()
 	local HarborVisualService = Knit.GetService("HarborVisualService")
 
 	HarborVisualService.HarborVisualUpdate:Connect(function(payload)
-		self:_onUpdate(payload)
+		local ok, err = pcall(function()
+			self:_onUpdate(payload)
+		end)
+		if not ok then
+			warn("[HarborVisualController] HarborVisualUpdate failed:", err)
+		end
 	end)
 	HarborVisualService.HarborVisualRemove:Connect(function(plotOwnerId: number, buildingUid: string)
 		self:_onRemove(plotOwnerId, buildingUid)
 	end)
 	HarborVisualService.HarborVisualClear:Connect(function(plotOwnerId: number)
 		self:_onClear(plotOwnerId)
+	end)
+
+	-- Server join-replay often fires before this controller connects.
+	HarborVisualService:RequestWorldReplay():andThen(function()
+		local root = self:_ensureRoot()
+		local count = 0
+		for _, child in ipairs(root:GetChildren()) do
+			for _, m in ipairs(child:GetChildren()) do
+				if m:IsA("Model") then
+					count += 1
+				end
+			end
+		end
+		print(("[HarborVisualController] Replay done — %d building model(s) in HarborVisuals"):format(count))
+		if count == 0 then
+			warn("[HarborVisualController] No building visuals — install ReplicatedStorage.Assets.Buildings (see scripts/Studio/MCP_HarborBuildings.md) or check Output for spawn errors")
+		end
+	end):catch(function(err)
+		warn("[HarborVisualController] RequestWorldReplay failed:", err)
 	end)
 end
 

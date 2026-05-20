@@ -5,7 +5,6 @@
 -- the card to dismiss early. Tier-colored 3px border; Mythics get a slow
 -- amber↔coral color cycle for the duration of the card's life.
 
-local TweenService = game:GetService("TweenService")
 local RunService   = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -19,65 +18,9 @@ local CatchRevealUI = {}
 local P = UIUtil.Palette
 local FT = GameConfig.Fishing.FeelTuning
 
--- ====================================================================
--- TIER COLORS — single source of truth for the rarity → color mapping.
--- Used by the border, badge fill, and the animated color cycle.
--- ====================================================================
-local TIER_COLORS = {
-	Common    = Color3.fromRGB(180, 180, 180),
-	Uncommon  = Color3.fromRGB( 70, 200, 110),
-	Rare      = Color3.fromRGB( 60, 140, 240),
-	Epic      = Color3.fromRGB(160,  80, 240),
-	Legendary = Color3.fromRGB(255, 165,  30),
-	Mythic    = Color3.fromRGB(220,  60,  80),
-	Divine    = Color3.fromRGB(200, 220, 255),
-}
--- Border ping-pong targets for Legendary, Mythic, and Divine cards.
--- Key must be a rarity string; absence means no cycle for that tier.
-local TIER_CYCLE_TARGETS = {
-	Mythic    = Color3.fromRGB(240, 100, 100),  -- crimson ↔ coral
-	Legendary = Color3.fromRGB(255, 220,  80),  -- gold ↔ bright amber
-	Divine    = Color3.fromRGB(255, 200, 255),  -- icy blue ↔ lavender
-}
+-- Rarity + modifier colors live in UIUtil.Palette (single source of truth).
+-- TIER_CYCLE_TARGETS used to live here too; it's now UIUtil.Palette.RarityCycle.
 
--- ====================================================================
--- MODIFIER COLORS + DISPLAY NAMES
--- ====================================================================
-local MOD_COLORS: {[string]: Color3} = {
-	-- New roll-eligible set
-	rainbow      = Color3.fromRGB(255, 120, 200),
-	golden       = Color3.fromRGB(255, 215,  60),
-	silver       = Color3.fromRGB(220, 225, 240),
-	frozen       = Color3.fromRGB(140, 220, 255),
-	inferno      = Color3.fromRGB(255, 130,  50),
-	shocked      = Color3.fromRGB(255, 240,  80),
-	radioactive  = Color3.fromRGB(120, 255, 100),
-	crystal      = Color3.fromRGB(200, 230, 255),
-	colossal     = Color3.fromRGB(120, 220, 130),
-	tiny         = Color3.fromRGB(255, 255, 255),
-	bloodlust    = Color3.fromRGB(220,  40,  40),
-	voidtouched  = Color3.fromRGB(170,  80, 255),
-	ghostly      = Color3.fromRGB(240, 245, 255),
-	disco        = Color3.fromRGB(255,  80, 200),
-	ancientcore  = Color3.fromRGB(220, 170,  90),
-	-- World-state
-	tide_kissed  = Color3.fromRGB( 60, 200, 220),
-	storm_forged = Color3.fromRGB(180,  80, 255),
-	moon_touched = Color3.fromRGB(200, 200, 255),
-	dawn_blessed = Color3.fromRGB(255, 200, 120),
-	fog_shrouded = Color3.fromRGB(160, 180, 200),
-	-- Deprecated (legacy items only)
-	shiny        = Color3.fromRGB(255, 220,  60),
-	giant        = Color3.fromRGB(120, 200, 120),
-	glowing      = Color3.fromRGB(100, 180, 255),
-	lucky        = Color3.fromRGB(200, 120, 255),
-	ancient      = Color3.fromRGB(210, 140,  60),
-	prismatic    = Color3.fromRGB(255, 100, 160),
-	elder        = Color3.fromRGB(255, 240, 180),
-	cursed       = Color3.fromRGB(120,  40, 160),
-	magnetic     = Color3.fromRGB( 80, 200, 220),
-	barnacled    = Color3.fromRGB(140, 180, 100),
-}
 local _modDisplayNames: {[string]: string} = {}
 local _modData: {[string]: any} = {}
 for _, m in ipairs(GameConfig.FishModifiers) do
@@ -127,10 +70,11 @@ end
 
 function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	local gui = UIUtil.makeScreenGui("CatchReveal", nil, { respectTopbar = true })
+	gui.DisplayOrder = UIUtil.DisplayOrder.CatchReveal
 
 	local rarity = payload.fish.rarity or "Common"
-	local tierColor = TIER_COLORS[rarity] or TIER_COLORS.Common
-	local perfectColor = TIER_COLORS.Legendary  -- gold for perfect catch indicators
+	local tierColor    = UIUtil.rarityColor(rarity)
+	local perfectColor = UIUtil.Palette.Legendary  -- gold for perfect catch indicators
 
 	-- Expand card height by 24 px when modifiers are present so pills don't crowd the coin label.
 	local mods = payload.modifiers or {}
@@ -177,7 +121,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	vpf.Size = UDim2.fromOffset(80, 80)
 	vpf.BackgroundColor3 = P.TealDeeper
 	vpf.BorderSizePixel = 0
-	vpf.LightColor = Color3.fromRGB(210, 225, 255)
+	vpf.LightColor = P.ThumbLight
 	vpf.LightDirection = Vector3.new(-1, -2, -1)
 	local vc = Instance.new("UICorner"); vc.CornerRadius = UDim.new(0, 10); vc.Parent = vpf
 	vpf.Parent = card
@@ -324,7 +268,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		local pillRow = Instance.new("Frame")
 		pillRow.BackgroundTransparency = 1
 		pillRow.Position = UDim2.new(0, 108, 0, nameTopY + 52)
-		pillRow.Size = UDim2.new(1, -120, 0, 18)
+		pillRow.Size = UDim2.new(1, -120, 0, 24)
 		pillRow.Parent = card
 		local rowLayout = Instance.new("UIListLayout")
 		rowLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -337,30 +281,29 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		local maxVisible = math.min(#mods, 3)
 		for i = 1, maxVisible do
 			local modId = mods[i]
-			local color = MOD_COLORS[modId] or Color3.fromRGB(160, 160, 160)
+			local color = UIUtil.modifierColor(modId)
 			local effectText = _modEffectText(modId)
 			local labelText = (_modDisplayNames[modId] or modId) .. (effectText ~= "" and (" • " .. effectText) or "")
 			local pill = Instance.new("Frame")
-			pill.Size = UDim2.fromOffset(0, 18)
+			pill.Size = UDim2.fromOffset(0, 22)
 			pill.AutomaticSize = Enum.AutomaticSize.X
 			pill.BackgroundColor3 = color
 			pill.BackgroundTransparency = 1
 			pill.BorderSizePixel = 0
 			pill.LayoutOrder = i
-			local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 9); pc.Parent = pill
+			local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, UIUtil.Radii.sm); pc.Parent = pill
 			local pp = Instance.new("UIPadding")
-			pp.PaddingLeft  = UDim.new(0, 8)
-			pp.PaddingRight = UDim.new(0, 8)
+			pp.PaddingLeft  = UDim.new(0, UIUtil.Spacing.sm)
+			pp.PaddingRight = UDim.new(0, UIUtil.Spacing.sm)
 			pp.Parent = pill
-			local pillLbl = Instance.new("TextLabel")
-			pillLbl.BackgroundTransparency = 1
-			pillLbl.Size = UDim2.fromScale(1, 1)
-			pillLbl.Font = Enum.Font.GothamBold
-			pillLbl.TextSize = 10
-			pillLbl.TextColor3 = Color3.new(1, 1, 1)
-			pillLbl.TextTransparency = 1
-			pillLbl.Text = labelText
-			pillLbl.Parent = pill
+			local pillLbl = UIUtil.makeLabel(labelText, "caption", {
+				Size = UDim2.fromScale(1, 1),
+				Font = Enum.Font.GothamBold,
+				TextColor3 = P.Cream,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextTransparency = 1,
+				Parent = pill,
+			})
 			pill.Parent = pillRow
 			if reduced then
 				MotionUtil.tween(pill,    TweenInfo.new(0.2), { BackgroundTransparency = 0.25 })
@@ -374,15 +317,12 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 			end
 		end
 		if #mods > 3 then
-			local overflowLbl = Instance.new("TextLabel")
-			overflowLbl.BackgroundTransparency = 1
-			overflowLbl.Size = UDim2.fromOffset(28, 18)
-			overflowLbl.Font = Enum.Font.Gotham
-			overflowLbl.TextSize = 10
-			overflowLbl.TextColor3 = P.CreamSoft
-			overflowLbl.Text = "+" .. (#mods - 3)
-			overflowLbl.LayoutOrder = 4
-			overflowLbl.Parent = pillRow
+			UIUtil.makeLabel("+" .. (#mods - 3), "caption", {
+				Size = UDim2.fromOffset(32, 22),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				LayoutOrder = 4,
+				Parent = pillRow,
+			})
 		end
 	end
 
@@ -416,7 +356,7 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	-- ----------------------------------------------------------------
 	local cycleTask: thread? = nil
 	local thickTask: thread? = nil
-	local cycleTarget = TIER_CYCLE_TARGETS[rarity]
+	local cycleTarget = UIUtil.Palette.RarityCycle[rarity]
 	if cycleTarget and not MotionUtil.reducedMotionEnabled() then
 		cycleTask = task.spawn(function()
 			local toTarget = true

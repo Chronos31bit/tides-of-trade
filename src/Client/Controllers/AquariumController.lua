@@ -6,11 +6,11 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProximityPromptService = game:GetService("ProximityPromptService")
-local TweenService = game:GetService("TweenService")
 local Knit = require(ReplicatedStorage.Packages.Knit)
 local AquariumUI = require(script.Parent.Parent.UI.AquariumUI)
 local UIUtil = require(script.Parent.Parent.UI.UIUtil)
 local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
 local AquariumController = Knit.CreateController({
 	Name = "AquariumController",
@@ -76,11 +76,11 @@ function AquariumController:_showToast(coins: number, xp: number, fishCount: num
 
 	toast.Position = UDim2.new(0, 16, 1, 100)
 	local slideIn = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(toast, slideIn, { Position = UDim2.new(0, 16, 1, -120) }):Play()
+	MotionUtil.tweenOrSnap(toast, slideIn, { Position = UDim2.new(0, 16, 1, -120) })
 
 	self._toastClearTask = task.delay(4, function()
 		local slideOut = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		TweenService:Create(toast, slideOut, { Position = UDim2.new(0, 16, 1, 100) }):Play()
+		MotionUtil.tweenOrSnap(toast, slideOut, { Position = UDim2.new(0, 16, 1, 100) })
 	end)
 end
 

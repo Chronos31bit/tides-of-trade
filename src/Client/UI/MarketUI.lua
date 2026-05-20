@@ -1,11 +1,16 @@
 --!strict
--- MarketUI.lua (rewrite)
+-- MarketUI.lua
 -- Browse global listings; buy with one tap. Demand spike banner shows
--- which species pays a premium today.
+-- which species pays a premium today. Uses the shared modal shell so
+-- the chrome (backdrop / panel / header / close) matches every other
+-- modal in the game.
 
 local UIUtil = require(script.Parent.UIUtil)
 
-local P = UIUtil.Palette
+local P    = UIUtil.Palette
+local SP   = UIUtil.Spacing
+local RAD  = UIUtil.Radii
+local TYPE = UIUtil.Typography
 
 local MarketUI = {}
 
@@ -20,88 +25,56 @@ local function titleCase(s: string): string
 end
 
 function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (string) -> ()): MarketHandle
-	local gui = UIUtil.makeScreenGui("MarketUI")
-
-	local backdrop = Instance.new("Frame")
-	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.5
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.Parent = gui
-
-	local panel = Instance.new("Frame")
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.new(0.92, 0, 0.88, 0)
-	panel.BackgroundColor3 = P.TealDark
-	panel.BorderSizePixel = 0
-	local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 14); pc.Parent = panel
-	local ps = Instance.new("UIStroke"); ps.Color = P.TealDeeper; ps.Thickness = 1.5; ps.Transparency = 0.25; ps.Parent = panel
-	local pcap = Instance.new("UISizeConstraint"); pcap.MaxSize = Vector2.new(900, 760); pcap.Parent = panel
-	panel.Parent = gui
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Position = UDim2.new(0, 20, 0, 14)
-	title.Size = UDim2.new(1, -120, 0, 30)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 22
-	title.TextColor3 = P.Cream
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = "Global Market"
-	title.Parent = panel
-
-	local closeBtn = UIUtil.makeButton("Close", function() gui:Destroy() end, {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(84, 36),
-		BackgroundColor3 = P.Wood,
+	local shell
+	shell = UIUtil.makeModalShell({
+		name = "MarketUI",
+		title = "Global Market",
+		onClose = function() if shell then shell.destroy() end end,
+		width = 700,
+		heightScale = 0.88,
 	})
-	closeBtn.Parent = panel
+	local gui  = shell.gui
+	local body = shell.body
 
-	-- Demand banner.
+	-- Demand banner at the top of the body.
 	local demand = Instance.new("Frame")
-	demand.Position = UDim2.new(0, 14, 0, 60)
-	demand.Size = UDim2.new(1, -28, 0, 42)
+	demand.Size = UDim2.new(1, 0, 0, 44)
 	demand.BackgroundColor3 = P.SunsetDeep
 	demand.BorderSizePixel = 0
-	local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(0, 10); dc.Parent = demand
-	demand.Parent = panel
+	local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(0, RAD.md); dc.Parent = demand
+	demand.Parent = body
 
 	local dDot = Instance.new("Frame")
 	dDot.BackgroundColor3 = P.Sunset
 	dDot.BorderSizePixel = 0
 	dDot.AnchorPoint = Vector2.new(0, 0.5)
-	dDot.Position = UDim2.new(0, 12, 0.5, 0)
+	dDot.Position = UDim2.new(0, SP.md, 0.5, 0)
 	dDot.Size = UDim2.fromOffset(10, 10)
 	local ddcr = Instance.new("UICorner"); ddcr.CornerRadius = UDim.new(1, 0); ddcr.Parent = dDot
 	dDot.Parent = demand
 
-	local demandLbl = Instance.new("TextLabel")
-	demandLbl.BackgroundTransparency = 1
-	demandLbl.Position = UDim2.new(0, 30, 0, 0)
-	demandLbl.Size = UDim2.new(1, -42, 1, 0)
-	demandLbl.Font = Enum.Font.GothamBold
-	demandLbl.TextSize = 14
-	demandLbl.TextColor3 = P.Cream
-	demandLbl.TextXAlignment = Enum.TextXAlignment.Left
-	demandLbl.Text = "Loading demand…"
-	demandLbl.Parent = demand
+	local demandLbl = UIUtil.makeLabel("Loading demand…", "body", {
+		Position = UDim2.new(0, SP.xl + 6, 0, 0),
+		Size = UDim2.new(1, -(SP.xl + 6 + SP.md), 1, 0),
+		Font = Enum.Font.GothamBold,
+		Parent = demand,
+	})
 
-	-- Listings.
+	-- Listings scroll fills the remainder of the body.
+	local listTop = 44 + SP.md
 	local list = Instance.new("ScrollingFrame")
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Position = UDim2.new(0, 14, 0, 116)
-	list.Size = UDim2.new(1, -28, 1, -130)
+	list.Position = UDim2.new(0, 0, 0, listTop)
+	list.Size = UDim2.new(1, 0, 1, -listTop)
 	list.ScrollBarThickness = 6
 	list.ScrollBarImageColor3 = P.TealDeeper
 	list.CanvasSize = UDim2.new(0, 0, 0, 0)
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	list.Parent = panel
+	list.Parent = body
 
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 8)
+	layout.Padding = UDim.new(0, SP.sm)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = list
 
@@ -111,7 +84,7 @@ function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (strin
 		row.BackgroundColor3 = P.Teal
 		row.BorderSizePixel = 0
 		row.LayoutOrder = i
-		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, 10); rc.Parent = row
+		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, RAD.md); rc.Parent = row
 		row.Parent = list
 
 		local nameText: string
@@ -121,46 +94,46 @@ function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (strin
 			nameText = ("%s · × %d"):format(titleCase(listing.goodId or "Item"), listing.count or 1)
 		end
 
-		local name = Instance.new("TextLabel")
-		name.BackgroundTransparency = 1
-		name.Position = UDim2.new(0, 16, 0, 8)
-		name.Size = UDim2.new(0.55, 0, 0, 22)
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 16
-		name.TextColor3 = P.Cream
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.TextTruncate = Enum.TextTruncate.AtEnd
-		name.Text = nameText
-		name.Parent = row
+		UIUtil.makeLabel(nameText, "subtitle", {
+			Position = UDim2.new(0, SP.md, 0, SP.sm),
+			Size = UDim2.new(0.55, 0, 0, 22),
+			Font = Enum.Font.GothamBold,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = row,
+		})
 
-		local seller = Instance.new("TextLabel")
-		seller.BackgroundTransparency = 1
-		seller.Position = UDim2.new(0, 16, 0, 30)
-		seller.Size = UDim2.new(0.55, 0, 0, 18)
-		seller.Font = Enum.Font.Gotham
-		seller.TextSize = 12
-		seller.TextColor3 = P.CreamSoft
-		seller.TextXAlignment = Enum.TextXAlignment.Left
-		seller.Text = "by " .. listing.sellerName
-		seller.Parent = row
+		UIUtil.makeLabel("by " .. listing.sellerName, "caption", {
+			Position = UDim2.new(0, SP.md, 0, 30),
+			Size = UDim2.new(0.55, 0, 0, 18),
+			Parent = row,
+		})
 
-		local price = Instance.new("TextLabel")
-		price.BackgroundTransparency = 1
-		price.AnchorPoint = Vector2.new(1, 0.5)
-		price.Position = UDim2.new(1, -120, 0.5, 0)
-		price.Size = UDim2.fromOffset(120, 26)
-		price.Font = Enum.Font.GothamBold
-		price.TextSize = 18
-		price.TextColor3 = P.Gold
-		price.TextXAlignment = Enum.TextXAlignment.Right
-		price.Text = ("%d coins"):format(listing.price)
-		price.Parent = row
-
-		local buyBtn = UIUtil.makeButton("Buy", function() onBuy(listing.listingId) end, {
+		UIUtil.makeLabel(("%d coins"):format(listing.price), "body", {
 			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -10, 0.5, 0),
-			Size = UDim2.fromOffset(96, 40),
-			BackgroundColor3 = P.Sunset,
+			Position = UDim2.new(1, -120, 0.5, 0),
+			Size = UDim2.fromOffset(120, 26),
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			TextColor3 = P.Gold,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = row,
+		})
+
+		-- Reserved slot for the future price-history sparkline. Empty for
+		-- now (zero-height); MarketController v2 can mount a graph here
+		-- without restructuring the row.
+		local sparkline = Instance.new("Frame")
+		sparkline.Name = "SparklineSlot"
+		sparkline.BackgroundTransparency = 1
+		sparkline.AnchorPoint = Vector2.new(1, 1)
+		sparkline.Position = UDim2.new(1, -110, 1, -4)
+		sparkline.Size = UDim2.fromOffset(96, 0)
+		sparkline.Parent = row
+
+		local buyBtn = UIUtil.makePrimaryButton("Buy", function() onBuy(listing.listingId) end, {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -SP.sm, 0.5, 0),
+			Size = UDim2.fromOffset(96, UIUtil.MinTouchPx),
 		})
 		buyBtn.Parent = row
 	end
@@ -176,15 +149,11 @@ function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (strin
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		if #listings_ == 0 then
-			local empty = Instance.new("TextLabel")
-			empty.BackgroundTransparency = 1
-			empty.Size = UDim2.new(1, 0, 0, 60)
-			empty.Font = Enum.Font.GothamMedium
-			empty.TextSize = 16
-			empty.TextColor3 = P.CreamSoft
-			empty.TextXAlignment = Enum.TextXAlignment.Center
-			empty.Text = "Market is empty — be the first to list a catch."
-			empty.Parent = list
+			UIUtil.makeLabel("Market is empty — be the first to list a catch.", "subtitle", {
+				Size = UDim2.new(1, 0, 0, 60),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Parent = list,
+			})
 			return
 		end
 		for i, l in ipairs(listings_) do buildRow(l, i) end
@@ -193,78 +162,70 @@ function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (strin
 
 	return {
 		gui = gui,
-		close = function() gui:Destroy() end,
+		close = function() shell.destroy() end,
 		refresh = refresh,
 	}
 end
 
--- Small modal to choose a listing price. Solid, opaque, clean.
+-- Small modal to choose a listing price. Reuses the shared shell so it
+-- matches the rest of the chrome.
 function MarketUI.showSellPrompt(suggestedPrice: number, onConfirm: (number) -> (), onCancel: () -> ())
-	local gui = UIUtil.makeScreenGui("MarketSellPrompt")
+	local shell
+	shell = UIUtil.makeModalShell({
+		name = "MarketSellPrompt",
+		title = "List on the global market",
+		onClose = function()
+			if shell then shell.destroy() end
+			onCancel()
+		end,
+		width = 440,
+		heightScale = 0.32,
+	})
 
-	local backdrop = Instance.new("Frame")
-	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.55
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.Parent = gui
-
-	local panel = Instance.new("Frame")
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.new(0.7, 0, 0, 220)
-	panel.BackgroundColor3 = P.TealDark
-	panel.BorderSizePixel = 0
-	local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 14); pc.Parent = panel
-	local ps = Instance.new("UIStroke"); ps.Color = P.TealDeeper; ps.Thickness = 1.5; ps.Transparency = 0.25; ps.Parent = panel
-	local pcap = Instance.new("UISizeConstraint"); pcap.MaxSize = Vector2.new(440, 220); pcap.Parent = panel
-	panel.Parent = gui
-
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Position = UDim2.new(0, 18, 0, 16)
-	title.Size = UDim2.new(1, -36, 0, 26)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 18
-	title.TextColor3 = P.Cream
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = "List on the global market"
-	title.Parent = panel
+	local body = shell.body
 
 	local input = Instance.new("TextBox")
 	input.PlaceholderText = "Price in coins"
 	input.Text = tostring(suggestedPrice)
-	input.Font = Enum.Font.GothamMedium
-	input.TextSize = 18
+	input.Font = TYPE.body.font
+	input.TextSize = math.max(18, UIUtil.MinFontPx)
 	input.TextColor3 = P.Cream
 	input.PlaceholderColor3 = P.CreamSoft
 	input.BackgroundColor3 = P.Teal
 	input.BorderSizePixel = 0
 	input.ClearTextOnFocus = false
-	input.Position = UDim2.new(0, 18, 0, 56)
-	input.Size = UDim2.new(1, -36, 0, 48)
-	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(0, 8); ic.Parent = input
-	input.Parent = panel
+	input.Position = UDim2.new(0, 0, 0, 0)
+	input.Size = UDim2.new(1, 0, 0, 48)
+	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(0, RAD.md); ic.Parent = input
+	input.Parent = body
 
-	local cancel = UIUtil.makeButton("Cancel", function() gui:Destroy(); onCancel() end, {
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 18, 1, -18),
-		Size = UDim2.fromOffset(120, 44),
-		BackgroundColor3 = P.Wood,
+	local btnRow = Instance.new("Frame")
+	btnRow.BackgroundTransparency = 1
+	btnRow.AnchorPoint = Vector2.new(0, 1)
+	btnRow.Position = UDim2.new(0, 0, 1, 0)
+	btnRow.Size = UDim2.new(1, 0, 0, UIUtil.MinTouchPx)
+	btnRow.Parent = body
+
+	local cancel = UIUtil.makeGhostButton("Cancel", function()
+		shell.destroy()
+		onCancel()
+	end, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.fromOffset(120, UIUtil.MinTouchPx),
 	})
-	cancel.Parent = panel
+	cancel.Parent = btnRow
 
-	local confirm = UIUtil.makeButton("Confirm", function()
+	local confirm = UIUtil.makePrimaryButton("Confirm", function()
 		local n = tonumber(input.Text) or suggestedPrice
-		gui:Destroy()
+		shell.destroy()
 		onConfirm(math.floor(n))
 	end, {
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -18, 1, -18),
-		Size = UDim2.fromOffset(140, 44),
-		BackgroundColor3 = P.Sunset,
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 0),
+		Size = UDim2.fromOffset(140, UIUtil.MinTouchPx),
 	})
-	confirm.Parent = panel
+	confirm.Parent = btnRow
 end
 
 return MarketUI

@@ -27,6 +27,7 @@ local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit = require(ReplicatedStorage.Packages.Knit)
+local GridUtil = require(ReplicatedStorage.Shared.Util.GridUtil)
 
 local HarborVisualService = Knit.CreateService({
 	Name = "HarborVisualService",
@@ -55,7 +56,7 @@ local function makePayload(plotOwnerId: number, plotOrigin: CFrame, building: an
 	-- don't ripple into the in-flight RemoteEvent payload.
 	return {
 		plotOwnerId = plotOwnerId,
-		plotOrigin = plotOrigin,
+		plotOrigin = GridUtil.packPlotOrigin(plotOrigin),
 		building = {
 			uid = building.uid,
 			kind = building.kind,
@@ -67,6 +68,26 @@ local function makePayload(plotOwnerId: number, plotOrigin: CFrame, building: an
 		oldTier = oldTier,
 		newTier = tier,
 	}
+end
+
+-- Push every online player's building visuals to one client. Used on join
+-- (server-side replay) and when the client finishes KnitStart — initial
+-- FireAll/Fire calls often land before HarborVisualController connects.
+function HarborVisualService:_replayWorldTo(player: Player)
+	local HarborService = Knit.GetService("HarborService")
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	for _, owner in ipairs(Players:GetPlayers()) do
+		local data = PlayerDataService:GetProfile(owner); if not data then continue end
+		local origin = HarborService:GetPlotOrigin(owner); if not origin then continue end
+		for _, b in ipairs(data.buildings) do
+			self.Client.HarborVisualUpdate:Fire(player, makePayload(owner.UserId, origin, b, nil, b.tier))
+		end
+	end
+end
+
+function HarborVisualService.Client:RequestWorldReplay(player: Player): boolean
+	self.Server:_replayWorldTo(player)
+	return true
 end
 
 -- ====================================================================
@@ -127,15 +148,9 @@ function HarborVisualService:KnitStart()
 		-- Broadcast the joiner's own buildings (FireAll so everyone sees them).
 		broadcastInitialBuildings(joiner)
 
-		-- Send every OTHER online player's state to just the joiner.
-		for _, other in ipairs(Players:GetPlayers()) do
-			if other == joiner then continue end
-			local data = PlayerDataService:GetProfile(other); if not data then continue end
-			local origin = HarborService:GetPlotOrigin(other); if not origin then continue end
-			for _, b in ipairs(data.buildings) do
-				self.Client.HarborVisualUpdate:Fire(joiner, makePayload(other.UserId, origin, b, nil, b.tier))
-			end
-		end
+		-- Replay everyone to the joiner (client also calls RequestWorldReplay
+		-- after KnitStart in case these signals fired too early).
+		self:_replayWorldTo(joiner)
 	end
 
 	Players.PlayerAdded:Connect(function(player)

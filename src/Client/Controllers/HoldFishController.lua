@@ -7,11 +7,11 @@
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService      = game:GetService("TweenService")
 local Knit              = require(ReplicatedStorage.Packages.Knit)
 local UIUtil            = require(script.Parent.Parent.UI.UIUtil)
 local GameConfig        = require(ReplicatedStorage.Shared.Config.GameConfig)
 local FishMutations     = require(ReplicatedStorage.Shared.Util.FishMutations)
+local MotionUtil        = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
 local P = UIUtil.Palette
 
@@ -178,7 +178,7 @@ function HoldFishController:HoldFish(
 		pLbl.BackgroundTransparency = 1
 		pLbl.Size = UDim2.fromScale(1, 1)
 		pLbl.Font = Enum.Font.GothamBold
-		pLbl.TextSize = 11
+		pLbl.TextSize = math.max(12, UIUtil.MinFontPx)
 		pLbl.TextColor3 = Color3.new(1, 1, 1)
 		pLbl.Text = modDisplayNames[modId] or modId
 		pLbl.Parent = pill
@@ -202,16 +202,16 @@ function HoldFishController:HoldFish(
 	putBackBtn.LayoutOrder = 10
 	putBackBtn.Parent = toast
 
-	-- Fade toast in
+	-- Fade toast in — routed through MotionUtil so ReducedMotion snaps.
 	toastGui.Enabled = true
 	toast.BackgroundTransparency = 1
 	ts.Transparency = 1
-	TweenService:Create(toast, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	MotionUtil.tweenOrSnap(toast, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		BackgroundTransparency = 0,
-	}):Play()
-	TweenService:Create(ts, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	})
+	MotionUtil.tweenOrSnap(ts, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Transparency = 0.25,
-	}):Play()
+	})
 end
 
 function HoldFishController:KnitInit()

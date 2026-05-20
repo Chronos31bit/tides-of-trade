@@ -63,6 +63,10 @@ purna/
 │           └── QuestTrackerUI.lua
 ```
 
+## Dev roadmap (interactive)
+
+Open [`roadmap.html`](roadmap.html) in a browser for an interactive implementation map: a **dependency flowchart** (click any node), **CLAUDE.md pillar audit chips**, and backlog cards — each opens a ready-to-paste Cursor / Claude Code prompt (prefixed with CLAUDE.md guardrails). Status last synced May 2026. Deep-link examples: `roadmap.html#smokehouse`, `roadmap.html#ui-overhaul`, `roadmap.html#ui-remaining-screens`.
+
 ## 1. First-time setup
 
 ### Install Rojo

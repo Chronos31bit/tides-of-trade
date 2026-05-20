@@ -12,12 +12,12 @@
 
 local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService     = game:GetService("TweenService")
 local GuiService       = game:GetService("GuiService")
 local RunService       = game:GetService("RunService")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local UIUtil     = require(script.Parent.UIUtil)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
 local TUNE = GameConfig.Tutorial
 
@@ -54,9 +54,8 @@ export type DialogueUIInstance = {
 -- ====================================================================
 function DialogueUI.create(speakerName: string): DialogueUIInstance
 	local gui, _scale = UIUtil.makeScreenGui("TutorialDialogue", nil, { respectTopbar = true })
-	gui.DisplayOrder = TUNE.DialogueZIndex
-	-- Sit above HUD (HUD lives at default 0 with internal z-index 1-4)
-	-- but below modal UIs which use higher DisplayOrder.
+	-- Dialogue sits above HUD and QuestTracker, below modals + CatchReveal.
+	gui.DisplayOrder = UIUtil.DisplayOrder.Dialogue
 
 	-- Outer panel: bottom-anchored ABOVE the HUD action bar (which sits
 	-- ~108px tall at the bottom of the screen). Starts offscreen (Y=1.1)
@@ -118,20 +117,6 @@ function DialogueUI.create(speakerName: string): DialogueUIInstance
 	})
 	continueButton.Parent = panel
 
-	-- Close (X) button, top-right. Hides UI without advancing state —
-	-- the "talk to Mira" prompt appears via TutorialController.
-	local closeButton = Instance.new("TextButton")
-	closeButton.Name = "Close"
-	closeButton.BackgroundTransparency = 1
-	closeButton.Font = Enum.Font.GothamBold
-	closeButton.Text = "✕"
-	closeButton.TextColor3 = UIUtil.Palette.CreamSoft
-	closeButton.TextSize = 18
-	closeButton.AnchorPoint = Vector2.new(1, 0)
-	closeButton.Position = UDim2.new(1, -8, 0, 6)
-	closeButton.Size = UDim2.fromOffset(44, 28)
-	closeButton.Parent = panel
-
 	local instance: DialogueUIInstance = setmetatable({
 		gui = gui,
 		panel = panel,
@@ -139,7 +124,7 @@ function DialogueUI.create(speakerName: string): DialogueUIInstance
 		speakerLabel = speakerLabel,
 		continueButton = continueButton,
 		portrait = portrait,
-		closeButton = closeButton,
+		closeButton = nil :: TextButton?, -- set below after instance exists
 		_currentLine = "",
 		_typewriterToken = 0,
 		_visible = false,
@@ -164,9 +149,18 @@ function DialogueUI.create(speakerName: string): DialogueUIInstance
 		end
 	end)
 
-	closeButton.Activated:Connect(function()
+	-- Close (X) button, top-right. Hides UI without advancing state —
+	-- the "talk to Mira" prompt appears via TutorialController.
+	instance.closeButton = UIUtil.makeCloseButton(function()
 		if instance._onClose then instance._onClose() end
-	end)
+	end, {
+		Parent = panel,
+		BackgroundTransparency = 1,
+		TextColor3 = UIUtil.Palette.CreamSoft,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -8, 0, 6),
+		Size = UDim2.fromOffset(UIUtil.MinTouchPx, 28),
+	})
 
 	return instance
 end
@@ -216,16 +210,16 @@ function DialogueUI:Show()
 	if self._reducedMotion then
 		self.panel.Position = UDim2.new(0.5, 0, 1, -120)
 		self.panel.BackgroundTransparency = 1
-		TweenService:Create(self.panel,
+		MotionUtil.tween(self.panel,
 			TweenInfo.new(TUNE.DialogueReducedMotionFadeIn, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ BackgroundTransparency = 0 }
-		):Play()
+		)
 	else
 		self.panel.Position = UDim2.new(0.5, 0, 1.1, 0)
-		TweenService:Create(self.panel,
+		MotionUtil.tween(self.panel,
 			TweenInfo.new(TUNE.DialogueSlideInDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 			{ Position = UDim2.new(0.5, 0, 1, -120) }
-		):Play()
+		)
 	end
 end
 

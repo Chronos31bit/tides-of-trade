@@ -367,6 +367,7 @@ GameConfig.UI = {
 		QuestTracker = 12,  -- right-edge tracker tab + popups
 		Dialogue     = 20,  -- Mira NPC chat box
 		CastMeter    = 30,  -- fishing overlay (above HUD, below modals)
+		Notification = 31,  -- bottom-center toast stack (above cast thumb)
 		Modal        = 40,  -- Inventory, Market, Harbor, Rod, Bait, Aquarium, Shop, Social
 		CatchReveal  = 50,  -- celebration overlay above all modals
 		Tutorial     = 60,  -- highlight overlay, sits above everything
@@ -394,6 +395,16 @@ GameConfig.UI = {
 		-- The Rod Shop exists (ShopService:BuyRodTier), so this points at it
 		-- rather than a placeholder. Edit this one string if the path moves.
 		UpgradeHintText          = "Upgrade your rod at the Rod Shop on the dock.",
+	},
+
+	-- Ephemeral bottom-center toasts (market sale, demand spike, quests).
+	Notification = {
+		MaxQueue = 3,
+		HoldSec = 3,
+		SlideSec = 0.25,
+		FadeSec = 0.30,
+		-- Above HUD action bar: 20px inset + 88px bar + 12px gap (see HUD.lua).
+		BottomOffsetPx = 120,
 	},
 }
 
@@ -520,6 +531,9 @@ GameConfig.Quests = {
 	},
 	-- After day 28 reward this every day until streak breaks.
 	LoginStreakReward28Plus = { coins = 200 },
+
+	-- Login-streak days that fire StreakMilestone toast (in addition to rewards).
+	StreakMilestoneToastDays = { 7, 14, 30, 50, 100 },
 
 	-- Coalescing window for the QuestsChanged network push during
 	-- incremental progress. NOT a DataStore batch — the profile is mutated

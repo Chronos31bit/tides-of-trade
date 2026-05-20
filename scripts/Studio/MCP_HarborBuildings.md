@@ -36,11 +36,15 @@ Footprints (grid cells × 4 studs; fit target = 90% of stud pad):
 
 `BuildAssetPlaceholders.server.lua` skips kinds that already have `tier1.Visual`.
 
-## Prompt prefix (all kinds)
+## Prompts (v2)
 
-> cozy Roblox harbor fishing game, low-poly stylized, axis-aligned to world grid, no diagonal rotation, longer side along Z axis
+**Canonical table:** [`HarborMeshPrompts.lua`](./HarborMeshPrompts.lua) — use these for regen; tier sentences describe silhouette, materials, tier read.
 
-### Per-kind tier prompts (append to prefix)
+### Prefix (prepend to every tier prompt)
+
+> Stylized cozy Roblox harbor game building, warm nautical colors, chunky readable silhouette, single cohesive structure, orthogonal straight edges axis-aligned to world grid, no diagonal rotation, no characters, no floating parts, sits on flat ground, game-ready asset
+
+### Legacy per-kind tier prompts (append to prefix)
 
 **Dock** (4×6; `FACING_YAW_EXTRA = 0`, pier toward +Z) — size x,y,z:
 
@@ -116,4 +120,4 @@ MCP `execute_luau` on in-place `Visual` models — same `alignVisualYaw` + `anch
 
 ## Status
 
-All **7 kinds × 3 tiers** installed via `generate_mesh` + aligned install. Dock yaw fix: baked ~131° → 0° via [CommandBar_AlignHarborVisual.luau](./CommandBar_AlignHarborVisual.luau). Guildhall tier 3 used alternate prompt after moderation block on first attempt.
+**v2 regen (latest):** All **7 kinds × 3 tiers** regenerated with improved prompts in [`HarborMeshPrompts.lua`](./HarborMeshPrompts.lua) + `alignVisualYaw` install. Dock/MarketStall redone in main session; Lighthouse through Guildhall in follow-up pass.

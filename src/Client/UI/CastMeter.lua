@@ -23,7 +23,6 @@
 
 local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService      = game:GetService("TweenService")
 
 local UIUtil     = require(script.Parent.UIUtil)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
@@ -78,7 +77,7 @@ end
 
 function CastMeter.show(greenCenter: number, greenSize: number, period: number): CastMeterHandle
 	local gui = UIUtil.makeScreenGui("CastMeter")
-	gui.DisplayOrder = 5  -- above HUD (default 0), below modal UIs (20+)
+	gui.DisplayOrder = UIUtil.DisplayOrder.CastMeter
 
 	-- ----------------------------------------------------------------
 	-- CAST BUTTON — 80px circle, bottom-center, above the nav bar.

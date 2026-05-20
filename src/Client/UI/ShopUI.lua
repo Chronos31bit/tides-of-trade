@@ -6,7 +6,9 @@
 
 local UIUtil = require(script.Parent.UIUtil)
 
-local P = UIUtil.Palette
+local P    = UIUtil.Palette
+local SP   = UIUtil.Spacing
+local RAD  = UIUtil.Radii
 
 local ShopUI = {}
 
@@ -26,114 +28,84 @@ export type ShopHandle = {
 }
 
 function ShopUI.show(title: string, initialRows: {ShopRow}, onBuy: (string | number) -> ()): ShopHandle
-	local gui = UIUtil.makeScreenGui("ShopUI")
-
-	local backdrop = Instance.new("Frame")
-	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.5
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.Parent = gui
-
-	local panel = Instance.new("Frame")
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.new(0.9, 0, 0.86, 0)
-	panel.BackgroundColor3 = P.TealDark
-	panel.BorderSizePixel = 0
-	local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 14); pc.Parent = panel
-	local ps = Instance.new("UIStroke"); ps.Color = P.TealDeeper; ps.Thickness = 1.5; ps.Transparency = 0.25; ps.Parent = panel
-	local pcap = Instance.new("UISizeConstraint"); pcap.MaxSize = Vector2.new(820, 720); pcap.Parent = panel
-	panel.Parent = gui
-
-	local titleLabel = Instance.new("TextLabel")
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.Position = UDim2.new(0, 20, 0, 14)
-	titleLabel.Size = UDim2.new(1, -120, 0, 30)
-	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextSize = 22
-	titleLabel.TextColor3 = P.Cream
-	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-	titleLabel.Text = title
-	titleLabel.Parent = panel
-
-	local closeBtn = UIUtil.makeButton("Close", function() gui:Destroy() end, {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 14),
-		Size = UDim2.fromOffset(84, 36),
-		BackgroundColor3 = P.Wood,
+	local shell
+	shell = UIUtil.makeModalShell({
+		name = "ShopUI",
+		title = title,
+		onClose = function() if shell then shell.destroy() end end,
+		width = 720,
+		heightScale = 0.86,
 	})
-	closeBtn.Parent = panel
+	local gui  = shell.gui
+	local body = shell.body
 
 	local list = Instance.new("ScrollingFrame")
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Position = UDim2.new(0, 14, 0, 60)
-	list.Size = UDim2.new(1, -28, 1, -74)
+	list.Size = UDim2.fromScale(1, 1)
 	list.ScrollBarThickness = 6
 	list.ScrollBarImageColor3 = P.TealDeeper
 	list.CanvasSize = UDim2.new(0, 0, 0, 0)
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	list.Parent = panel
+	list.Parent = body
 
 	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, 8)
+	layout.Padding = UDim.new(0, SP.sm)
 	layout.Parent = list
 
 	local function buildRow(row: ShopRow, i: number)
 		local frame = Instance.new("Frame")
-		frame.Size = UDim2.new(1, 0, 0, 72)
+		frame.Size = UDim2.new(1, 0, 0, 80)
 		frame.BackgroundColor3 = P.Teal
 		frame.BorderSizePixel = 0
 		frame.LayoutOrder = i
-		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, 10); rc.Parent = frame
+		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, RAD.md); rc.Parent = frame
 		frame.Parent = list
 
-		local name = Instance.new("TextLabel")
-		name.BackgroundTransparency = 1
-		name.Position = UDim2.new(0, 16, 0, 8)
-		name.Size = UDim2.new(0.6, 0, 0, 22)
-		name.Font = Enum.Font.GothamBold
-		name.TextSize = 16
-		name.TextColor3 = P.Cream
-		name.TextXAlignment = Enum.TextXAlignment.Left
-		name.Text = row.name
-		name.Parent = frame
-
-		local desc = Instance.new("TextLabel")
-		desc.BackgroundTransparency = 1
-		desc.Position = UDim2.new(0, 16, 0, 32)
-		desc.Size = UDim2.new(0.6, 0, 0, 32)
-		desc.Font = Enum.Font.Gotham
-		desc.TextSize = 12
-		desc.TextColor3 = P.CreamSoft
-		desc.TextXAlignment = Enum.TextXAlignment.Left
-		desc.TextYAlignment = Enum.TextYAlignment.Top
-		desc.TextWrapped = true
-		desc.Text = row.description
-		desc.Parent = frame
-
-		local price = Instance.new("TextLabel")
-		price.BackgroundTransparency = 1
-		price.AnchorPoint = Vector2.new(1, 0.5)
-		price.Position = UDim2.new(1, -130, 0.5, 0)
-		price.Size = UDim2.fromOffset(130, 26)
-		price.Font = Enum.Font.GothamBold
-		price.TextSize = 16
-		price.TextColor3 = row.disabled and P.CreamSoft or P.Gold
-		price.TextXAlignment = Enum.TextXAlignment.Right
-		price.Text = row.priceText
-		price.Parent = frame
-
-		local buyBtn = UIUtil.makeButton(row.buyLabel or "Buy", function()
-			if not row.disabled then onBuy(row.id) end
-		end, {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -10, 0.5, 0),
-			Size = UDim2.fromOffset(110, 40),
-			BackgroundColor3 = row.disabled and P.TealDark or P.Sunset,
+		UIUtil.makeLabel(row.name, "subtitle", {
+			Position = UDim2.new(0, SP.md, 0, SP.sm),
+			Size = UDim2.new(0.6, 0, 0, 22),
+			Font = Enum.Font.GothamBold,
+			Parent = frame,
 		})
-		if row.disabled then buyBtn.TextColor3 = P.CreamSoft end
+
+		UIUtil.makeLabel(row.description, "caption", {
+			Position = UDim2.new(0, SP.md, 0, 32),
+			Size = UDim2.new(0.6, 0, 0, 36),
+			TextYAlignment = Enum.TextYAlignment.Top,
+			TextWrapped = true,
+			Parent = frame,
+		})
+
+		UIUtil.makeLabel(row.priceText, "body", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -130, 0.5, 0),
+			Size = UDim2.fromOffset(130, 26),
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			TextColor3 = row.disabled and P.CreamSoft or P.Gold,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = frame,
+		})
+
+		local buyBtn
+		if row.disabled then
+			buyBtn = UIUtil.makeSecondaryButton(row.buyLabel or "Buy", function() end, {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -SP.sm, 0.5, 0),
+				Size = UDim2.fromOffset(110, UIUtil.MinTouchPx),
+			})
+			buyBtn.TextColor3 = P.CreamSoft
+			buyBtn.BackgroundColor3 = P.TealDark
+		else
+			buyBtn = UIUtil.makePrimaryButton(row.buyLabel or "Buy", function()
+				onBuy(row.id)
+			end, {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -SP.sm, 0.5, 0),
+				Size = UDim2.fromOffset(110, UIUtil.MinTouchPx),
+			})
+		end
 		buyBtn.Parent = frame
 	end
 
@@ -142,15 +114,11 @@ function ShopUI.show(title: string, initialRows: {ShopRow}, onBuy: (string | num
 			if c:IsA("Frame") then c:Destroy() end
 		end
 		if #rows == 0 then
-			local empty = Instance.new("TextLabel")
-			empty.BackgroundTransparency = 1
-			empty.Size = UDim2.new(1, 0, 0, 60)
-			empty.Font = Enum.Font.GothamMedium
-			empty.TextSize = 16
-			empty.TextColor3 = P.CreamSoft
-			empty.TextXAlignment = Enum.TextXAlignment.Center
-			empty.Text = "Nothing here right now."
-			empty.Parent = list
+			UIUtil.makeLabel("Nothing here right now.", "subtitle", {
+				Size = UDim2.new(1, 0, 0, 60),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Parent = list,
+			})
 			return
 		end
 		for i, row in ipairs(rows) do buildRow(row, i) end
@@ -159,7 +127,7 @@ function ShopUI.show(title: string, initialRows: {ShopRow}, onBuy: (string | num
 
 	return {
 		gui = gui,
-		close = function() gui:Destroy() end,
+		close = function() shell.destroy() end,
 		refresh = refresh,
 	}
 end

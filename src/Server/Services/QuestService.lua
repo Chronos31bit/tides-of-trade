@@ -49,6 +49,9 @@ local QuestService = Knit.CreateService({
 		QuestCompleted  = Knit.CreateSignal(),  -- (questId)
 		-- Streak day advanced. Auto-granted reward is included.
 		StreakAdvanced  = Knit.CreateSignal(),  -- (streakDay, reward)
+		-- Targeted toasts (no full snapshot replicate).
+		QuestCompletedToast = Knit.CreateSignal(),  -- ({ questId, renderedText })
+		StreakMilestone     = Knit.CreateSignal(),  -- ({ day })
 	},
 
 	-- Per-player debounce handles for the QuestsChanged push.
@@ -518,6 +521,10 @@ function QuestService:_applyEvent(player: Player, trigger: string, event: any)
 				q.completed = true
 				completedSomething = true
 				self.Client.QuestCompleted:Fire(player, q.id)
+				self.Client.QuestCompletedToast:Fire(player, {
+					questId = q.id,
+					renderedText = q.renderedText or "",
+				})
 			end
 		end
 	end
@@ -633,6 +640,10 @@ function QuestService:_handleLoginStreak(player: Player)
 	end
 	if streak.current > streak.longest then streak.longest = streak.current end
 	streak.lastLoginUtcDay = today
+
+	if table.find(GameConfig.Quests.StreakMilestoneToastDays, streak.current) then
+		self.Client.StreakMilestone:Fire(player, { day = streak.current })
+	end
 
 	local reward = rewardForStreakDay(streak.current)
 	if reward then

@@ -1,24 +1,73 @@
 --!strict
 -- UIUtil.lua
 -- Helpers for building UI programmatically with consistent scaling. Every
--- ScreenGui this game creates uses an identical set of UIScale + AspectRatio
--- configuration so 380px phones, tablets, PCs, and Xbox UIs all look right.
+-- ScreenGui this game creates uses an identical set of UIScale +
+-- AspectRatio configuration so 380px phones, tablets, PCs, and Xbox UIs
+-- all look right.
 --
--- This rev focuses on visual quality:
---   * Drop shadows (offset + blurred via UIStroke trick — no asset required)
---   * Layered gradients (top-light + bottom-shadow on every panel/button)
---   * Emoji glyph icons in chips so the topbar reads at a glance
---   * Tighter typography hierarchy with weight contrast
+-- ====================================================================
+-- DESIGN SYSTEM CONVENTIONS — read before touching feature UI
+-- ====================================================================
+-- 1. **Palette is the only color source.** Feature UI files MUST NOT call
+--    `Color3.fromRGB(...)`. Use `UIUtil.Palette.<Name>` or one of the
+--    lookups (`UIUtil.rarityColor`, `UIUtil.modifierColor`,
+--    `UIUtil.tierPalette`). New named colors are added here, not inline.
+--
+-- 2. **Spacing / Radii / Typography are tokens.** Mirror tables live in
+--    `GameConfig.UI` so designers can tune values in one place;
+--    UIUtil re-exports them as `UIUtil.Spacing` / `UIUtil.Radii` /
+--    `UIUtil.Typography` for ergonomic access.
+--
+-- 3. **DisplayOrder is centralised.** Every ScreenGui this UI layer
+--    creates sets `gui.DisplayOrder = UIUtil.DisplayOrder.<role>`. The
+--    canonical layering (low to high) is:
+--      World  < HUD  < QuestTracker < Dialogue < CastMeter
+--             < Modal < CatchReveal  < Tutorial
+--    See `GameConfig.UI.DisplayOrder` for the exact integer values.
+--
+-- 4. **44px touch + 12px font floors.** `MinTouchPx` and `MinFontPx` are
+--    enforced by `makePrimaryButton`/`makeSecondaryButton`/etc. and
+--    asserted in Studio (`RunService:IsStudio()`).
+--
+-- 5. **Motion goes through MotionUtil.** Hover/press button feedback,
+--    modal slide-ins, and any cosmetic animation MUST call
+--    `MotionUtil.tween` or `MotionUtil.tweenOrSnap`. Never invoke
+--    `TweenService:Create` directly from a feature UI module.
+--
+-- 6. **How to add a new modal.** From your `MyModalUI.lua`:
+--      local shell = UIUtil.makeModalShell({
+--          name = "MyModal", title = "My Modal", onClose = onClose,
+--      })
+--      -- mount your content into `shell.body`; size: UDim2.fromScale(1,1)
+--      shell.open()
+--      return { gui = shell.gui, close = shell.close, refresh = refresh }
+--    The shell handles backdrop, panel, header, close button, fade/slide,
+--    ReducedMotion, and tap-outside dismissal.
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 local MotionUtil = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
+local GameConfig = require(game:GetService("ReplicatedStorage").Shared.Config.GameConfig)
 
 local UIUtil = {}
 
-local DESIGN_HEIGHT = 720
-local MIN_TOUCH_PX  = 44
+local UI_CONFIG       = GameConfig.UI
+local DESIGN_HEIGHT   = 720
+local MIN_TOUCH_PX    = UI_CONFIG.MinTouchPx -- 44
+local MIN_FONT_PX     = UI_CONFIG.MinFontPx  -- 12
 local MIN_PHONE_WIDTH = 380
+
+-- Design tokens — re-exported so callers can write
+-- `UIUtil.Spacing.md` instead of `GameConfig.UI.Spacing.md`.
+UIUtil.Spacing      = UI_CONFIG.Spacing
+UIUtil.Radii        = UI_CONFIG.Radii
+UIUtil.Typography   = UI_CONFIG.Typography
+UIUtil.DisplayOrder = UI_CONFIG.DisplayOrder
+UIUtil.Modal         = UI_CONFIG.Modal
+UIUtil.Notification  = UI_CONFIG.Notification
+UIUtil.MinTouchPx   = MIN_TOUCH_PX
+UIUtil.MinFontPx    = MIN_FONT_PX
 
 -- ====================================================================
 -- PALETTE — warm sunset / weathered teal / driftwood
@@ -46,14 +95,19 @@ UIUtil.Palette = {
 	CreamSoft    = Color3.fromRGB(208, 198, 178),
 	Ink          = Color3.fromRGB(40, 32, 28),
 
-	-- Currency / rarity
+	-- Currency / rarity. Values mirror GameConfig.Fishing.RarityColors so
+	-- cast meter zone tints, catch-reveal badges, and inventory cards all
+	-- speak the same visual language. Update both if tuning.
 	Gold         = Color3.fromRGB(220, 180, 88),
 	GoldDeep     = Color3.fromRGB(180, 140, 60),
 	Lure         = Color3.fromRGB(200, 124, 220),
-	Common       = Color3.fromRGB(180, 180, 180),
-	Uncommon     = Color3.fromRGB(120, 200, 130),
-	Rare         = Color3.fromRGB(120, 170, 230),
-	Mythic       = Color3.fromRGB(220, 130, 200),
+	Common       = Color3.fromRGB(176, 182, 190),
+	Uncommon     = Color3.fromRGB(120, 205, 135),
+	Rare         = Color3.fromRGB( 95, 165, 240),
+	Epic         = Color3.fromRGB(185, 120, 235),
+	Legendary    = Color3.fromRGB(245, 180,  75),
+	Mythic       = Color3.fromRGB(240,  95, 140),
+	Divine       = Color3.fromRGB(255, 225, 150),
 
 	-- Feedback
 	Danger       = Color3.fromRGB(220, 100, 100),
@@ -61,7 +115,61 @@ UIUtil.Palette = {
 
 	-- Chrome
 	Shadow       = Color3.fromRGB(0, 0, 0),
+
+	-- ViewportFrame lighting (thumbnail studio lights, not chrome). Used
+	-- by inventory + catch-reveal fish previews. Centralised here so
+	-- feature files never call Color3.fromRGB for light tints.
+	ThumbLight   = Color3.fromRGB(210, 225, 255),
 }
+
+-- ====================================================================
+-- RARITY + MODIFIER LOOKUPS — single source of truth
+-- ====================================================================
+-- Replaces local RARITY_COLORS / TIER_COLORS / MOD_COLORS tables that
+-- used to be duplicated in CatchRevealUI and InventoryUI.
+UIUtil.Palette.Rarity = {
+	Common    = UIUtil.Palette.Common,
+	Uncommon  = UIUtil.Palette.Uncommon,
+	Rare      = UIUtil.Palette.Rare,
+	Epic      = UIUtil.Palette.Epic,
+	Legendary = UIUtil.Palette.Legendary,
+	Mythic    = UIUtil.Palette.Mythic,
+	Divine    = UIUtil.Palette.Divine,
+}
+
+-- Border ping-pong targets for the catch-reveal card's animated stroke
+-- cycle. Only Legendary / Mythic / Divine have a cycle; absence means
+-- the card's stroke stays solid at Palette.Rarity[rarity]. Decorative
+-- only — skipped entirely under ReducedMotionEnabled.
+UIUtil.Palette.RarityCycle = {
+	Legendary = Color3.fromRGB(255, 220,  80),  -- gold ↔ bright amber
+	Mythic    = Color3.fromRGB(240, 100, 100),  -- crimson ↔ coral
+	Divine    = Color3.fromRGB(255, 200, 255),  -- icy blue ↔ lavender
+}
+
+-- Returns the chip / accent color for a rarity string. Falls back to
+-- Common for unknown values so a missing rarity never blanks the UI.
+function UIUtil.rarityColor(rarity: string?): Color3
+	if not rarity then return UIUtil.Palette.Common end
+	return UIUtil.Palette.Rarity[rarity] or UIUtil.Palette.Common
+end
+
+-- Modifier accent colors are sourced from GameConfig.ModifierGlow so
+-- the glow ring (gameplay-tuned) and the inventory pill (UI-tuned)
+-- never drift apart. Built once on require.
+UIUtil.Palette.Modifiers = {}
+do
+	for id, glow in pairs(GameConfig.ModifierGlow) do
+		UIUtil.Palette.Modifiers[id] = glow.Color
+	end
+end
+
+-- Returns the accent color for a modifier id (e.g. "rainbow"). Falls
+-- back to CreamSoft for an unknown id so legacy items still render.
+function UIUtil.modifierColor(id: string?): Color3
+	if not id then return UIUtil.Palette.CreamSoft end
+	return UIUtil.Palette.Modifiers[id] or UIUtil.Palette.CreamSoft
+end
 
 -- ====================================================================
 -- SCREEN RIG
@@ -94,17 +202,46 @@ function UIUtil.makeScreenGui(name: string, parent: Instance?, options: {respect
 	scale.Name = "AutoScale"
 	scale.Parent = gui
 
-	local cam = workspace.CurrentCamera
+	-- CurrentCamera is often nil during the first KnitStart tick; indexing it
+	-- here used to throw and prevent HUD / modals from parenting to PlayerGui.
 	local function refresh()
+		local cam = workspace.CurrentCamera
+		if not cam then
+			scale.Scale = 1
+			return
+		end
 		local size = cam.ViewportSize
+		if size.X <= 1 or size.Y <= 1 then
+			scale.Scale = 1
+			return
+		end
 		local s = size.Y / DESIGN_HEIGHT
 		if size.X < MIN_PHONE_WIDTH * (s / 1) then
 			s *= MIN_PHONE_WIDTH / math.max(size.X, 1)
 		end
-		scale.Scale = s
+		scale.Scale = math.clamp(s, 0.35, 2)
 	end
-	cam:GetPropertyChangedSignal("ViewportSize"):Connect(refresh)
-	refresh()
+
+	local function bindCamera(cam: Camera)
+		cam:GetPropertyChangedSignal("ViewportSize"):Connect(refresh)
+		refresh()
+	end
+
+	local cam = workspace.CurrentCamera
+	if cam then
+		bindCamera(cam)
+	else
+		scale.Scale = 1
+		local conn: RBXScriptConnection? = nil
+		conn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+			local c = workspace.CurrentCamera
+			if not c then return end
+			if conn then conn:Disconnect(); conn = nil end
+			bindCamera(c)
+		end)
+	end
+
+	gui.Enabled = true
 	return gui, scale
 end
 
@@ -164,36 +301,30 @@ end
 -- TEXT
 -- ====================================================================
 -- Style = "display" | "title" | "subtitle" | "body" | "caption"
+-- Font + size are sourced from UIUtil.Typography so designers tune the
+-- type ramp in GameConfig.UI without touching this file.
 function UIUtil.makeLabel(text: string, style: string?, props: {[string]: any}?): TextLabel
 	local lbl = Instance.new("TextLabel")
 	lbl.BackgroundTransparency = 1
-	lbl.Font = Enum.Font.GothamMedium
 	lbl.Text = text
 	lbl.TextColor3 = UIUtil.Palette.Cream
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl.TextYAlignment = Enum.TextYAlignment.Center
 
-	if style == "display" then
-		lbl.Font = Enum.Font.GothamBlack
-		lbl.TextSize = 28
-	elseif style == "title" then
-		lbl.Font = Enum.Font.GothamBold
-		lbl.TextSize = 20
-	elseif style == "subtitle" then
-		lbl.Font = Enum.Font.GothamSemibold
-		lbl.TextSize = 16
+	local token = UIUtil.Typography[style or "body"] or UIUtil.Typography.body
+	lbl.Font = token.font
+	lbl.TextSize = math.max(token.size, MIN_FONT_PX)
+	if style == "subtitle" or style == "caption" then
 		lbl.TextColor3 = UIUtil.Palette.CreamSoft
-	elseif style == "caption" then
-		lbl.Font = Enum.Font.Gotham
-		lbl.TextSize = 12
-		lbl.TextColor3 = UIUtil.Palette.CreamSoft
-	else
-		lbl.Font = Enum.Font.GothamMedium
-		lbl.TextSize = 15
 	end
 
 	if props then
 		for k, v in pairs(props) do (lbl :: any)[k] = v end
+	end
+	-- Studio-only floor guard: any explicit TextSize override that drops
+	-- below the 12px accessibility floor is a bug. Catch it in dev.
+	if RunService:IsStudio() and lbl.TextSize < MIN_FONT_PX then
+		warn(("[UIUtil] TextSize %d below MinFontPx %d on label %q"):format(lbl.TextSize, MIN_FONT_PX, text))
 	end
 	return lbl
 end
@@ -253,23 +384,329 @@ function UIUtil.makeButton(text: string, onClick: () -> (), props: {[string]: an
 	local restColor = btn.BackgroundColor3
 	local pressColor = restColor:Lerp(Color3.new(0, 0, 0), 0.18)
 	local hoverColor = restColor:Lerp(Color3.new(1, 1, 1), 0.06)
-	local tween = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	-- Hover/press feedback routes through MotionUtil so the snap-to-final
+	-- color behavior under GuiService.ReducedMotionEnabled is honoured.
+	local feedbackInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 	btn.MouseEnter:Connect(function()
-		TweenService:Create(btn, tween, { BackgroundColor3 = hoverColor }):Play()
+		MotionUtil.tweenOrSnap(btn, feedbackInfo, { BackgroundColor3 = hoverColor })
 	end)
 	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, tween, { BackgroundColor3 = restColor }):Play()
+		MotionUtil.tweenOrSnap(btn, feedbackInfo, { BackgroundColor3 = restColor })
 	end)
 	btn.MouseButton1Down:Connect(function()
-		TweenService:Create(btn, tween, { BackgroundColor3 = pressColor }):Play()
+		MotionUtil.tweenOrSnap(btn, feedbackInfo, { BackgroundColor3 = pressColor })
 	end)
 	btn.MouseButton1Up:Connect(function()
-		TweenService:Create(btn, tween, { BackgroundColor3 = hoverColor }):Play()
+		MotionUtil.tweenOrSnap(btn, feedbackInfo, { BackgroundColor3 = hoverColor })
 	end)
 	btn.Activated:Connect(onClick)
 	-- No automatic drop shadow (was causing layout phantom slots).
 	return btn
+end
+
+-- ====================================================================
+-- BUTTON VARIANT WRAPPERS — enforce the 44px touch floor + variant
+-- ====================================================================
+-- Use these in feature UI instead of calling makeButton directly. They
+-- lock in `variant`, set a minimum size of (Auto, MinTouchPx), and warn
+-- in Studio if the caller shrinks the button below the floor.
+local function _ensureTouchSize(props: {[string]: any})
+	local size = props.Size
+	if not size then
+		props.Size = UDim2.fromOffset(180, MIN_TOUCH_PX)
+		return
+	end
+	if size.Y.Scale == 0 and size.Y.Offset < MIN_TOUCH_PX then
+		props.Size = UDim2.new(size.X.Scale, size.X.Offset, size.Y.Scale, MIN_TOUCH_PX)
+	end
+	if RunService:IsStudio() and size.Y.Scale == 0 and size.Y.Offset > 0 and size.Y.Offset < MIN_TOUCH_PX then
+		warn(("[UIUtil] Button height %d below MinTouchPx %d"):format(size.Y.Offset, MIN_TOUCH_PX))
+	end
+end
+
+local function _variantButton(variant: string, text: string, onClick: () -> (), props: {[string]: any}?): TextButton
+	props = props or {}
+	props.variant = variant
+	_ensureTouchSize(props)
+	return UIUtil.makeButton(text, onClick, props)
+end
+
+function UIUtil.makePrimaryButton(text, onClick, props)   return _variantButton("primary",   text, onClick, props) end
+function UIUtil.makeSecondaryButton(text, onClick, props) return _variantButton("secondary", text, onClick, props) end
+function UIUtil.makeGhostButton(text, onClick, props)     return _variantButton("ghost",     text, onClick, props) end
+function UIUtil.makeDangerButton(text, onClick, props)    return _variantButton("danger",    text, onClick, props) end
+
+-- ====================================================================
+-- RARITY CHIP + MODIFIER PILL — small reusable badges
+-- ====================================================================
+-- A small rounded chip tinted by rarity. Used by InventoryUI,
+-- CatchRevealUI, and MarketUI to display fish rarity at a glance.
+function UIUtil.makeRarityChip(rarity: string, text: string?, props: {[string]: any}?): Frame
+	props = props or {}
+	local chip = Instance.new("Frame")
+	chip.BorderSizePixel = 0
+	chip.BackgroundColor3 = UIUtil.rarityColor(rarity)
+	chip.BackgroundTransparency = 0.1
+	chip.Size = UDim2.fromOffset(72, 22)
+	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, UIUtil.Radii.sm); corner.Parent = chip
+	local stroke = Instance.new("UIStroke"); stroke.Color = UIUtil.Palette.Ink; stroke.Thickness = 1; stroke.Transparency = 0.5; stroke.Parent = chip
+
+	local label = UIUtil.makeLabel(text or rarity, "caption", {
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromScale(0, 0),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = UIUtil.Palette.Ink,
+		Parent = chip,
+	})
+	label.Font = Enum.Font.GothamBold
+
+	for k, v in pairs(props) do (chip :: any)[k] = v end
+	return chip
+end
+
+-- A tiny tinted pill labelled with the modifier's display name. Used on
+-- inventory cards and the catch-reveal modifier row.
+function UIUtil.makeModifierPill(id: string, displayName: string?, props: {[string]: any}?): Frame
+	props = props or {}
+	local pill = Instance.new("Frame")
+	pill.BorderSizePixel = 0
+	pill.BackgroundColor3 = UIUtil.modifierColor(id)
+	pill.BackgroundTransparency = 0.2
+	pill.Size = UDim2.fromOffset(72, 18)
+	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, UIUtil.Radii.sm); corner.Parent = pill
+	local stroke = Instance.new("UIStroke"); stroke.Color = UIUtil.Palette.Ink; stroke.Thickness = 1; stroke.Transparency = 0.6; stroke.Parent = pill
+
+	UIUtil.makeLabel(displayName or id, "caption", {
+		Size = UDim2.fromScale(1, 1),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = UIUtil.Palette.Ink,
+		Font = Enum.Font.GothamBold,
+		Parent = pill,
+	})
+
+	for k, v in pairs(props) do (pill :: any)[k] = v end
+	return pill
+end
+
+-- ====================================================================
+-- CLOSE BUTTON — Gotham does not render Unicode "✕"; use ASCII "X".
+-- ====================================================================
+UIUtil.CloseGlyph = "X"
+
+function UIUtil.makeCloseButton(onClick: () -> (), props: {[string]: any}?): TextButton
+	props = props or {}
+	local M = UIUtil.Modal
+	local btn = Instance.new("TextButton")
+	btn.Name = "Close"
+	btn.AutoButtonColor = false
+	btn.BorderSizePixel = 0
+	btn.BackgroundColor3 = UIUtil.Palette.Teal
+	btn.Text = UIUtil.CloseGlyph
+	btn.Font = Enum.Font.GothamBold
+	btn.TextColor3 = UIUtil.Palette.Cream
+	btn.TextScaled = true
+	btn.AnchorPoint = Vector2.new(1, 0.5)
+	btn.Position = UDim2.new(1, -UIUtil.Spacing.md, 0.5, 0)
+	btn.Size = UDim2.fromOffset(M.CloseButtonPx, M.CloseButtonPx)
+
+	local textConstraint = Instance.new("UITextSizeConstraint")
+	textConstraint.MaxTextSize = 22
+	textConstraint.MinTextSize = 14
+	textConstraint.Parent = btn
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, UIUtil.Radii.md)
+	corner.Parent = btn
+
+	for k, v in pairs(props) do (btn :: any)[k] = v end
+	btn.Activated:Connect(onClick)
+	return btn
+end
+
+-- ====================================================================
+-- MODAL SHELL — one chrome, every full-screen modal
+-- ====================================================================
+-- Builds the backdrop + panel + header + close button used by every
+-- modal in the game. Feature UI mounts its content into `shell.body`
+-- and calls `shell.open()` / `shell.close()`.
+--
+-- opts:
+--   name          string  — ScreenGui name (auto-dedupes; see makeScreenGui)
+--   title         string  — header title text
+--   onClose       function — called when user dismisses (tap backdrop / close / Esc)
+--   parent        Instance? — defaults to LocalPlayer.PlayerGui
+--   displayOrder  number?   — defaults to UIUtil.DisplayOrder.Modal
+--   bodyPadding   number?   — defaults to GameConfig.UI.Modal.BodyPaddingPx
+--   width         number?   — clamp panel max width (defaults to Modal.MaxWidthPx)
+--   heightScale   number?   — panel height as scale of viewport (defaults to 0.78)
+--
+-- Returns:
+--   { gui, scale, backdrop, panel, header, title, closeButton, body,
+--     open(), close(), destroy() }
+export type ModalShell = {
+	gui: ScreenGui,
+	scale: UIScale,
+	backdrop: TextButton,
+	panel: Frame,
+	header: Frame,
+	title: TextLabel,
+	closeButton: TextButton,
+	body: Frame,
+	open: () -> (),
+	close: () -> (),
+	destroy: () -> (),
+}
+function UIUtil.makeModalShell(opts: {
+	name: string,
+	title: string,
+	onClose: (() -> ())?,
+	parent: Instance?,
+	displayOrder: number?,
+	bodyPadding: number?,
+	width: number?,
+	heightScale: number?,
+}): ModalShell
+	local P = UIUtil.Palette
+	local M = UIUtil.Modal
+
+	local gui, scale = UIUtil.makeScreenGui(opts.name, opts.parent)
+	gui.DisplayOrder = opts.displayOrder or UIUtil.DisplayOrder.Modal
+
+	-- Full-screen backdrop — tap outside to dismiss, fades to BackdropAlpha.
+	local backdrop = Instance.new("TextButton")
+	backdrop.Name = "Backdrop"
+	backdrop.Text = ""
+	backdrop.AutoButtonColor = false
+	backdrop.BackgroundColor3 = P.Shadow
+	backdrop.BackgroundTransparency = 1
+	backdrop.BorderSizePixel = 0
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.ZIndex = 1
+	backdrop.Parent = gui
+
+	local panel = Instance.new("Frame")
+	panel.Name = "Panel"
+	panel.BackgroundColor3 = P.TealDark
+	panel.BorderSizePixel = 0
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.new(0.92, 0, opts.heightScale or 0.78, 0)
+	panel.ZIndex = 2
+	panel.Parent = gui
+
+	local sizeCap = Instance.new("UISizeConstraint")
+	sizeCap.MaxSize = Vector2.new(opts.width or M.MaxWidthPx, math.huge)
+	sizeCap.Parent = panel
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, UIUtil.Radii.lg)
+	corner.Parent = panel
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = P.TealDeeper
+	stroke.Thickness = 1.5
+	stroke.Transparency = 0.25
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = panel
+
+	-- Header row: title left, close button right.
+	local header = Instance.new("Frame")
+	header.Name = "Header"
+	header.BackgroundColor3 = P.TealDeeper
+	header.BorderSizePixel = 0
+	header.Size = UDim2.new(1, 0, 0, M.HeaderHeightPx)
+	header.ZIndex = 3
+	header.Parent = panel
+	local hCorner = Instance.new("UICorner"); hCorner.CornerRadius = UDim.new(0, UIUtil.Radii.lg); hCorner.Parent = header
+	-- Hide bottom-rounded corners by masking with a thin sibling.
+	local hMask = Instance.new("Frame")
+	hMask.BackgroundColor3 = P.TealDeeper
+	hMask.BorderSizePixel = 0
+	hMask.AnchorPoint = Vector2.new(0, 1)
+	hMask.Position = UDim2.new(0, 0, 1, 0)
+	hMask.Size = UDim2.new(1, 0, 0, UIUtil.Radii.lg)
+	hMask.ZIndex = 3
+	hMask.Parent = header
+
+	local title = UIUtil.makeLabel(opts.title or "", "title", {
+		Parent = header,
+		Position = UDim2.fromOffset(UIUtil.Spacing.lg, 0),
+		Size = UDim2.new(1, -(UIUtil.Spacing.lg * 2 + M.CloseButtonPx), 1, 0),
+		ZIndex = 4,
+	})
+
+	-- Body: where the caller mounts content. Padded inside the panel.
+	local body = Instance.new("Frame")
+	body.Name = "Body"
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.Position = UDim2.new(0, 0, 0, M.HeaderHeightPx)
+	body.Size = UDim2.new(1, 0, 1, -M.HeaderHeightPx)
+	body.ZIndex = 2
+	body.Parent = panel
+
+	local pad = Instance.new("UIPadding")
+	local p = opts.bodyPadding or M.BodyPaddingPx
+	pad.PaddingLeft   = UDim.new(0, p)
+	pad.PaddingRight  = UDim.new(0, p)
+	pad.PaddingTop    = UDim.new(0, p)
+	pad.PaddingBottom = UDim.new(0, p)
+	pad.Parent = body
+
+	-- State + open/close animation.
+	local isOpen = false
+	local restPos = panel.Position
+	local fromPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + M.SlideOffsetPx)
+	local fadeInfo = TweenInfo.new(M.FadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	local function open()
+		if isOpen then return end
+		isOpen = true
+		panel.Position = fromPos
+		panel.BackgroundTransparency = 1
+		backdrop.BackgroundTransparency = 1
+		gui.Enabled = true
+		MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = M.BackdropAlpha })
+		MotionUtil.tweenOrSnap(panel,    fadeInfo, { BackgroundTransparency = 0, Position = restPos })
+	end
+
+	local closed = false
+	local close
+	close = function()
+		if not isOpen or closed then return end
+		isOpen = false
+		if opts.onClose then opts.onClose() end
+	end
+
+	local closeButton = UIUtil.makeCloseButton(close, {
+		Parent = header,
+		ZIndex = 4,
+	})
+
+	local function destroy()
+		closed = true
+		if gui and gui.Parent then gui:Destroy() end
+	end
+
+	backdrop.Activated:Connect(close)
+
+	-- Open by default — modals always animate in immediately on construction.
+	open()
+
+	return {
+		gui = gui,
+		scale = scale,
+		backdrop = backdrop,
+		panel = panel,
+		header = header,
+		title = title,
+		closeButton = closeButton,
+		body = body,
+		open = open,
+		close = close,
+		destroy = destroy,
+	}
 end
 
 -- makeChip helper removed; the new HUD builds its own purpose-fit currency

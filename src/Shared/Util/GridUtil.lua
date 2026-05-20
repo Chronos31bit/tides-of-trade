@@ -85,6 +85,24 @@ function GridUtil.checkPlacement(occupancy: {[string]: string}, gx: number, gz: 
 	return true, nil
 end
 
+-- Serializable plot origin for RemoteEvent payloads (CFrame in nested
+-- tables can fail to round-trip through some Knit paths).
+function GridUtil.packPlotOrigin(origin: CFrame): {position: Vector3, rotationY: number}
+	local _, ry, _ = origin:ToEulerAnglesYXZ()
+	return { position = origin.Position, rotationY = ry }
+end
+
+function GridUtil.unpackPlotOrigin(packed: any): CFrame?
+	if typeof(packed) == "CFrame" then
+		return packed
+	end
+	if typeof(packed) ~= "table" or typeof(packed.position) ~= "Vector3" then
+		return nil
+	end
+	local ry = if typeof(packed.rotationY) == "number" then packed.rotationY else 0
+	return CFrame.new(packed.position) * CFrame.Angles(0, ry, 0)
+end
+
 -- ====================================================================
 -- gridToWorld — used by HarborVisualController to position cloned Models.
 --

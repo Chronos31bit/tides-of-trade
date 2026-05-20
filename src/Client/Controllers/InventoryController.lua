@@ -10,6 +10,7 @@ local InventoryUI = require(script.Parent.Parent.UI.InventoryUI)
 
 -- Load FishCatalog client-side so we can compute a sensible suggested price.
 local FishCatalog = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local EconomyUtil = require(ReplicatedStorage.Shared.Util.EconomyUtil)
 local fishById: {[string]: any} = {}
 for _, f in ipairs(FishCatalog.fish) do fishById[f.id] = f end
 
@@ -23,8 +24,15 @@ local function suggestedPriceFor(item: any): number
 	-- Suggested price = base * (1 + (weight - min) / (max - min) * 0.5).
 	-- Server applies the same formula when validating, so listings stay
 	-- close to fair value unless a player intentionally over- or under-cuts.
+	if item.kind == "Good" then
+		local speciesId = EconomyUtil.parsePreservedSpeciesId(item.goodId)
+		if speciesId then
+			return EconomyUtil.getPreservedGoodFairValue(speciesId, item.weightKg)
+		end
+		return 50  -- placeholder for other goods
+	end
 	if item.kind ~= "Fish" then
-		return 50  -- placeholder for goods until we add a goods catalog
+		return 50
 	end
 	local f = fishById[item.speciesId]
 	if not f then return 10 end

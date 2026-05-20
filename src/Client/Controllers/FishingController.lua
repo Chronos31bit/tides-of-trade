@@ -30,7 +30,6 @@ local UserInputService  = game:GetService("UserInputService")
 local HapticService     = game:GetService("HapticService")
 local SoundService      = game:GetService("SoundService")
 local RunService        = game:GetService("RunService")
-local TweenService      = game:GetService("TweenService")
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local Trove      = require(ReplicatedStorage.Packages.Trove)
@@ -337,14 +336,13 @@ local function pulseCastButton(button: GuiObject?, trove: any?)
 		orig.Y.Scale * scale, math.round(orig.Y.Offset * scale)
 	)
 	local info = TweenInfo.new(GameConfig.FishBite.ButtonPulseDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local t1 = TweenService:Create(button, info, { Size = big })
+	local t1 = MotionUtil.tween(button, info, { Size = big })
 	local conn1 = t1.Completed:Connect(function()
 		t1:Destroy()
 		if not button.Parent then return end
-		local t2 = TweenService:Create(button, info, { Size = orig })
+		local t2 = MotionUtil.tween(button, info, { Size = orig })
 		local conn2 = t2.Completed:Connect(function() t2:Destroy() end)
 		if trove then trove:Add(conn2) end
-		t2:Play()
 	end)
 	if trove then
 		trove:Add(conn1)
@@ -353,7 +351,6 @@ local function pulseCastButton(button: GuiObject?, trove: any?)
 			if button.Parent then button.Size = orig end
 		end)
 	end
-	t1:Play()
 end
 
 -- Four-edge vignette: each screen edge gets a panel with a UIGradient fading
@@ -406,8 +403,7 @@ local function flashVignette(trove: any?)
 	-- Tween all panels to fully transparent simultaneously.
 	local lastTween: Tween? = nil
 	for _, f in ipairs(frames) do
-		local tw = TweenService:Create(f, FADE, { BackgroundTransparency = 1 })
-		tw:Play()
+		local tw = MotionUtil.tween(f, FADE, { BackgroundTransparency = 1 })
 		lastTween = tw
 	end
 	local function destroyVignette()

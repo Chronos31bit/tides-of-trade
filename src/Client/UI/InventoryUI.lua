@@ -6,12 +6,12 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService         = game:GetService("RunService")
-local TweenService       = game:GetService("TweenService")
 local UIUtil             = require(script.Parent.UIUtil)
 local FishCatalogRaw     = require(ReplicatedStorage.Shared.Config.FishCatalog)
 local GameConfig         = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MotionUtil         = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local FishMutations      = require(ReplicatedStorage.Shared.Util.FishMutations)
+local EconomyUtil        = require(ReplicatedStorage.Shared.Util.EconomyUtil)
 
 local P = UIUtil.Palette
 
@@ -29,50 +29,9 @@ for _, f in ipairs(FishCatalogRaw.fish) do _fishById[f.id] = f end
 local RARITY_ORDER: {[string]: number} = {
 	Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5, Mythic=6, Divine=7,
 }
-local RARITY_COLORS: {[string]: Color3} = {
-	Common    = Color3.fromRGB(180, 180, 180),
-	Uncommon  = Color3.fromRGB( 70, 200, 110),
-	Rare      = Color3.fromRGB( 60, 140, 240),
-	Epic      = Color3.fromRGB(160,  80, 240),
-	Legendary = Color3.fromRGB(255, 165,  30),
-	Mythic    = Color3.fromRGB(220,  60,  80),
-	Divine    = Color3.fromRGB(200, 220, 255),
-}
-local MOD_COLORS: {[string]: Color3} = {
-	-- New roll-eligible set
-	rainbow      = Color3.fromRGB(255, 120, 200),
-	golden       = Color3.fromRGB(255, 215,  60),
-	silver       = Color3.fromRGB(220, 225, 240),
-	frozen       = Color3.fromRGB(140, 220, 255),
-	inferno      = Color3.fromRGB(255, 130,  50),
-	shocked      = Color3.fromRGB(255, 240,  80),
-	radioactive  = Color3.fromRGB(120, 255, 100),
-	crystal      = Color3.fromRGB(200, 230, 255),
-	colossal     = Color3.fromRGB(120, 220, 130),
-	tiny         = Color3.fromRGB(255, 255, 255),
-	bloodlust    = Color3.fromRGB(220,  40,  40),
-	voidtouched  = Color3.fromRGB(170,  80, 255),
-	ghostly      = Color3.fromRGB(240, 245, 255),
-	disco        = Color3.fromRGB(255,  80, 200),
-	ancientcore  = Color3.fromRGB(220, 170,  90),
-	-- World-state
-	tide_kissed  = Color3.fromRGB( 60, 200, 220),
-	storm_forged = Color3.fromRGB(180,  80, 255),
-	moon_touched = Color3.fromRGB(200, 200, 255),
-	dawn_blessed = Color3.fromRGB(255, 200, 120),
-	fog_shrouded = Color3.fromRGB(160, 180, 200),
-	-- Deprecated (legacy items only)
-	shiny        = Color3.fromRGB(255, 220,  60),
-	giant        = Color3.fromRGB(120, 200, 120),
-	glowing      = Color3.fromRGB(100, 180, 255),
-	lucky        = Color3.fromRGB(200, 120, 255),
-	ancient      = Color3.fromRGB(210, 140,  60),
-	prismatic    = Color3.fromRGB(255, 100, 160),
-	elder        = Color3.fromRGB(255, 240, 180),
-	cursed       = Color3.fromRGB(120,  40, 160),
-	magnetic     = Color3.fromRGB( 80, 200, 220),
-	barnacled    = Color3.fromRGB(140, 180, 100),
-}
+-- Rarity + modifier colors live in UIUtil.Palette (single source of truth).
+-- Use UIUtil.rarityColor(rarity) and UIUtil.modifierColor(id).
+
 -- Priority order for picking the card-frame glow color when 2+ modifiers stack.
 -- Lower priority number = wins. Rarest/flashiest modifiers come first.
 local MOD_PRIORITY: {[string]: number} = {
@@ -97,9 +56,9 @@ local BTN_H     = 44
 local function modifierGlowCfg(modId: string): {Color: Color3, Thickness: number, Transparency: number}?
 	local cfg = (GameConfig :: any).ModifierGlow
 	if cfg and cfg[modId] then return cfg[modId] end
-	local c = MOD_COLORS[modId]
-	if c then return { Color = c, Thickness = 2.0, Transparency = 0.3 } end
-	return nil
+	-- Fallback for unknown ids — UIUtil.modifierColor handles the lookup
+	-- against Palette.Modifiers (built from GameConfig.ModifierGlow).
+	return { Color = UIUtil.modifierColor(modId), Thickness = 2.0, Transparency = 0.3 }
 end
 
 local function cardGlowColor(mods: {string}): Color3?
@@ -124,7 +83,6 @@ function InventoryUI.show(
 	onHoldFish: ((string, string, {string}, number) -> ())?
 ): InventoryHandle
 
-	local gui = UIUtil.makeScreenGui("InventoryUI")
 	local reducedMotion = MotionUtil.reducedMotionEnabled()
 
 	-- Mutable state
@@ -134,129 +92,104 @@ function InventoryUI.show(
 	local currentItems: {any} = items
 	local cardSetters: {[string]: (boolean) -> ()} = {}
 
-	-- ── BACKDROP ──────────────────────────────────────────────────────────
-	local backdrop = Instance.new("Frame")
-	backdrop.BackgroundColor3 = Color3.new(0, 0, 0)
-	backdrop.BackgroundTransparency = 0.5
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.Parent = gui
+	-- Modal chrome (backdrop + panel + header + close button) from the
+	-- shared shell — keeps Inventory visually identical to every other
+	-- modal in the game.
+	local shell
+	shell = UIUtil.makeModalShell({
+		name = "InventoryUI",
+		title = "Inventory",
+		onClose = function() if shell then shell.destroy() end end,
+		width = 700,
+		heightScale = 0.88,
+	})
+	local gui = shell.gui
+	local body = shell.body
 
-	-- ── PANEL ─────────────────────────────────────────────────────────────
-	local panel = Instance.new("Frame")
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.new(0.88, 0, 0.88, 0)
-	panel.BackgroundColor3 = P.TealDark
-	panel.BorderSizePixel = 0
-	local pcorner = Instance.new("UICorner"); pcorner.CornerRadius = UDim.new(0, 14); pcorner.Parent = panel
-	local pstroke = Instance.new("UIStroke"); pstroke.Color = P.TealDeeper; pstroke.Thickness = 1.5; pstroke.Transparency = 0.25; pstroke.Parent = panel
-	local pcap = Instance.new("UISizeConstraint"); pcap.MaxSize = Vector2.new(700, 700); pcap.Parent = panel
-	panel.Parent = gui
-
-	-- ── TITLE ─────────────────────────────────────────────────────────────
-	local title = Instance.new("TextLabel")
-	title.BackgroundTransparency = 1
-	title.Position = UDim2.new(0, 16, 0, 8)
-	title.Size = UDim2.new(0.45, 0, 0, BTN_H)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 22
-	title.TextColor3 = P.Cream
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Text = "Inventory"
-	title.Parent = panel
-
-	-- ── NORMAL-MODE HEADER BUTTONS (Select + Close) ────────────────────
+	-- ── ACTION ROW (top of body) ──────────────────────────────────────
+	-- Normal mode: [Select] (right-aligned). Selection mode: [Select All]
+	-- [Sell (N)] [Cancel]. The two frames stack at the same anchor and
+	-- toggle Visible.
 	local normalBtns = Instance.new("Frame")
 	normalBtns.BackgroundTransparency = 1
 	normalBtns.AnchorPoint = Vector2.new(1, 0)
-	normalBtns.Position = UDim2.new(1, -12, 0, 8)
-	normalBtns.Size = UDim2.fromOffset(184, BTN_H)
-	normalBtns.Parent = panel
-	local nl = Instance.new("UIListLayout")
-	nl.FillDirection = Enum.FillDirection.Horizontal
-	nl.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	nl.VerticalAlignment = Enum.VerticalAlignment.Center
-	nl.Padding = UDim.new(0, 6)
-	nl.Parent = normalBtns
+	normalBtns.Position = UDim2.new(1, 0, 0, 0)
+	normalBtns.Size = UDim2.fromOffset(96, BTN_H)
+	normalBtns.Parent = body
 
-	local selectBtn = UIUtil.makeButton("Select", function() end, {
-		Size = UDim2.fromOffset(84, BTN_H),
-		BackgroundColor3 = P.TealLight,
+	local selectBtn = UIUtil.makeSecondaryButton("Select", function() end, {
+		Size = UDim2.fromOffset(96, BTN_H),
 	})
 	selectBtn.Parent = normalBtns
 
-	local closeBtn = UIUtil.makeButton("Close", function() gui:Destroy() end, {
-		Size = UDim2.fromOffset(84, BTN_H),
-		BackgroundColor3 = P.Wood,
-	})
-	closeBtn.Parent = normalBtns
-
-	-- ── SELECTION-MODE HEADER BUTTONS (hidden by default) ──────────────
 	local selBtns = Instance.new("Frame")
 	selBtns.BackgroundTransparency = 1
 	selBtns.AnchorPoint = Vector2.new(1, 0)
-	selBtns.Position = UDim2.new(1, -12, 0, 8)
-	selBtns.Size = UDim2.fromOffset(290, BTN_H)
+	selBtns.Position = UDim2.new(1, 0, 0, 0)
+	selBtns.Size = UDim2.fromOffset(296, BTN_H)
 	selBtns.Visible = false
-	selBtns.Parent = panel
+	selBtns.Parent = body
 	local sl = Instance.new("UIListLayout")
 	sl.FillDirection = Enum.FillDirection.Horizontal
 	sl.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	sl.VerticalAlignment = Enum.VerticalAlignment.Center
-	sl.Padding = UDim.new(0, 6)
+	sl.Padding = UDim.new(0, UIUtil.Spacing.sm)
 	sl.Parent = selBtns
 
-	local selectAllBtn = UIUtil.makeButton("Select All", function() end, {
-		Size = UDim2.fromOffset(88, BTN_H),
-		BackgroundColor3 = P.TealLight,
+	local selectAllBtn = UIUtil.makeSecondaryButton("Select All", function() end, {
+		Size = UDim2.fromOffset(96, BTN_H),
 	})
 	selectAllBtn.Parent = selBtns
 
-	local sellSelectedBtn = UIUtil.makeButton("Sell (0)", function() end, {
-		Size = UDim2.fromOffset(100, BTN_H),
-		BackgroundColor3 = P.Danger,
+	local sellSelectedBtn = UIUtil.makeDangerButton("Sell (0)", function() end, {
+		Size = UDim2.fromOffset(104, BTN_H),
 	})
 	sellSelectedBtn.BackgroundTransparency = 0.5
 	sellSelectedBtn.TextTransparency = 0.4
 	sellSelectedBtn.Parent = selBtns
 
-	local cancelBtn = UIUtil.makeButton("Cancel", function() end, {
-		Size = UDim2.fromOffset(84, BTN_H),
-		BackgroundColor3 = P.Wood,
+	local cancelBtn = UIUtil.makeGhostButton("Cancel", function() end, {
+		Size = UDim2.fromOffset(88, BTN_H),
 	})
 	cancelBtn.Parent = selBtns
 
-	-- ── SORT BAR (y=60, h=52) ─────────────────────────────────────────
+	-- ── SORT BAR (below action row) ───────────────────────────────────
 	local sortBar = Instance.new("Frame")
 	sortBar.BackgroundTransparency = 1
-	sortBar.Position = UDim2.new(0, 12, 0, 60)
-	sortBar.Size = UDim2.new(1, -24, 0, 52)
-	sortBar.Parent = panel
+	sortBar.Position = UDim2.new(0, 0, 0, BTN_H + UIUtil.Spacing.sm)
+	sortBar.Size = UDim2.new(1, 0, 0, BTN_H)
+	sortBar.Parent = body
 	local sortLayout = Instance.new("UIListLayout")
 	sortLayout.FillDirection = Enum.FillDirection.Horizontal
 	sortLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	sortLayout.Padding = UDim.new(0, 8)
+	sortLayout.Padding = UDim.new(0, UIUtil.Spacing.sm)
 	sortLayout.Parent = sortBar
 
-	-- ── SCROLLING GRID (y=114) ─────────────────────────────────────────
+	-- ── SCROLLING GRID (fills remaining body) ─────────────────────────
+	local listTop = (BTN_H + UIUtil.Spacing.sm) * 2
 	local list = Instance.new("ScrollingFrame")
 	list.BackgroundTransparency = 1
 	list.BorderSizePixel = 0
-	list.Position = UDim2.new(0, 12, 0, 114)
-	list.Size = UDim2.new(1, -24, 1, -128)
+	list.Position = UDim2.new(0, 0, 0, listTop)
+	list.Size = UDim2.new(1, 0, 1, -listTop)
 	list.ScrollBarThickness = 6
 	list.ScrollBarImageColor3 = P.TealDeeper
 	list.CanvasSize = UDim2.new(0, 0, 0, 0)
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	list.Parent = panel
+	list.Parent = body
 
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.fromOffset(CARD_W, CARD_H)
-	grid.CellPadding = UDim2.fromOffset(10, 10)
-	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = list
+	local listLayout = Instance.new("UIListLayout")
+	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayout.Padding = UDim.new(0, UIUtil.Spacing.md)
+	listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	listLayout.Parent = list
+
+	local listPad = Instance.new("UIPadding")
+	listPad.PaddingLeft = UDim.new(0, UIUtil.Spacing.sm)
+	listPad.PaddingRight = UDim.new(0, UIUtil.Spacing.sm)
+	listPad.PaddingTop = UDim.new(0, UIUtil.Spacing.sm)
+	listPad.PaddingBottom = UDim.new(0, UIUtil.Spacing.sm)
+	listPad.Parent = list
 
 	-- ── SELECTION MODE HELPERS ─────────────────────────────────────────
 	local function syncSellBtn()
@@ -274,8 +207,8 @@ function InventoryUI.show(
 		normalBtns.Visible = false
 		selBtns.Visible = true
 		syncSellBtn()
-		for _, c in ipairs(list:GetChildren()) do
-			if c:IsA("Frame") then
+		for _, c in ipairs(list:GetDescendants()) do
+			if c:IsA("Frame") and c:FindFirstChild("CardStroke") then
 				local chk = c:FindFirstChild("Checkbox")
 				local ov  = c:FindFirstChild("SelectOverlay")
 				if chk then chk.Visible = true end
@@ -289,15 +222,14 @@ function InventoryUI.show(
 		selected = {}
 		normalBtns.Visible = true
 		selBtns.Visible = false
-		for _, c in ipairs(list:GetChildren()) do
-			if c:IsA("Frame") then
+		for _, c in ipairs(list:GetDescendants()) do
+			if c:IsA("Frame") and c:FindFirstChild("CardStroke") then
 				local chk = c:FindFirstChild("Checkbox")
 				local ov  = c:FindFirstChild("SelectOverlay")
 				local chkMark = chk and chk:FindFirstChildOfClass("TextLabel")
 				if chk then chk.Visible = false end
 				if ov  then ov.Visible  = false end
 				if chkMark then chkMark.Visible = false end
-				-- Reset card stroke to default (no selection highlight)
 				local stroke = c:FindFirstChild("CardStroke")
 				if stroke and stroke:IsA("UIStroke") then
 					stroke.Color = P.TealDeeper
@@ -349,12 +281,22 @@ function InventoryUI.show(
 		end
 	end
 
+	local function speciesForItem(item: any): string?
+		if item.kind == "Fish" then
+			return item.speciesId
+		end
+		if item.kind == "Good" then
+			return EconomyUtil.parsePreservedSpeciesId(item.goodId)
+		end
+		return nil
+	end
+
 	local function sortItems(its: {any}): {any}
 		local copy = table.clone(its)
 		table.sort(copy, function(a, b)
 			if sortState.key == "rarity" then
-				local fa = _fishById[a.speciesId or ""]
-				local fb = _fishById[b.speciesId or ""]
+				local fa = _fishById[speciesForItem(a) or ""]
+				local fb = _fishById[speciesForItem(b) or ""]
 				local ra = RARITY_ORDER[(fa and fa.rarity) or "Common"] or 1
 				local rb = RARITY_ORDER[(fb and fb.rarity) or "Common"] or 1
 				if ra == rb then return false end
@@ -370,12 +312,17 @@ function InventoryUI.show(
 	end
 
 	-- ── CARD BUILDER ───────────────────────────────────────────────────
-	local function buildCard(item: any, idx: number): (boolean) -> ()
-		local isFish   = item.kind == "Fish"
-		local fishData = isFish and _fishById[item.speciesId or ""] or nil
+	local function buildCard(item: any, idx: number, cardParent: Instance): (boolean) -> ()
+		local isFish = item.kind == "Fish"
+		local isPreserved = item.kind == "Good" and EconomyUtil.isPreservedGoodId(item.goodId)
+		local preservedSpecies = isPreserved and EconomyUtil.parsePreservedSpeciesId(item.goodId) or nil
+		local fishData = isFish and _fishById[item.speciesId or ""]
+			or (preservedSpecies and _fishById[preservedSpecies])
+			or nil
 		local fishRarity = (fishData and fishData.rarity) or "Common"
-		local rCol     = RARITY_COLORS[fishRarity] or RARITY_COLORS.Common
+		local rCol       = UIUtil.rarityColor(fishRarity)
 		local mods: {string} = (isFish and item.modifiers) or {}
+		local showAsFish = isFish or isPreserved
 
 		-- Card frame
 		local card = Instance.new("Frame")
@@ -400,10 +347,10 @@ function InventoryUI.show(
 			end
 		end
 
-		card.Parent = list
+		card.Parent = cardParent
 
-		-- Rarity header band (fish only)
-		if isFish then
+		-- Rarity header band (fish + preserved goods)
+		if showAsFish then
 			local hBg = Instance.new("Frame")
 			hBg.BackgroundColor3 = rCol
 			hBg.BackgroundTransparency = 0.2
@@ -418,18 +365,19 @@ function InventoryUI.show(
 			hLbl.Font = Enum.Font.GothamBold
 			hLbl.TextSize = 12
 			hLbl.TextColor3 = Color3.new(1, 1, 1)
-			hLbl.Text = fishRarity:upper()
+			hLbl.Text = if isPreserved then "SMOKED" else fishRarity:upper()
 			hLbl.Parent = card
 		end
 
-		local contentY = isFish and HEADER_H or 0
+		local contentY = showAsFish and HEADER_H or 0
 
 		-- Fish thumbnail ViewportFrame (full-width, anchored top-center)
 		local thumbVpf: ViewportFrame? = nil
 		local thumbClone: Model? = nil
 		local thumbInitPivot: CFrame? = nil
 
-		if isFish then
+		if isFish or isPreserved then
+			local thumbSpecies = isFish and item.speciesId or preservedSpecies
 			local vpf = Instance.new("ViewportFrame")
 			vpf.Name = "FishThumb"
 			vpf.AnchorPoint = Vector2.new(0.5, 0)
@@ -437,7 +385,7 @@ function InventoryUI.show(
 			vpf.Size = UDim2.new(1, -16, 0, THUMB_H)
 			vpf.BackgroundColor3 = P.TealDeeper
 			vpf.BorderSizePixel = 0
-			vpf.LightColor = Color3.fromRGB(210, 225, 255)
+			vpf.LightColor = P.ThumbLight
 			vpf.LightDirection = Vector3.new(-1, -2, -1)
 			local tvc = Instance.new("UICorner"); tvc.CornerRadius = UDim.new(0, 10); tvc.Parent = vpf
 			vpf.Parent = card
@@ -445,7 +393,7 @@ function InventoryUI.show(
 
 			local fishAssets = ReplicatedStorage:FindFirstChild("Assets")
 				and ReplicatedStorage.Assets:FindFirstChild("Fish")
-			local tmpl = fishAssets and fishAssets:FindFirstChild(item.speciesId or "")
+			local tmpl = fishAssets and fishAssets:FindFirstChild(thumbSpecies or "")
 			if tmpl then
 				local wm = Instance.new("WorldModel"); wm.Parent = vpf
 				local clone = (tmpl :: Model):Clone()
@@ -484,12 +432,16 @@ function InventoryUI.show(
 		if isFish then
 			nameText = (item.speciesId or "fish"):gsub("_", " ")
 				:gsub("(%a)([%w]*)", function(a: string, b: string) return a:upper() .. b end)
+		elseif isPreserved then
+			local base = (fishData and fishData.displayName)
+				or (preservedSpecies or "fish"):gsub("_", " ")
+			nameText = base .. " (Smoked)"
 		else
 			nameText = (item.goodId or "Item"):gsub("_", " ")
 				:gsub("(%a)([%w]*)", function(a: string, b: string) return a:upper() .. b end)
 		end
 
-		local nameY = isFish and (contentY + 4 + THUMB_H + 8) or (contentY + 8)
+		local nameY = showAsFish and (contentY + 4 + THUMB_H + 8) or (contentY + 8)
 
 		local nameLbl = Instance.new("TextLabel")
 		nameLbl.BackgroundTransparency = 1
@@ -509,7 +461,7 @@ function InventoryUI.show(
 		wLbl.Font = Enum.Font.Gotham
 		wLbl.TextSize = 12
 		wLbl.TextColor3 = P.CreamSoft
-		if isFish then
+		if isFish or isPreserved then
 			wLbl.AnchorPoint = Vector2.new(1, 0)
 			wLbl.Position = UDim2.new(1, -10, 0, nameY)
 			wLbl.Size = UDim2.fromOffset(76, 18)
@@ -530,7 +482,7 @@ function InventoryUI.show(
 			pillRow.BackgroundTransparency = 1
 			pillRow.ClipsDescendants = true
 			pillRow.Position = UDim2.new(0, 10, 0, nameY + 22)
-			pillRow.Size = UDim2.new(1, -20, 0, 20)
+			pillRow.Size = UDim2.new(1, -20, 0, 24)
 			pillRow.Parent = card
 			local rl = Instance.new("UIListLayout")
 			rl.FillDirection = Enum.FillDirection.Horizontal
@@ -542,27 +494,27 @@ function InventoryUI.show(
 			local maxVis = math.min(#mods, 3)
 			for i = 1, maxVis do
 				local modId = mods[i]
-				local color = MOD_COLORS[modId] or Color3.fromRGB(160, 160, 160)
+				local color = UIUtil.modifierColor(modId)
 				local pill = Instance.new("Frame")
-				pill.Size = UDim2.fromOffset(0, 18)
+				pill.Size = UDim2.fromOffset(0, 22)
 				pill.AutomaticSize = Enum.AutomaticSize.X
 				pill.BackgroundColor3 = color
 				pill.BackgroundTransparency = 0.2
 				pill.BorderSizePixel = 0
 				pill.LayoutOrder = i
-				local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, 9); pc.Parent = pill
+				local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(0, UIUtil.Radii.sm); pc.Parent = pill
 				local pp = Instance.new("UIPadding")
-				pp.PaddingLeft  = UDim.new(0, 6)
-				pp.PaddingRight = UDim.new(0, 6)
+				pp.PaddingLeft  = UDim.new(0, UIUtil.Spacing.sm)
+				pp.PaddingRight = UDim.new(0, UIUtil.Spacing.sm)
 				pp.Parent = pill
-				local pLbl = Instance.new("TextLabel")
-				pLbl.BackgroundTransparency = 1
-				pLbl.Size = UDim2.fromScale(1, 1)
-				pLbl.Font = Enum.Font.GothamBold
-				pLbl.TextSize = 10
-				pLbl.TextColor3 = Color3.new(1, 1, 1)
-				pLbl.Text = _modDisplayNames[modId] or modId
-				pLbl.Parent = pill
+				local pLbl = UIUtil.makeLabel(_modDisplayNames[modId] or modId, "caption", {
+					Size = UDim2.fromScale(1, 1),
+					TextXAlignment = Enum.TextXAlignment.Center,
+					Font = Enum.Font.GothamBold,
+					TextColor3 = UIUtil.Palette.Cream,
+					Parent = pill,
+				})
+				pLbl = pLbl -- silence unused-variable lint
 				-- Per-modifier glow stroke
 				local gCfg = modifierGlowCfg(modId)
 				if gCfg then
@@ -575,15 +527,14 @@ function InventoryUI.show(
 				pill.Parent = pillRow
 			end
 			if #mods > 3 then
-				local oLbl = Instance.new("TextLabel")
-				oLbl.BackgroundTransparency = 1
-				oLbl.Size = UDim2.fromOffset(24, 18)
-				oLbl.Font = Enum.Font.GothamBold
-				oLbl.TextSize = 10
-				oLbl.TextColor3 = P.CreamSoft
-				oLbl.Text = "+" .. (#mods - 3)
-				oLbl.LayoutOrder = 4
-				oLbl.Parent = pillRow
+				local oLbl = UIUtil.makeLabel("+" .. (#mods - 3), "caption", {
+					Size = UDim2.fromOffset(28, 22),
+					Font = Enum.Font.GothamBold,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					LayoutOrder = 4,
+					Parent = pillRow,
+				})
+				oLbl = oLbl
 			end
 		end
 
@@ -644,6 +595,7 @@ function InventoryUI.show(
 
 		-- Action buttons (bottom of card)
 		local numBtns = isFish and (onHoldFish ~= nil and 3 or 2) or 2
+		if isPreserved then numBtns = 2 end
 		local bw = math.floor((CARD_W - 16 - (numBtns - 1) * 4) / numBtns)
 
 		local btnsFrame = Instance.new("Frame")
@@ -673,7 +625,7 @@ function InventoryUI.show(
 		if isFish and onHoldFish then
 			UIUtil.makeButton("Hold", function()
 				onHoldFish(item.uid, item.speciesId or "", mods, item.weightKg or 0)
-				gui:Destroy()
+				shell.destroy()
 			end, {
 				Size = UDim2.fromOffset(bw, BTN_H),
 				BackgroundColor3 = P.TealLight,
@@ -696,7 +648,7 @@ function InventoryUI.show(
 			local clone = thumbClone
 
 			card.MouseEnter:Connect(function()
-				TweenService:Create(vpf, popTI, { Size = popSize }):Play()
+				MotionUtil.tween(vpf, popTI, { Size = popSize })
 				if clone and initPivot then
 					rotConn = RunService.Heartbeat:Connect(function(dt)
 						if not card.Parent then
@@ -710,7 +662,7 @@ function InventoryUI.show(
 			end)
 
 			card.MouseLeave:Connect(function()
-				TweenService:Create(vpf, dropTI, { Size = baseSize }):Play()
+				MotionUtil.tween(vpf, dropTI, { Size = baseSize })
 				if rotConn then rotConn:Disconnect(); rotConn = nil end
 				rotAngle = 0
 				if clone and initPivot then
@@ -722,6 +674,40 @@ function InventoryUI.show(
 		return setSelected
 	end
 
+	local function makeSectionGrid(title: string, layoutOrder: number): Frame
+		local section = Instance.new("Frame")
+		section.Name = title
+		section.BackgroundTransparency = 1
+		section.Size = UDim2.new(1, -UIUtil.Spacing.md * 2, 0, 0)
+		section.AutomaticSize = Enum.AutomaticSize.Y
+		section.LayoutOrder = layoutOrder
+		section.Parent = list
+
+		UIUtil.makeLabel(title:upper(), "subtitle", {
+			Size = UDim2.new(1, 0, 0, 24),
+			Font = Enum.Font.GothamBold,
+			TextColor3 = P.CreamSoft,
+			Parent = section,
+		})
+
+		local gridHost = Instance.new("Frame")
+		gridHost.Name = "Grid"
+		gridHost.BackgroundTransparency = 1
+		gridHost.Position = UDim2.new(0, 0, 0, 28)
+		gridHost.Size = UDim2.new(1, 0, 0, 0)
+		gridHost.AutomaticSize = Enum.AutomaticSize.Y
+		gridHost.Parent = section
+
+		local grid = Instance.new("UIGridLayout")
+		grid.CellSize = UDim2.fromOffset(CARD_W, CARD_H)
+		grid.CellPadding = UDim2.fromOffset(10, 10)
+		grid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
+		grid.Parent = gridHost
+
+		return gridHost
+	end
+
 	-- ── REFRESH ────────────────────────────────────────────────────────
 	local refresh: (items_: {any}) -> ()
 	refresh = function(items_: {any})
@@ -729,9 +715,10 @@ function InventoryUI.show(
 		local prevSel = table.clone(selected)
 		cardSetters = {}
 
-		-- Destroy all UI children except the UIGridLayout (cards + empty label).
 		for _, c in ipairs(list:GetChildren()) do
-			if not c:IsA("UIGridLayout") then c:Destroy() end
+			if not c:IsA("UIListLayout") and not c:IsA("UIPadding") then
+				c:Destroy()
+			end
 		end
 
 		if #items_ == 0 then
@@ -743,15 +730,39 @@ function InventoryUI.show(
 			empty.TextColor3 = P.CreamSoft
 			empty.TextXAlignment = Enum.TextXAlignment.Center
 			empty.Text = "No catches yet — head to the dock!"
+			empty.LayoutOrder = 1
 			empty.Parent = list
 			return
 		end
 
-		local sorted = sortItems(items_)
-		for i, item in ipairs(sorted) do
-			local setter = buildCard(item, i)
-			if item.uid then cardSetters[item.uid] = setter end
+		local preserved: {any} = {}
+		local fish: {any} = {}
+		local otherGoods: {any} = {}
+		for _, item in ipairs(items_) do
+			if item.kind == "Good" and EconomyUtil.isPreservedGoodId(item.goodId) then
+				table.insert(preserved, item)
+			elseif item.kind == "Fish" then
+				table.insert(fish, item)
+			elseif item.kind == "Good" then
+				table.insert(otherGoods, item)
+			end
 		end
+
+		local sectionOrder = 0
+		local function renderSection(title: string, bucket: {any})
+			if #bucket == 0 then return end
+			sectionOrder += 1
+			local gridHost = makeSectionGrid(title, sectionOrder)
+			local sorted = sortItems(bucket)
+			for i, item in ipairs(sorted) do
+				local setter = buildCard(item, i, gridHost)
+				if item.uid then cardSetters[item.uid] = setter end
+			end
+		end
+
+		renderSection("Preserved", preserved)
+		renderSection("Catch", fish)
+		renderSection("Goods", otherGoods)
 
 		-- Re-apply selection from before refresh
 		for uid in pairs(prevSel) do
@@ -761,14 +772,17 @@ function InventoryUI.show(
 
 		-- Re-show checkboxes if in selection mode
 		if selectionMode then
-			for _, c in ipairs(list:GetChildren()) do
-				if c:IsA("Frame") then
-					local chk = c:FindFirstChild("Checkbox")
-					local ov  = c:FindFirstChild("SelectOverlay")
-					if chk then chk.Visible = true end
-					if ov  then ov.Visible  = true end
+			local function showSelectionOnCards(root: Instance)
+				for _, c in ipairs(root:GetDescendants()) do
+					if c:IsA("Frame") and c:FindFirstChild("CardStroke") then
+						local chk = c:FindFirstChild("Checkbox")
+						local ov  = c:FindFirstChild("SelectOverlay")
+						if chk then chk.Visible = true end
+						if ov  then ov.Visible  = true end
+					end
 				end
 			end
+			showSelectionOnCards(list)
 		end
 	end
 
@@ -810,7 +824,7 @@ function InventoryUI.show(
 
 	return {
 		gui     = gui,
-		close   = function() gui:Destroy() end,
+		close   = function() shell.destroy() end,
 		refresh = refresh,
 	}
 end

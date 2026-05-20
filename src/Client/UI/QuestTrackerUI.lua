@@ -8,11 +8,10 @@
 -- The controller (QuestTrackerController) owns the data path and the
 -- completion / streak popup queue; this module owns the visuals.
 
-local TweenService = game:GetService("TweenService")
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UIUtil = require(script.Parent.UIUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
 local QuestTrackerUI = {}
 
@@ -296,22 +295,29 @@ local function buildPopup(parent: Instance, title: string, body: string, isStrea
 	})
 	bod.Parent = popup
 
-	-- Tween IN
+	-- Tween IN — routed through MotionUtil so the snap-to-final behaviour
+	-- under ReducedMotion is honoured (no slide on accessibility setting).
 	local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-	local inTween = TweenService:Create(popup, tweenInfo, {
-		Position = UDim2.new(1, -12, 0, 90),
-	})
-	local function slideIn() inTween:Play() end
+	local function slideIn()
+		MotionUtil.tweenOrSnap(popup, tweenInfo, {
+			Position = UDim2.new(1, -12, 0, 90),
+		})
+	end
 
 	local function slideOut(onDone: (() -> ())?)
-		local outTween = TweenService:Create(popup, tweenInfo, {
+		if MotionUtil.reducedMotionEnabled() then
+			popup:Destroy()
+			if onDone then onDone() end
+			return
+		end
+		local outTween = MotionUtil.tween(popup, tweenInfo, {
 			Position = UDim2.new(1, POPUP_WIDTH + 20, 0, 90),
 		})
 		outTween.Completed:Connect(function()
+			outTween:Destroy()
 			popup:Destroy()
 			if onDone then onDone() end
 		end)
-		outTween:Play()
 	end
 
 	return popup, slideIn, function() slideOut() end
@@ -322,11 +328,11 @@ end
 -- ====================================================================
 function QuestTrackerUI.create()
 	local gui, _scale = UIUtil.makeScreenGui("QuestTrackerUI", nil, { respectTopbar = true })
-	-- Render above the HUD (DisplayOrder 0) so the panel and the
+	-- Render above the HUD so the panel and the
 	-- completion/streak popups are never clipped behind it. Below tutorial
 	-- dialogue (5) so Mira still reads on top during onboarding, and below
 	-- modal confirms (20).
-	gui.DisplayOrder = 3
+	gui.DisplayOrder = UIUtil.DisplayOrder.QuestTracker
 
 	-- Root container (right edge)
 	local root = Instance.new("Frame")

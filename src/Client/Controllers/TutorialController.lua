@@ -14,7 +14,6 @@
 
 local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService     = game:GetService("TweenService")
 local Workspace        = game:GetService("Workspace")
 local GuiService       = game:GetService("GuiService")
 local RunService       = game:GetService("RunService")
@@ -25,6 +24,7 @@ local UIUtil     = require(script.Parent.Parent.UI.UIUtil)
 local DialogueUI = require(script.Parent.Parent.UI.DialogueUI)
 local TutorialConfig = require(ReplicatedStorage.Shared.Config.TutorialConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
 local TUNE = GameConfig.Tutorial
 local LP = Players.LocalPlayer
@@ -169,17 +169,17 @@ function TutorialController:_setWaypoint(worldPos: Vector3)
 	lbl.Parent = bb
 
 	-- Gentle bob so the arrow reads as a UI element, not world geometry.
-	-- Skip animation when ReducedMotion is on.
+	-- Skip animation when ReducedMotion is on (MotionUtil snap-pattern).
 	if not GuiService.ReducedMotionEnabled then
 		task.spawn(function()
 			while part.Parent do
-				TweenService:Create(part, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+				MotionUtil.tween(part, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = worldPos + Vector3.new(0, 10, 0),
-				}):Play()
+				})
 				task.wait(0.6)
-				TweenService:Create(part, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+				MotionUtil.tween(part, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = worldPos + Vector3.new(0, 8, 0),
-				}):Play()
+				})
 				task.wait(0.6)
 			end
 		end)
@@ -498,7 +498,7 @@ function TutorialController:KnitStart()
 			if btn and btn:IsA("GuiObject") then
 				local original = btn.BackgroundColor3
 				local tween = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 2, true)
-				TweenService:Create(btn, tween, { BackgroundColor3 = UIUtil.Palette.Sunset }):Play()
+				MotionUtil.tween(btn, tween, { BackgroundColor3 = UIUtil.Palette.Sunset })
 				task.delay(2.5, function()
 					btn.BackgroundColor3 = original
 				end)

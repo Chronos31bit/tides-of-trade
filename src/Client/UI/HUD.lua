@@ -15,10 +15,13 @@
 --     DisplayOrder). Self-cleans via UIUtil.makeScreenGui.
 
 local UIUtil = require(script.Parent.UIUtil)
+local MotionUtil = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
 
 local HUD = {}
 
-local P = UIUtil.Palette
+local P    = UIUtil.Palette
+local TYPE = UIUtil.Typography
+local RAD  = UIUtil.Radii
 
 export type HUDController = {
 	gui: ScreenGui,
@@ -58,7 +61,7 @@ local function pill(size: Vector2, bg: Color3): Frame
 	f.BackgroundColor3 = bg
 	f.BorderSizePixel = 0
 	f.Size = UDim2.fromOffset(size.X, size.Y)
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 10); c.Parent = f
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, RAD.md); c.Parent = f
 	return f
 end
 
@@ -96,7 +99,7 @@ local function smallCaps(text: string): TextLabel
 	local lbl = Instance.new("TextLabel")
 	lbl.BackgroundTransparency = 1
 	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 10
+	lbl.TextSize = math.max(TYPE.caption.size, UIUtil.MinFontPx) -- 12px floor
 	lbl.TextColor3 = P.CreamSoft
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl.Text = text:upper()
@@ -139,36 +142,36 @@ local function actionTile(glyph: string, label: string, tint: Color3, keybind: s
 	n.Position = UDim2.new(0, 0, 0.6, 0)
 	n.Size = UDim2.new(1, 0, 0.35, 0)
 	n.Font = Enum.Font.GothamBold
-	n.TextSize = 10
+	n.TextSize = math.max(TYPE.caption.size, UIUtil.MinFontPx) -- 12px floor
 	n.TextColor3 = P.Cream
 	n.TextXAlignment = Enum.TextXAlignment.Center
 	n.Text = label
 	n.Parent = btn
 
-	-- Small key-hint badge in the top-right corner (PC only hint).
+	-- PC keybind badge — must stay >= MinFontPx (12). Sized to fit cleanly.
 	if keybind then
 		local kb = Instance.new("TextLabel")
 		kb.BackgroundTransparency = 1
 		kb.AnchorPoint = Vector2.new(1, 0)
 		kb.Position = UDim2.new(1, -4, 0, 4)
-		kb.Size = UDim2.fromOffset(14, 14)
+		kb.Size = UDim2.fromOffset(18, 18)
 		kb.Font = Enum.Font.GothamBold
-		kb.TextSize = 9
+		kb.TextSize = math.max(TYPE.caption.size, UIUtil.MinFontPx)
 		kb.TextColor3 = P.Cream:Lerp(Color3.new(0, 0, 0), 0.35)
 		kb.Text = keybind
 		kb.Parent = btn
 	end
 
-	-- Tactile click feedback derived from the tile's tint.
-	local TweenService = game:GetService("TweenService")
+	-- Tactile click feedback derived from the tile's tint. Routed through
+	-- MotionUtil so the snap-to-final behaviour under ReducedMotion holds.
 	local rest = tint
 	local pressed = rest:Lerp(Color3.new(0, 0, 0), 0.22)
 	local hover = rest:Lerp(Color3.new(1, 1, 1), 0.08)
-	local tween = TweenInfo.new(0.08)
-	btn.MouseEnter:Connect(function() TweenService:Create(btn, tween, { BackgroundColor3 = hover }):Play() end)
-	btn.MouseLeave:Connect(function() btn.BackgroundColor3 = rest end)
-	btn.MouseButton1Down:Connect(function() TweenService:Create(btn, tween, { BackgroundColor3 = pressed }):Play() end)
-	btn.MouseButton1Up:Connect(function() TweenService:Create(btn, tween, { BackgroundColor3 = hover }):Play() end)
+	local info = TweenInfo.new(0.08)
+	btn.MouseEnter:Connect(function() MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = hover }) end)
+	btn.MouseLeave:Connect(function() MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = rest }) end)
+	btn.MouseButton1Down:Connect(function() MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = pressed }) end)
+	btn.MouseButton1Up:Connect(function() MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = hover }) end)
 
 	return btn
 end
@@ -181,6 +184,7 @@ function HUD.create(): HUDController
 	-- BELOW the Roblox chat/menu icons, so our top-anchored elements
 	-- don't collide with chrome.
 	local gui = UIUtil.makeScreenGui("HUD", nil, { respectTopbar = true })
+	gui.DisplayOrder = UIUtil.DisplayOrder.HUD
 
 	-- ================================================================
 	-- TOP-LEFT — single horizontal currency strip
