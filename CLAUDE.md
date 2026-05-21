@@ -2,10 +2,10 @@
 ## Git workflow (mandatory)
 
 Every task must follow this exact sequence. No exceptions.
-Always work from C:\Users\derin\purna — never from worktrees or any other directory.
+Always work from C:\Users\derin\Documents\tides-of-trade — never from worktrees or any other directory.
 
 1. Start on main and pull latest:
-   cd C:\Users\derin\purna
+   cd C:\Users\derin\Documents\tides-of-trade
    git checkout main && git pull origin main
 
 2. Create a feature branch named after the task:
