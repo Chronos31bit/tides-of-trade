@@ -25,6 +25,7 @@ local WeatherService = Knit.CreateService({
 		TimeOfDayChanged = Knit.CreateSignal(),
 	},
 	_weather = "Clear",
+	_previousWeather = "Clear",
 	_timeOfDay = "Day",
 	_clock = 8,
 	_weatherLocked = false,
@@ -60,9 +61,9 @@ function WeatherService:_syncWorkspaceAttributes()
 	Workspace:SetAttribute(ATTR_LOCKED, self._weatherLocked)
 end
 
-function WeatherService:_broadcastWeather()
+function WeatherService:_broadcastWeather(durationSeconds: number)
 	for _, player in ipairs(Players:GetPlayers()) do
-		self.Client.WeatherChanged:Fire(player, self._weather)
+		self.Client.WeatherChanged:Fire(player, self._weather, self._previousWeather, durationSeconds)
 	end
 end
 
@@ -70,15 +71,19 @@ function WeatherService:SetWeather(weather: string, lockMarkov: boolean?): boole
 	if not VALID_WEATHER[weather] then
 		return false
 	end
+	self._previousWeather = self._weather
 	self._weather = weather
 	if lockMarkov ~= nil then
 		self._weatherLocked = lockMarkov
 	end
 	self:_syncWorkspaceAttributes()
-	self:_applyVisuals()
-	self:_broadcastWeather()
+	local duration = GameConfig.Weather.Transition.DurationSeconds
+	self:_applyVisuals(duration)
+	self:_broadcastWeather(duration)
 	if RunService:IsStudio() then
-		print(("[WeatherService] SetWeather → %s locked=%s"):format(weather, tostring(self._weatherLocked)))
+		print(("[WeatherService] SetWeather → %s (prev %s, dur %.2fs) locked=%s"):format(
+			weather, self._previousWeather, duration, tostring(self._weatherLocked)
+		))
 	end
 	return true
 end
@@ -92,9 +97,9 @@ function WeatherService:IsWeatherLocked(): boolean
 	return self._weatherLocked
 end
 
-function WeatherService:_applyVisuals()
+function WeatherService:_applyVisuals(durationSeconds: number?)
 	Lighting.ClockTime = self._clock
-	WeatherVisuals.apply(self._weather)
+	WeatherVisuals.apply(self._weather, durationSeconds)
 end
 
 function WeatherService:_handleForceWeatherRequest(player: Player, weather: string, lockMarkov: boolean?)
@@ -140,7 +145,7 @@ function WeatherService:KnitStart()
 					self.Client.TimeOfDayChanged:Fire(player, newTOD)
 				end
 			end
-			self:_applyVisuals()
+			self:_applyVisuals(GameConfig.Weather.Transition.DurationSeconds)
 		end
 	end)
 
@@ -150,22 +155,25 @@ function WeatherService:KnitStart()
 			if not self._weatherLocked then
 				local next_ = pickNext(self._weather)
 				if next_ ~= self._weather then
+					self._previousWeather = self._weather
 					self._weather = next_
 					self:_syncWorkspaceAttributes()
-					self:_applyVisuals()
-					self:_broadcastWeather()
+					local duration = GameConfig.Weather.Transition.DurationSeconds
+					self:_applyVisuals(duration)
+					self:_broadcastWeather(duration)
 				end
 			end
 		end
 	end)
 
 	Players.PlayerAdded:Connect(function(player)
-		self.Client.WeatherChanged:Fire(player, self._weather)
+		-- Initial fire: duration 0 so the joining client snaps to current state.
+		self.Client.WeatherChanged:Fire(player, self._weather, self._weather, 0)
 		self.Client.TimeOfDayChanged:Fire(player, self._timeOfDay)
 	end)
 
 	self:_syncWorkspaceAttributes()
-	self:_applyVisuals()
+	self:_applyVisuals(0)
 end
 
 function WeatherService:GetWeather(): string return self._weather end

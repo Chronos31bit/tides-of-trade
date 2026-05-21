@@ -36,6 +36,18 @@ local AssetIds = {
 		-- Coin clink on harbor place/upgrade (HarborEditController, vol 0.45).
 		-- SOURCE: assets/audio/sources/coin_clink.mp3
 		CoinClink = "rbxassetid://114446160695929",
+		-- Steady rain loop bed (~22s seamless). Plays on Rain/Storm via WorldFXController.
+		-- SOURCE: assets/audio/sources/rain_loop.mp3 — see SOUND_SPEC.md slot 10.
+		RainLoop = "rbxassetid://139877858000726",
+		-- Distant low rumble triggered after each Storm lightning flash.
+		-- SOURCE: assets/audio/sources/thunder_rumble.mp3 — see SOUND_SPEC.md slot 11.
+		ThunderRumble = "rbxassetid://82477411818423",
+		-- Gentle wind bed for Storm (no howling, no whistling).
+		-- SOURCE: assets/audio/sources/wind_storm.mp3 — see SOUND_SPEC.md slot 12.
+		WindStorm = "rbxassetid://74233360850100",
+		-- Muffled low drone for Fog ambience.
+		-- SOURCE: assets/audio/sources/fog_ambient.mp3 — see SOUND_SPEC.md slot 13.
+		FogAmbient = "rbxassetid://95321828167943",
 	},
 
 	-- Images
@@ -50,6 +62,11 @@ local AssetIds = {
 		-- TODO: 80x80 fish icon sheet keyed by species id. The reveal card
 		-- currently shows a placeholder dark square when this is missing.
 		FishIconSheet = "",
+		-- Vertical rain streak. Empty → GameConfig (PreferBuiltInTexture uses smoke_main.dds).
+		-- Set rbxassetid://419625073 after granting asset access in Creator Dashboard.
+		RainStreak = "",
+		-- Soft round mist for optional Fog/GroundMist procedural fallback.
+		FogMist = "",
 	},
 }
 

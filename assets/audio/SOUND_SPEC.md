@@ -48,8 +48,12 @@ filename sounds:
 - Aggressive transients — gunshot-style attacks, harsh metallic clicks,
   laser zaps, glass shatter.
 - Distorted bass, dubstep wobbles, EDM drops, sidechained pumping.
-- Crowd noise, birds-of-prey screeches, dramatic seagulls, thunder. The
-  harbor is *calm*.
+- Crowd noise, birds-of-prey screeches, dramatic seagulls, *cinematic*
+  thunder claps. The harbor is *calm*. (Exception: a **distant, low
+  atmospheric rumble** at ≤ -15 dBFS with LPF ≤ 400 Hz and no sharp
+  transient is permitted for the Storm weather state only — see slot
+  11 `ThunderRumble`. Same exception for wind: a *gentle bed* at
+  ≤ -12 dBFS is OK for Storm; howling / whistling is not.)
 - More than 3 opacity / color / volume changes per second
   (CLAUDE.md accessibility rule for flashing/strobing).
 - Loud sudden onsets without a fade-in on loops — clicks at loop seams
@@ -78,7 +82,8 @@ filename sounds:
     low-end, no birds, no thunder, no voices, seamless field-recording
     style, 45 seconds, mobile game background.`
 - **Avoid (slot-specific)** — seagulls, fog horns, boat engines, wind
-  howling, surf crashes, distant music bleed.
+  howling, surf crashes, distant music bleed. (Storm wind has its own
+  dedicated slot 12 — keep wind out of the always-on ocean bed.)
 - **Mix targets** — stereo, 44.1 kHz, peak ~-9 dBFS, HPF at 80 Hz, 200 ms
   crossfade at the loop seam, no clicks.
 
@@ -302,6 +307,108 @@ filename sounds:
   machine payouts, metallic anvil clinks.
 - **Mix targets** — mono, 44.1 kHz, peak ~-3 dBFS, HPF at 150 Hz, 0 ms
   fade-in (let the transient breathe), 40 ms fade-out.
+
+## Slot 10 — `RainLoop` (loop, weather)
+
+- **Trigger** — `WorldFXController._applyWeatherSounds` when weather is
+  `Rain` or `Storm`. Crossfades up over `GameConfig.Weather.Sound.CrossfadeSeconds`
+  (1.5 s default), down to 0 when weather leaves the rainy set.
+- **Code volume** — `GameConfig.Weather.Sound.RainVolume` (0.5) on Rain,
+  `StormRainVolume` (0.7) on Storm.
+- **Length** — 25–45 s seamless loop.
+- **Reference vibes** — light rain on a wooden roof; Stardew Valley rain
+  day ambience minus the gulls; the quieter passages of Spiritfarer
+  storms; A Short Hike rainy summit.
+- **CC0 Freesound search strings (filter `license:cc0`)**:
+  - `rain on roof light loop seamless`
+  - `gentle rain ambience loopable`
+  - `soft rain wood porch loop`
+  - `rain pattering close mic no thunder`
+- **ElevenLabs Sound Effects prompt**:
+  - `Light steady rain falling on a wooden harbor dock, no thunder, no
+    wind, no birds, no voices, warm and cozy, 30-second seamless loop.`
+- **Avoid (slot-specific)** — heavy downpour, thunder embedded in the
+  bed (thunder is its own slot), wind, anything that pulls focus from
+  the dominant ocean bed.
+- **Mix targets** — stereo, 44.1 kHz, peak ~-12 dBFS (sits below ocean
+  when Storm boosts), HPF at 120 Hz to keep low end clear for wind,
+  300 ms crossfade at loop seam.
+
+## Slot 11 — `ThunderRumble` (one-shot, Storm-only)
+
+- **Trigger** — `WorldFXController._lightningLoop` schedules this 0.9–1.8 s
+  after each lightning flash. Fires roughly every 8–15 s during Storm
+  and never outside it.
+- **Code volume** — `GameConfig.Weather.Sound.ThunderVolume` (0.6).
+- **Length** — 2.5–5.0 s.
+- **Reference vibes** — *distant* thunder rolling over a far ridge, not
+  overhead. Spiritfarer storm sections, Studio Ghibli summer-storm
+  background rumble, the way thunder sounds two valleys away.
+- **CC0 Freesound search strings**:
+  - `distant thunder rumble low loop`
+  - `far thunder roll soft no crack`
+  - `low rumble atmospheric storm distant`
+  - `subwoofer rumble soft ambient`
+- **ElevenLabs Sound Effects prompt**:
+  - `Distant low rumble of thunder several miles away, no sharp crack,
+    no clap, just a soft rolling rumble fading slowly, atmospheric,
+    cozy mobile game storm background, 4 seconds.`
+- **Avoid (slot-specific)** — sharp transient crack, overhead thunder
+  clap, cinematic boom, Hollywood thunder, anything that startles. If a
+  player would flinch, it's wrong.
+- **Mix targets** — mono or stereo, 44.1 kHz, **peak ≤ -15 dBFS** (hard
+  ceiling — anti-pattern enforcement), HPF at 30 Hz, **LPF at 400 Hz**
+  (kills any transient crack), 50 ms fade-in, 800 ms fade-out so the
+  tail dissolves naturally.
+
+## Slot 12 — `WindStorm` (loop, Storm-only)
+
+- **Trigger** — `WorldFXController._applyWeatherSounds` when weather is
+  `Storm`. Crossfades up/down with `CrossfadeSeconds`.
+- **Code volume** — `GameConfig.Weather.Sound.WindVolume` (0.35).
+- **Length** — 30–60 s seamless loop.
+- **Reference vibes** — wind moving gently through wooden harbor pilings;
+  Stardew winter wind without the bite; the breeze on a porch right
+  before a summer storm. Bed-level, never foreground.
+- **CC0 Freesound search strings**:
+  - `wind soft bed loop low ambient`
+  - `gentle wind no whistle loopable`
+  - `air flow soft outdoor ambience loop`
+  - `breeze soft trees no whistle`
+- **ElevenLabs Sound Effects prompt**:
+  - `Gentle outdoor wind bed, low and warm, no whistling, no howling,
+    no debris, cozy storm atmosphere, 40-second seamless loop.`
+- **Avoid (slot-specific)** — howling, whistling, gusting, rattling
+  loose objects, hurricane bed, anything aggressive.
+- **Mix targets** — stereo, 44.1 kHz, **peak ≤ -12 dBFS** (hard ceiling),
+  HPF at 80 Hz, **LPF at 2 kHz** so brittle whistles can't sneak in,
+  300 ms crossfade at loop seam.
+
+## Slot 13 — `FogAmbient` (loop, Fog-only)
+
+- **Trigger** — `WorldFXController._applyWeatherSounds` when weather is
+  `Fog`. Crossfades up/down with `CrossfadeSeconds`.
+- **Code volume** — `GameConfig.Weather.Sound.FogAmbientVolume` (0.25)
+  — quietest of the weather beds; fog should *feel* muffled, not loud.
+- **Length** — 30–60 s seamless loop.
+- **Reference vibes** — the muffled silence inside thick fog; A Short
+  Hike clouded summit; Spiritfarer foggy travel between islands; a
+  soft low drone with the high end rolled off.
+- **CC0 Freesound search strings**:
+  - `low drone ambient soft warm`
+  - `pad low pad warm muffled loop`
+  - `fog ambience muffled outdoor`
+  - `dull low rumble ambient loop`
+- **ElevenLabs Sound Effects prompt**:
+  - `Soft low ambient drone with all high frequencies rolled off, fog
+    muffling sound, no voices, no foghorn, no birds, cozy mobile game
+    fog atmosphere, 45-second seamless loop.`
+- **Avoid (slot-specific)** — foghorn, ship horn, ghostly voices, choir
+  pads, vocal "aah/ooh" beds (CLAUDE.md no-voice rule), anything
+  that lifts the high end (defeats the muffled effect).
+- **Mix targets** — stereo, 44.1 kHz, peak ~-15 dBFS, HPF at 30 Hz,
+  **LPF at 800 Hz** (this is what makes it read as fog, not music),
+  400 ms crossfade at loop seam.
 
 ## Edit checklist — before Roblox upload
 

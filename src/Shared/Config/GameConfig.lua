@@ -81,58 +81,156 @@ GameConfig.Weather = {
 	WorkspaceAttribute = "TidesWeather",
 	WorkspaceLockedAttribute = "TidesWeatherLocked",
 
-	-- Server Lighting presets (WeatherVisuals). Strong deltas for admin testing.
+	-- Server Lighting presets (WeatherVisuals). Atmosphere + Clouds tween on server.
 	Visuals = {
 		Clear = {
 			Density = 0.28, Haze = 0.9,
 			Color = Color3.fromRGB(232, 200, 168),
 			Brightness = 2.4, ExposureCompensation = 0,
+			CloudCover = 0.12, CloudDensity = 0.15,
 			CcEnabled = true, CcTint = Color3.fromRGB(255, 248, 240), CcSaturation = 0.05, CcContrast = 0,
 		},
 		Cloudy = {
 			Density = 0.48, Haze = 1.8,
 			Color = Color3.fromRGB(185, 190, 200),
 			Brightness = 2.0, ExposureCompensation = -0.05,
+			CloudCover = 0.45, CloudDensity = 0.4,
 			CcEnabled = true, CcTint = Color3.fromRGB(220, 225, 235), CcSaturation = -0.1, CcContrast = 0.05,
 		},
 		Rain = {
 			Density = 0.62, Haze = 2.4,
 			Color = Color3.fromRGB(130, 145, 165),
 			Brightness = 1.6, ExposureCompensation = -0.25,
+			CloudCover = 0.72, CloudDensity = 0.65,
 			CcEnabled = true, CcTint = Color3.fromRGB(140, 160, 190), CcSaturation = -0.2, CcContrast = 0.1,
+			FogStart = 40,
+			FogEnd = 900,
+			FogColor = Color3.fromRGB(120, 135, 155),
 		},
 		Storm = {
 			Density = 0.78, Haze = 3.2,
 			Color = Color3.fromRGB(85, 90, 105),
-			Brightness = 1.2, ExposureCompensation = -0.45,
+			Brightness = 1.0, ExposureCompensation = -0.55,
+			CloudCover = 0.92, CloudDensity = 0.88,
 			CcEnabled = true, CcTint = Color3.fromRGB(90, 100, 120), CcSaturation = -0.35, CcContrast = 0.15,
+			FogStart = 25,
+			FogEnd = 650,
+			FogColor = Color3.fromRGB(75, 82, 98),
 		},
 		Fog = {
-			Density = 0.72, Haze = 4.0,
-			Color = Color3.fromRGB(210, 215, 220),
-			Brightness = 1.8, ExposureCompensation = -0.15,
-			CcEnabled = true, CcTint = Color3.fromRGB(230, 235, 240), CcSaturation = -0.4, CcContrast = -0.05,
+			Density = 0.68, Haze = 3.4,
+			Color = Color3.fromRGB(195, 202, 212),
+			Brightness = 1.5, ExposureCompensation = -0.35,
+			CloudCover = 0.78, CloudDensity = 0.72,
+			CcEnabled = true, CcTint = Color3.fromRGB(215, 222, 232), CcSaturation = -0.45, CcContrast = -0.08,
+			FogStart = 12,
+			FogEnd = 380,
+			FogColor = Color3.fromRGB(188, 198, 210),
 		},
 	},
 
-	-- Client rain particles (WorldFXController). Swap PlaceholderTextureId when art lands.
+	-- Client rain (WorldFXController). Matches SuperCatHeroes "Great RAIN Particles in 5 Minutes":
+	-- https://www.youtube.com/watch?v=mp9N77bqVX8 — sparkle texture, squash 3, size 0.2,
+	-- FacingCameraWorldUp, rate 500, LockedToPart, follows HRP + offset (world-upright).
 	Rain = {
-		Rate = 80,
-		Lifetime = 0.6,
-		ReducedMotionRateMultiplier = 0.5,
-		PlaceholderTextureId = "rbxasset://textures/particles/sparkles_main.dds",
-		StormRateMultiplier = 1.25,
-		WindSwaySpreadDegrees = 6,
-		WindSwayPeriodSeconds = 4,
-		-- Procedural fallback when place asset is missing.
-		ProceduralRate = 120,
-		ProceduralLifetime = 0.55,
-		ProceduralSpeed = NumberRange.new(24, 36),
-		ProceduralSpreadAngle = Vector2.new(14, 14),
-		ProceduralSize = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.12),
-			NumberSequenceKeypoint.new(1, 0.05),
+		UseTutorialFollower = true,
+		FollowOffsetStuds = Vector3.new(0, 25, 0),
+		PartFootprintStuds = 50,
+		Lifetime = 1,
+		ReducedMotionRateMultiplier = 0.45,
+		BuiltInTextureId = "rbxasset://textures/particles/sparkles_main.dds",
+		PlaceholderTextureId = "rbxassetid://419625073",
+		FallbackTextureId = "rbxasset://textures/particles/sparkles_main.dds",
+		PreferBuiltInTexture = true,
+		EmitterRate = 500,
+		EmitterRateStorm = 650,
+		EmitterSpeed = NumberRange.new(25, 25),
+		EmitterSquash = 3,
+		EmitterSize = 0.2,
+		EmitterSpreadAngle = Vector2.new(0, 0),
+		LightEmission = 0.5,
+		LightInfluence = 0,
+		LockedToPart = true,
+		UseFacingCameraWorldUp = true,
+		ParticleColor = Color3.fromRGB(200, 220, 245),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1),
+			NumberSequenceKeypoint.new(0.15, 0.5),
+			NumberSequenceKeypoint.new(0.85, 0.5),
+			NumberSequenceKeypoint.new(1, 1),
 		}),
+		StartupEmitBurst = 0,
+		WindSwaySpreadDegrees = 0,
+		-- Legacy grid keys (unused when UseTutorialFollower).
+		GlobalGridCount = 1,
+		GlobalCellSizeStuds = 50,
+		GlobalHeightStuds = 25,
+		GlobalFollowIntervalSeconds = 0,
+		RateBudgetRain = 500,
+		RateBudgetStorm = 650,
+		UseBoxEmissionShape = false,
+		AlwaysUseProceduralEmitters = true,
+		ProceduralSpreadAngle = Vector2.new(0, 0),
+		ProceduralLifetime = 1,
+		ProceduralSpeed = NumberRange.new(25, 25),
+		ProceduralSize = NumberSequence.new(0.2),
+	},
+
+	-- Server-side tween duration for weather → Lighting/Atmosphere/CC changes.
+	-- Initial boot apply uses 0 (snap). Subsequent changes use DurationSeconds.
+	Transition = {
+		DurationSeconds = 2.5,
+		ReducedMotionDurationScale = 0.4,
+	},
+
+	-- Distance fog (Lighting.FogStart/End) is applied client-side; particles stay off for cozy harbor.
+	DistanceFog = {
+		ClearFogEnd = 100000,
+	},
+
+	-- Fog: atmosphere + distance fog (tutorial-style); optional particles off by default.
+	Fog = {
+		EnableParticleFog = false,
+		Lifetime = 10,
+		SpeedRange = NumberRange.new(0.15, 0.4),
+		TexturePlaceholderId = "rbxasset://textures/particles/smoke_main.dds",
+		GlobalGridCount = 1,
+		GlobalCellSizeStuds = 120,
+		SheetHeightOffsetStuds = 1,
+		GlobalRecenterStuds = 40,
+		GlobalFollowIntervalSeconds = 0.15,
+		RateBudget = 12,
+		UseBoxEmissionShape = false,
+		AlwaysUseProceduralEmitters = true,
+		StartupEmitBurst = 0,
+		SpreadAngle = Vector2.new(180, 12),
+		ReducedMotionRateMultiplier = 0.5,
+		UseParticlesWhenTemplateMissing = false,
+	},
+
+	-- Storm lightning subsystem (WorldFXController._lightningLoop).
+	-- Rate-limited to >= 8s between flashes to satisfy CLAUDE.md no-strobe rule
+	-- (3 changes/sec ceiling). Disabled when ReducedMotionEnabled = true.
+	Lightning = {
+		MinIntervalSeconds = 8,
+		MaxIntervalSeconds = 15,
+		FlashAttackSeconds = 0.05,
+		FlashHoldSeconds = 0.05,
+		FlashDecaySeconds = 0.10,
+		FlashBrightnessDelta = 0.75,
+		FlashSaturationDelta = 0.15,
+		ThunderDelayRangeSeconds = NumberRange.new(0.9, 1.8),
+	},
+
+	-- Per-weather loop volumes used by WorldFXController._applyWeatherSounds.
+	-- Empty AssetIds slots are silent no-ops (SoundController guards on empty).
+	Sound = {
+		RainVolume = 0.5,
+		StormRainVolume = 0.7,
+		WindVolume = 0.35,
+		ThunderVolume = 0.6,
+		FogAmbientVolume = 0.25,
+		CrossfadeSeconds = 1.5,
 	},
 }
 

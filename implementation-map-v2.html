@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tides of Trade — Implementation Map v3</title>
+<title>Tides of Trade — Implementation Map v4</title>
 <style>
 :root{
   --bg:#0a1322; --ink:#e9eff8; --muted:#8597b3;
@@ -103,8 +103,8 @@ svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 </head>
 <body>
 
-<h1>Tides of Trade — Implementation Map v3</h1>
-<p class="sub">Dependency flowchart of every system. Click any node for a <b>ready-to-paste prompt for Cursor or Claude Code</b> — prompts reference the <b>Roblox Studio MCP</b> when relevant so the agent can run Luau, generate meshes, and inspect the live place. Arrows point prereq → consumer. <b>Last synced:</b> May 21, 2026 (post harbor-visuals + sound + toasts ship).</p>
+<h1>Tides of Trade — Implementation Map v4</h1>
+<p class="sub">Dependency flowchart of every system. Click any node for a <b>ready-to-paste prompt for Cursor or Claude Code</b> — prompts reference the <b>Roblox Studio MCP</b> when relevant so the agent can run Luau, generate meshes, and inspect the live place. Arrows point prereq → consumer. <b>Last synced:</b> May 21, 2026 (post audio-IDs + WeatherVisuals + MotionUtil + UIKit ship).</p>
 
 <div class="banner">
   <b>Roblox Studio MCP available.</b> Prompts marked <span style="color:var(--mcp);font-weight:700">MCP</span> tell the agent to use tools like <code>execute_luau</code>, <code>generate_mesh</code>, and <code>script_read</code>. Setup: <code>scripts/Studio/MCP_Setup.md</code>.
@@ -344,11 +344,11 @@ const NODES = [
    todo:["Replace FishingController line 685 print with NotificationController:Toast.","Sweep remaining controllers for print()-as-user-feedback (HarborEdit, RodSelect, Shop, Smokehouse)."],
    prompt:"NotificationController:Toast is live and in use by MarketController (line 57). One known holdout and a sweep.\n\n1. Open src/Client/Controllers/FishingController.lua at line 685 (\"-- TODO: replace prints with a small ephemeral toast\") and replace the print with NotificationController:Toast(msg). Keep the message text cozy — \"The line slipped...\" not \"FAILURE\".\n\n2. Grep src/Client/Controllers/ for print() and warn() calls. For each, classify: (a) developer log (keep), (b) user feedback that should be a toast (convert), (c) error worth surfacing. Convert (b). Don't touch (a) or (c).\n\n3. Audit NotificationController:Toast itself for the cozy-tone rules in CLAUDE.md: max 3 stacked, 3.5s auto-dismiss, ReducedMotion respected, ≥44px dismiss tap, no urgent reds unless data loss. Patch any violations.\n\nAll timing/colors must come from GameConfig — no inline magic numbers."},
 
-  {id:"audio",    name:"Audio / SFX",    sub:"Controller done, IDs pending", lane:5, y:.28, status:"wip", mcp:true,
+  {id:"audio",    name:"Audio / SFX",    sub:"All IDs shipped", lane:5, y:.28, status:"done", mcp:false,
    pillars:["cozy","mobile"],
-   why:"SoundController.lua shipped with Play/Stop, ambient + music loop slots, ducking, and mute toggle. AssetIds.Sounds still has placeholder strings — until real rbxassetid:// values land, the game is silent. Three asset TODOs remain in AssetIds.lua.",
-   todo:["Source/upload cozy ambient ocean loop, fishing splash, ka-ching, line-snap, upgrade ding.","Wire IDs into AssetIds.Sounds.","Verify mute toggle survives respawn.","Add a settings UI surface for mute (currently config-only)."],
-   prompt:"Audio assets are the blocker. SoundController is built and wired; we just need IDs.\n\n1. Read src/Client/AssetIds.lua and src/Client/Controllers/SoundController.lua. List every Sound name the controller expects (ambient loop, music loop, every named SFX) versus what AssetIds.Sounds currently provides. Output a gap table.\n\n2. For each missing slot, write a one-line sourcing brief (what the sound should evoke, approx length, cozy tone constraints). Example: \"AmbientOcean — gentle lapping waves, no seabirds, loopable 30s, mono OK, target -18 LUFS.\" These briefs are what I'd paste into a freesound.org search or hand to a sound designer.\n\n3. Use MCP execute_luau to confirm that SoundController's _applyMuteState and _duckLoops handle empty/invalid SoundIds without erroring (a slot with an empty string should be skipped silently, not crash). If it crashes, patch the isValidSoundId guard.\n\n4. Settings UI: design a minimal mute toggle widget (44px hit target, mobile-first) for HUD. Plan only — don't build.\n\nNo real asset IDs in this pass. Just the gap table, briefs, and the safety audit."},
+   why:"SoundController + real rbxassetid:// IDs all shipped. Ambient ocean, harbor music (CC BY 4.0, BloodPixelHero credit owed in Settings/Credits), cast splash, catch success/fail, perfect flash, fish bite, harbor upgrade, coin clink, rain loop. Game has full ambient + SFX. Remaining: a Credits screen for the music attribution, and a player-facing mute toggle UI.",
+   todo:["Add a Credits screen surfacing the CC BY 4.0 attribution (legally required by the license).","Build a player-facing mute toggle UI (currently config-only).","Optional: stitch loops at -18 LUFS for consistent perceived volume."],
+   prompt:"Audio is shipped; this is a compliance + UX polish task.\n\n1. The harbor music (AssetIds.Sounds.MusicHarborTheme) is 'The calm theme' by BloodPixelHero under CC BY 4.0. That license REQUIRES visible attribution. Build a Credits screen in src/Client/UI/CreditsUI.lua (use UIKit for chrome — Card, Label, CloseButton) listing audio attributions with: track name, author, license, link. Surface it from HUD's settings menu (defer the wire-up if no settings menu exists — show me where it should go).\n\n2. Build a mute toggle UI widget. Use UIKit.Button for the touch target (44px enforced). Persist the player's choice — read GameConfig.UI.SoundMutedByDefault on first launch, then store the toggle state in a player attribute that survives respawn. Hook SoundController:SetMuted on toggle.\n\n3. Use MCP execute_luau to verify the new IDs play correctly: PlaceId/CC-BY checks. Walk through each Sound name and confirm the asset loads without 'unable to load sound' errors in the place.\n\nUIKit is now the source of truth for UI tokens — do not inline colors, fonts, or spacing."},
 
   {id:"mobileqa", name:"Mobile QA",      sub:"380px audit", lane:5, y:.39, status:"todo", mcp:true,
    pillars:["mobile"],

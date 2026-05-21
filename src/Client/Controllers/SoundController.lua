@@ -16,11 +16,15 @@ local AssetIds = require(script.Parent.Parent.AssetIds)
 
 local AMBIENT_NAME = "AmbientOcean"
 local MUSIC_NAME = "MusicHarborTheme"
--- Background loops driven by KnitStart. _applyMuteState and _duckLoops
--- iterate this list, so adding a new loop slot is one line here plus an
--- entry in AssetIds.Sounds. Empty/invalid SoundIds are silently skipped
--- (see isValidSoundId) so listing a slot before its audio uploads is safe.
-local LOOP_NAMES = { AMBIENT_NAME, MUSIC_NAME }
+local RAIN_LOOP_NAME = "RainLoop"
+local WIND_LOOP_NAME = "WindStorm"
+local FOG_LOOP_NAME = "FogAmbient"
+-- Background loops driven by KnitStart + WorldFXController. _applyMuteState
+-- and _duckLoops iterate this list, so adding a new loop slot is one line
+-- here plus an entry in AssetIds.Sounds. Empty/invalid SoundIds are silently
+-- skipped (see isValidSoundId) so listing a slot before its audio uploads
+-- is safe.
+local LOOP_NAMES = { AMBIENT_NAME, MUSIC_NAME, RAIN_LOOP_NAME, WIND_LOOP_NAME, FOG_LOOP_NAME }
 local AUDIO_FOLDER_NAME = "TidesAudio"
 local POSITIONAL_ROLLOFF = 80
 
@@ -110,6 +114,51 @@ function SoundController:Stop(name: string)
 	local sound = self._managed[name]
 	if not sound then return end
 	sound:Stop()
+end
+
+-- Smoothly tween a managed loop's volume to targetVolume over fadeSeconds.
+-- If the loop hasn't been created yet (e.g. first time playing on weather
+-- change) and targetVolume > 0, creates and starts the loop. If targetVolume
+-- is 0, fades out and stops at the end. Empty/invalid asset IDs no-op silently.
+function SoundController:FadeLoop(name: string, targetVolume: number, fadeSeconds: number)
+	if self:IsMuted() and targetVolume > 0 then return end
+
+	local sound = self._managed[name]
+	if not sound then
+		if targetVolume <= 0 then return end
+		sound = self:_getOrCreateManaged(name)
+		if not sound then return end
+		sound.Looped = true
+		sound.Volume = 0
+		if not sound.IsPlaying then
+			sound:Play()
+		end
+	end
+
+	if fadeSeconds <= 0 then
+		sound.Volume = targetVolume
+		if targetVolume <= 0 then
+			sound:Stop()
+		elseif not sound.IsPlaying then
+			sound:Play()
+		end
+		return
+	end
+
+	if targetVolume > 0 and not sound.IsPlaying then
+		sound:Play()
+	end
+
+	local info = TweenInfo.new(fadeSeconds, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	local tween = TweenService:Create(sound, info, { Volume = targetVolume })
+	if targetVolume <= 0 then
+		tween.Completed:Connect(function()
+			if sound and sound.Parent then
+				sound:Stop()
+			end
+		end)
+	end
+	tween:Play()
 end
 
 function SoundController:_getSoundId(name: string): string?

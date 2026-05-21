@@ -1,6 +1,6 @@
 # Audio asset tracking
 
-All 9 slots sourced and ready for Roblox upload.
+All 13 slots sourced and ready for Roblox upload.
 Source files live in `assets/audio/sources/*.mp3`.
 Old placeholder `rbxassetid://` IDs cleared from `src/Client/AssetIds.lua`.
 After uploading each file to Creator Dashboard, paste the numeric ID into `AssetIds.lua`.
@@ -16,6 +16,10 @@ After uploading each file to Creator Dashboard, paste the numeric ID into `Asset
 | `PerfectFlash` | `perfect_flash.mp3` | ElevenLabs SFX generated | ~2s (trim to 0.3s before upload) | **Ready to upload** |
 | `HarborUpgrade` | `harbor_upgrade.mp3` | ElevenLabs SFX generated | ~1.5s | **Ready to upload** |
 | `CoinClink` | `coin_clink.mp3` | ElevenLabs SFX generated | ~1s | **Ready to upload** |
+| `RainLoop` | `rain_loop.mp3` | ElevenLabs SFX generated 2026-05-21 | 22s loop | **Replaced — 2026-05-21** (rbxassetid://139877858000726) |
+| `ThunderRumble` | `thunder_rumble.mp3` | ElevenLabs SFX generated 2026-05-21 | ~5s | **Replaced — 2026-05-21** (rbxassetid://82477411818423) |
+| `WindStorm` | `wind_storm.mp3` | ElevenLabs SFX generated 2026-05-21 | 22s loop | **Replaced — 2026-05-21** (rbxassetid://74233360850100) |
+| `FogAmbient` | `fog_ambient.mp3` | ElevenLabs SFX generated 2026-05-21 | 22s loop | **Replaced — 2026-05-21** (rbxassetid://95321828167943) |
 
 ## Licensing
 
@@ -24,6 +28,7 @@ After uploading each file to Creator Dashboard, paste the numeric ID into `Asset
 | `AmbientOcean` | CC0 (public domain) — Freesound #852826 by kkenny101 | None |
 | `MusicHarborTheme` | **CC BY 4.0** — Freesound #518917 by BloodPixelHero | Credit in Settings/Credits |
 | All 7 SFX | ElevenLabs generated 2026-05-21 | Re-verify commercial terms before launch |
+| `RainLoop` / `ThunderRumble` / `WindStorm` / `FogAmbient` | ElevenLabs generated 2026-05-21 | Re-verify commercial terms before launch |
 
 CC BY 4.0 credit line for Settings/Credits screen:
 > "The calm theme" by BloodPixelHero (freesound.org/s/518917) — CC BY 4.0
