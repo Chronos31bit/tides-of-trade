@@ -18,14 +18,21 @@
 --   /tp <username>              teleport to a player
 --   /fly                        toggle flight (handled client-side)
 --   /announce <text>            popup text on every player's screen
+--   /weather <state|auto>       force Clear/Cloudy/Rain/Storm/Fog or resume Markov
 --   /help                       list commands
 
 local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit        = require(ReplicatedStorage.Packages.Knit)
+local GameConfig  = require(ReplicatedStorage.Shared.Config.GameConfig)
 local FishCatalog = require(ReplicatedStorage.Shared.Config.FishCatalog)
 local UidUtil     = require(ReplicatedStorage.Shared.Util.UidUtil)
+
+local VALID_WEATHER: {[string]: boolean} = {}
+for _, state in ipairs(GameConfig.Admin.WeatherStates) do
+	VALID_WEATHER[state] = true
+end
 
 -- ====================================================================
 -- WHITELIST — replace these with your real UserId(s).
@@ -54,6 +61,7 @@ local AdminService = Knit.CreateService({
 	},
 	_studioFirstPlayer = nil :: number?,
 	_flyState = {} :: {[Player]: boolean},
+	_weatherService = nil :: any,
 })
 
 local fishById: {[string]: any} = {}
@@ -104,7 +112,38 @@ end
 local Handlers: {[string]: (AdminService: any, issuer: Player, args: {string}) -> ()} = {}
 
 Handlers.help = function(_self, issuer)
-	announceTo(issuer, "Commands: /coins /lure /xp /setlevel /fish /tp /fly /announce /help")
+	announceTo(issuer, "Commands: /coins /lure /xp /setlevel /fish /tp /fly /weather /announce /help")
+end
+
+Handlers.weather = function(self, issuer, args)
+	local ws = self._weatherService
+	if not ws then
+		return announceTo(issuer, "weather service not ready")
+	end
+	local arg = args[1]
+	if not arg or arg == "" then
+		return announceTo(issuer, "usage: /weather Clear|Cloudy|Rain|Storm|Fog|auto")
+	end
+	if string.lower(arg) == "auto" then
+		ws:UnlockWeather()
+		return announceTo(issuer, ("weather auto (current: %s)"):format(ws:GetWeather()))
+	end
+	local state: string? = nil
+	local lower = string.lower(arg)
+	for valid in pairs(VALID_WEATHER) do
+		if string.lower(valid) == lower then
+			state = valid
+			break
+		end
+	end
+	if not state then
+		return announceTo(issuer, "unknown weather — use Clear Cloudy Rain Storm Fog or auto")
+	end
+	if ws:SetWeather(state, true) then
+		announceTo(issuer, ("weather → %s (locked)"):format(state))
+	else
+		announceTo(issuer, "weather set failed")
+	end
 end
 
 Handlers.coins = function(_self, issuer, args)
@@ -238,6 +277,8 @@ end
 -- LIFECYCLE
 -- ====================================================================
 function AdminService:KnitStart()
+	self._weatherService = Knit.GetService("WeatherService")
+
 	Players.PlayerAdded:Connect(function(player)
 		if not self._studioFirstPlayer then
 			self._studioFirstPlayer = player.UserId
@@ -254,6 +295,57 @@ function AdminService:KnitStart()
 	Players.PlayerRemoving:Connect(function(player)
 		self._flyState[player] = nil
 	end)
+end
+
+function AdminService.Client:IsAdmin(player: Player): boolean
+	return self.Server:_isAdmin(player)
+end
+
+function AdminService.Client:SetWeather(player: Player, weather: string): { ok: boolean, reason: string?, weather: string? }
+	local server = self.Server
+	if not server:_isAdmin(player) then
+		return { ok = false, reason = "denied" }
+	end
+	if not VALID_WEATHER[weather] then
+		return { ok = false, reason = "invalid" }
+	end
+	local ws = server._weatherService
+	if not ws then
+		return { ok = false, reason = "no_weather_service" }
+	end
+	if not ws:SetWeather(weather, true) then
+		return { ok = false, reason = "failed" }
+	end
+	return { ok = true, weather = ws:GetWeather() }
+end
+
+function AdminService.Client:SetWeatherAuto(player: Player): { ok: boolean, reason: string?, weather: string? }
+	local server = self.Server
+	if not server:_isAdmin(player) then
+		return { ok = false, reason = "denied" }
+	end
+	local ws = server._weatherService
+	if not ws then
+		return { ok = false, reason = "no_weather_service" }
+	end
+	ws:UnlockWeather()
+	return { ok = true, weather = ws:GetWeather() }
+end
+
+function AdminService.Client:GetWeatherState(player: Player): { ok: boolean, weather: string, locked: boolean }
+	local server = self.Server
+	if not server:_isAdmin(player) then
+		return { ok = false, weather = "Clear", locked = false }
+	end
+	local ws = server._weatherService
+	if not ws then
+		return { ok = false, weather = "Clear", locked = false }
+	end
+	return {
+		ok = true,
+		weather = ws:GetWeather(),
+		locked = ws:IsWeatherLocked(),
+	}
 end
 
 function AdminService:_handleChat(player: Player, message: string)

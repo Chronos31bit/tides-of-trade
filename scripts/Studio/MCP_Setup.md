@@ -41,6 +41,8 @@ It points at:
 
 Once MCP works, follow [MCP_HarborBuildings.md](./MCP_HarborBuildings.md) to scaffold `ReplicatedStorage.Assets.Buildings` and generate tier visuals.
 
+Rain placeholder: `ReplicatedStorage.Assets.Weather.Rain.RainEmitter` (ParticleEmitter; swap texture via `GameConfig.Weather.Rain.PlaceholderTextureId`).
+
 ## Troubleshooting
 
 ### Cursor shows two `Roblox_Studio` entries

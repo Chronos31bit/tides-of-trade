@@ -76,7 +76,72 @@ GameConfig.Weather = {
 		Storm  = { Storm  = 0.40, Rain   = 0.55, Cloudy = 0.05 },
 		Fog    = { Fog    = 0.55, Clear  = 0.25, Cloudy = 0.20 },
 	},
+
+	-- Replicated on Workspace for client rain/SFX (atmosphere is server Lighting).
+	WorkspaceAttribute = "TidesWeather",
+	WorkspaceLockedAttribute = "TidesWeatherLocked",
+
+	-- Server Lighting presets (WeatherVisuals). Strong deltas for admin testing.
+	Visuals = {
+		Clear = {
+			Density = 0.28, Haze = 0.9,
+			Color = Color3.fromRGB(232, 200, 168),
+			Brightness = 2.4, ExposureCompensation = 0,
+			CcEnabled = true, CcTint = Color3.fromRGB(255, 248, 240), CcSaturation = 0.05, CcContrast = 0,
+		},
+		Cloudy = {
+			Density = 0.48, Haze = 1.8,
+			Color = Color3.fromRGB(185, 190, 200),
+			Brightness = 2.0, ExposureCompensation = -0.05,
+			CcEnabled = true, CcTint = Color3.fromRGB(220, 225, 235), CcSaturation = -0.1, CcContrast = 0.05,
+		},
+		Rain = {
+			Density = 0.62, Haze = 2.4,
+			Color = Color3.fromRGB(130, 145, 165),
+			Brightness = 1.6, ExposureCompensation = -0.25,
+			CcEnabled = true, CcTint = Color3.fromRGB(140, 160, 190), CcSaturation = -0.2, CcContrast = 0.1,
+		},
+		Storm = {
+			Density = 0.78, Haze = 3.2,
+			Color = Color3.fromRGB(85, 90, 105),
+			Brightness = 1.2, ExposureCompensation = -0.45,
+			CcEnabled = true, CcTint = Color3.fromRGB(90, 100, 120), CcSaturation = -0.35, CcContrast = 0.15,
+		},
+		Fog = {
+			Density = 0.72, Haze = 4.0,
+			Color = Color3.fromRGB(210, 215, 220),
+			Brightness = 1.8, ExposureCompensation = -0.15,
+			CcEnabled = true, CcTint = Color3.fromRGB(230, 235, 240), CcSaturation = -0.4, CcContrast = -0.05,
+		},
+	},
+
+	-- Client rain particles (WorldFXController). Swap PlaceholderTextureId when art lands.
+	Rain = {
+		Rate = 80,
+		Lifetime = 0.6,
+		ReducedMotionRateMultiplier = 0.5,
+		PlaceholderTextureId = "rbxasset://textures/particles/sparkles_main.dds",
+		StormRateMultiplier = 1.25,
+		WindSwaySpreadDegrees = 6,
+		WindSwayPeriodSeconds = 4,
+		-- Procedural fallback when place asset is missing.
+		ProceduralRate = 120,
+		ProceduralLifetime = 0.55,
+		ProceduralSpeed = NumberRange.new(24, 36),
+		ProceduralSpreadAngle = Vector2.new(14, 14),
+		ProceduralSize = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.12),
+			NumberSequenceKeypoint.new(1, 0.05),
+		}),
+	},
 }
+
+-- Sorted list of every Markov weather state (admin GUI + validation).
+local _adminWeatherStates: {string} = {}
+for state in pairs(GameConfig.Weather.Transitions) do
+	table.insert(_adminWeatherStates, state)
+end
+table.sort(_adminWeatherStates)
 
 -- ====================================================================
 -- TIME OF DAY — Lighting.ClockTime breakpoints
@@ -396,6 +461,9 @@ GameConfig.UI = {
 		-- rather than a placeholder. Edit this one string if the path moves.
 		UpgradeHintText          = "Upgrade your rod at the Rod Shop on the dock.",
 	},
+
+	-- Default mute for SoundController until settings UI persists preference.
+	SoundMutedByDefault = false,
 
 	-- Ephemeral bottom-center toasts (market sale, demand spike, quests).
 	Notification = {
@@ -775,11 +843,26 @@ GameConfig.FishHeld = {
 }
 
 -- ====================================================================
+-- AUDIO — client SoundController (ducking, ambient baseline).
+-- Asset IDs live in src/Client/AssetIds.lua only.
+-- ====================================================================
+GameConfig.Audio = {
+	DuckDb = -6,
+	DuckAttack = 0.08,
+	DuckRelease = 0.25,
+	DuckMinHold = 0.35,
+	AmbientBaseVolume = 0.28,
+	-- MusicHarborTheme baseline. Sits below AmbientBaseVolume so the ocean
+	-- stays the dominant cue and the music is the warm glow underneath.
+	-- Ducked together with ambient on SFX (see SoundController:_duckLoops).
+	MusicBaseVolume = 0.16,
+}
+
+-- ====================================================================
 -- FISH BITE FEEDBACK — client-only (FishingController._onBite).
--- Replace SoundId with a real water-splash asset before shipping.
+-- Sound asset id: AssetIds.Sounds.FishBite
 -- ====================================================================
 GameConfig.FishBite = {
-	SoundId              = "rbxassetid://0",  -- placeholder
 	SoundVolume          = 0.7,
 	CameraNudgeMagnitude = 0.3,
 	CameraNudgeDuration  = 0.30,
@@ -795,6 +878,16 @@ GameConfig.FishBite = {
 -- PointLight) live in src/Shared/Config/ModifierMutations.lua, driven
 -- by src/Shared/Util/FishMutations.lua (client-only).
 -- ====================================================================
+
+-- ====================================================================
+-- ADMIN — dev tools (AdminService / AdminController). Whitelist in AdminService.
+-- ====================================================================
+GameConfig.Admin = {
+	-- Every key in GameConfig.Weather.Transitions (Clear, Cloudy, Rain, Storm, Fog).
+	WeatherStates = _adminWeatherStates,
+	-- Studio playtests: weather panel open on join (F8 still toggles).
+	OpenWeatherPanelInStudio = true,
+}
 
 -- ====================================================================
 -- BIOME TEST HUB — Studio-only. Values consumed by BiomeTestService and

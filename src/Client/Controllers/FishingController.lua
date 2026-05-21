@@ -28,7 +28,6 @@ local Workspace         = game:GetService("Workspace")
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
 local HapticService     = game:GetService("HapticService")
-local SoundService      = game:GetService("SoundService")
 local RunService        = game:GetService("RunService")
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
@@ -91,6 +90,7 @@ local FishingController = Knit.CreateController({
 	_pendingCastId  = nil :: string?,
 	_phase          = "idle",        -- "idle" | "casting" | "reeling"
 	_castMeterCtrl  = nil :: any,    -- CastMeterController reference, set in KnitStart
+	_soundCtrl      = nil :: any,    -- SoundController reference, set in KnitStart
 	_castTrove      = nil :: any,    -- disposables for the *current* cast
 	_castButton     = nil :: any,    -- cast button GuiObject; stored so _onBite can pulse it
 })
@@ -424,31 +424,6 @@ local function flashVignette(trove: any?)
 end
 
 -- ====================================================================
--- AUDIO
--- ====================================================================
-local function playSound(soundId: string, volume: number?, position: Vector3?)
-	if not soundId or soundId == "" then return end
-	pcall(function()
-		local s = Instance.new("Sound")
-		s.SoundId = soundId
-		s.Volume = volume or 0.6
-		if position then
-			local p = Instance.new("Part")
-			p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false
-			p.Transparency = 1; p.Size = Vector3.new(0.1, 0.1, 0.1)
-			p.CFrame = CFrame.new(position)
-			p.Parent = Workspace
-			s.RollOffMaxDistance = 80
-			s.Parent = p
-			s:Play()
-			s.Ended:Connect(function() p:Destroy() end)
-		else
-			SoundService:PlayLocalSound(s)
-		end
-	end)
-end
-
--- ====================================================================
 -- LIFECYCLE
 -- ====================================================================
 function FishingController:KnitInit()
@@ -466,6 +441,7 @@ function FishingController:KnitStart()
 	local FishingService = Knit.GetService("FishingService")
 	local RodService     = Knit.GetService("RodService")
 	self._castMeterCtrl  = Knit.GetController("CastMeterController")
+	self._soundCtrl      = Knit.GetController("SoundController")
 
 	-- Authoritative end-of-cast result (miss, escape, or success).
 	self._trove:Add(FishingService.CastResolved:Connect(function(result)
@@ -546,7 +522,7 @@ function FishingController:_startCast()
 		-- second cast starting before the first resolves can't mix beams.
 		self._currentBeam = beam
 		pulseHaptic()
-		playSound(AssetIds.Sounds.CastSplash, 0.6, castPoint)
+		self._soundCtrl:Play("CastSplash", { volume = 0.6, position = castPoint })
 
 		-- ---- Cast Meter (cast phase) ----
 		-- CastMeterController owns the handle; reel signals are wired in KnitStart.
@@ -567,11 +543,24 @@ end
 function FishingController:_releaseCastMarker()
 	if not self._pendingCastId then return end
 	local castId = self._pendingCastId
-	local marker = self._castMeterCtrl:releaseCast()
+	local marker, isPerfect = self._castMeterCtrl:releaseCast()
+	if isPerfect then
+		self._soundCtrl:Play("PerfectFlash", { volume = 0.35 })
+	end
 	-- Move to a wait-for-server state so additional taps don't spam ClaimCast.
 	-- The server will resolve us into "reeling" (via BiteStarted) or "idle"
 	-- (via CastResolved on miss/error).
 	self._phase = "awaitingBite"
+
+	-- Safety net: if neither BiteStarted nor CastResolved arrives within 10s
+	-- (server error, network drop, or claim_too_late race), reset to idle so
+	-- the player isn't stuck with a frozen meter indefinitely.
+	task.delay(10, function()
+		if self._phase == "awaitingBite" and self._pendingCastId == castId then
+			warn("[FishingController] awaitingBite timed out — resetting to idle")
+			self:_disposeCast()
+		end
+	end)
 
 	local FishingService = Knit.GetService("FishingService")
 	FishingService:ClaimCast(castId, marker):andThen(function(_ack)
@@ -579,6 +568,10 @@ function FishingController:_releaseCastMarker()
 		-- (→ miss/error). Nothing to do here.
 	end):catch(function(err)
 		warn("[FishingController] ClaimCast failed:", err)
+		-- Promise rejection means the remote itself errored; unblock the client.
+		if self._phase == "awaitingBite" and self._pendingCastId == castId then
+			self:_disposeCast()
+		end
 	end)
 end
 
@@ -599,7 +592,7 @@ function FishingController:_onBite(payload: any)
 	pulseCastButton(self._castButton, trove)
 	flashVignette(trove)
 	pulseHaptic()
-	playSound(GameConfig.FishBite.SoundId, GameConfig.FishBite.SoundVolume)
+	self._soundCtrl:Play("FishBite", { volume = GameConfig.FishBite.SoundVolume })
 
 	-- Pick the tier params for this fish. Tier is now rarity-derived (server-side).
 	-- Defensive fallback to medium in case of an unexpected value.
@@ -674,7 +667,7 @@ function FishingController:_onResolved(result: any)
 end
 
 function FishingController:_celebrate(result: any)
-	playSound(AssetIds.Sounds.CatchSuccess, 0.6)
+	self._soundCtrl:Play("CatchSuccess", { volume = 0.6 })
 	-- Perfect flag is server-validated now — we trust result.perfect.
 	CatchRevealUI.show({
 		fish = result.fish,
@@ -688,7 +681,7 @@ function FishingController:_celebrate(result: any)
 end
 
 function FishingController:_fail(reason: any)
-	playSound(AssetIds.Sounds.CatchFail, 0.4)
+	self._soundCtrl:Play("CatchFail", { volume = 0.4 })
 	-- TODO: replace prints with a small ephemeral toast (reuse Aquarium toast pattern).
 	if reason == "missed" then
 		print("[Fishing] Slipped off the line!")

@@ -40,6 +40,11 @@ function HUDController:SetVisible(visible: boolean)
 end
 
 function HUDController:KnitStart()
+	if self._knitStartDone then
+		return
+	end
+	self._knitStartDone = true
+	print("[HUDController] KnitStart")
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 
 	local hudOk, hudOrErr = pcall(function()
@@ -49,10 +54,12 @@ function HUDController:KnitStart()
 		warn("[HUDController] HUD.create failed:", hudOrErr)
 		return
 	end
-	if self._hud.gui then
-		self._hud.gui.Enabled = true
-		print("[HUDController] HUD ScreenGui ready")
+	if not self._hud or not self._hud.gui then
+		warn("[HUDController] HUD.create returned no ScreenGui — check UIUtil.makeScreenGui / PlayerGui")
+		return
 	end
+	self._hud.gui.Enabled = true
+	print("[HUDController] HUD ScreenGui ready")
 
 	local ok, err = pcall(function()
 		self:_wireHUD(PlayerDataService)
@@ -60,6 +67,9 @@ function HUDController:KnitStart()
 	if not ok then
 		warn("[HUDController] Action bar / data wiring failed (HUD shell should still be visible):", err)
 	end
+
+	-- Recover if HarborEdit (or another panel) hid the HUD and did not close.
+	self:SetVisible(true)
 end
 
 function HUDController:_wireHUD(PlayerDataService: any)

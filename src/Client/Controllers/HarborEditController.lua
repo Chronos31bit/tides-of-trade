@@ -11,7 +11,6 @@ local RunService       = game:GetService("RunService")
 local Workspace        = game:GetService("Workspace")
 local Players          = game:GetService("Players")
 local GuiService       = game:GetService("GuiService")
-local SoundService     = game:GetService("SoundService")
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local GridUtil   = require(ReplicatedStorage.Shared.Util.GridUtil)
@@ -23,19 +22,7 @@ local HarborEditUI = require(script.Parent.Parent.UI.HarborEditUI)
 local GHOST_OK_COLOR = Color3.fromRGB(120, 200, 220)
 local GHOST_BAD_COLOR = Color3.fromRGB(220, 100, 100)
 
--- Finds or lazily creates the coin-clink Sound in SoundService.
--- SoundId is intentionally blank until a real asset is uploaded; Play() on
--- an empty SoundId is a silent no-op so the call site doesn't need to guard.
-local function findOrMakeCoinClinkSound(): Sound
-	local existing = SoundService:FindFirstChild("CoinClink")
-	if existing and existing:IsA("Sound") then return existing :: Sound end
-	local s = Instance.new("Sound")
-	s.Name     = "CoinClink"
-	s.SoundId  = ""   -- TODO: replace with real coin-clink rbxasset id
-	s.Volume   = 0.6
-	s.Parent   = SoundService
-	return s
-end
+local COIN_CLINK_VOLUME = 0.45
 
 local HarborEditController = Knit.CreateController({
 	Name = "HarborEditController",
@@ -54,6 +41,14 @@ local HarborEditController = Knit.CreateController({
 })
 
 function HarborEditController:KnitStart()
+	-- Reset edit mode from a prior session / hot-reload so HUD is not stuck hidden.
+	self._active = false
+	self._demolishing = false
+	self._upgrading = false
+	pcall(function()
+		Knit.GetController("HUDController"):SetVisible(true)
+	end)
+
 	local HarborService = Knit.GetService("HarborService")
 	HarborService.PlotAssigned:Connect(function(origin, size)
 		self._plotOrigin = origin
@@ -63,7 +58,7 @@ function HarborEditController:KnitStart()
 	-- Placement / upgrade confirmation FX. Coin-clink always plays; particle
 	-- burst is skipped when the player has ReducedMotionEnabled (accessibility).
 	HarborService.HarborVisualUpdate:Connect(function(_uid: string, _kind: string, _tier: number, worldPos: Vector3)
-		findOrMakeCoinClinkSound():Play()
+		Knit.GetController("SoundController"):Play("CoinClink", { volume = COIN_CLINK_VOLUME })
 		if not GuiService.ReducedMotionEnabled then
 			self:_burstPlacementFX(worldPos)
 		end

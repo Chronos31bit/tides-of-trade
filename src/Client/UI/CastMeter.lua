@@ -39,6 +39,9 @@ local function rarityColor(rarity: string): Color3
 	return GameConfig.Fishing.RarityColors[rarity] or P.Uncommon
 end
 
+export type ShowOpts = {
+}
+
 export type TierParams = {
 	zoneWidth:    number,   -- 0..1 width of the moving good zone
 	oscSpeedMul:  number,   -- multiplier on the zone oscillation speed
@@ -53,9 +56,9 @@ export type CastMeterHandle = {
 	-- The 80px cast-button circle. FishingController wires .Activated to
 	-- _releaseCastMarker as an alternative to the rod-tap path.
 	castButton: Frame,
-	-- Cast-phase release: stops the cast oscillation, returns latest marker.
-	-- The caller forwards the marker to FishingService:ClaimCast.
-	releaseCast: () -> number,
+	-- Cast-phase release: stops the cast oscillation, returns (marker, isPerfect).
+	-- isPerfect = marker was in the gold strip at release. Caller plays the ding.
+	releaseCast: () -> (number, boolean),
 	-- Begin reel mini-game. Tween cast visuals out and build reel visuals in.
 	enterReel: (weightKg: number, tier: string, params: TierParams, rarity: string) -> (),
 	-- Drive the reel indicator. Caller wires this to InputBegan/InputEnded.
@@ -75,7 +78,7 @@ local function reelPeriod(weightKg: number, params: TierParams): number
 	return math.clamp(2.5 / speed / params.oscSpeedMul, 0.4, 4.0)
 end
 
-function CastMeter.show(greenCenter: number, greenSize: number, period: number): CastMeterHandle
+function CastMeter.show(greenCenter: number, greenSize: number, period: number, opts: ShowOpts?): CastMeterHandle
 	local gui = UIUtil.makeScreenGui("CastMeter")
 	gui.DisplayOrder = UIUtil.DisplayOrder.CastMeter
 
@@ -570,16 +573,19 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number):
 	end
 
 	-- ----------------------------------------------------------------
-	-- Cast-phase release. Stop the oscillation, return latest marker. The
-	-- visuals stay in place until enterReel() takes over or stop() destroys.
+	-- Cast-phase release. Stop the oscillation, return (marker, isPerfect).
+	-- isPerfect = marker was inside the gold strip at the moment of release.
+	-- Visuals stay in place until enterReel() takes over or stop() destroys.
 	-- ----------------------------------------------------------------
-	local function releaseCast(): number
+	local function releaseCast(): (number, boolean)
 		if castConn then castConn:Disconnect(); castConn = nil end
 		-- Dim the frozen marker: signals "locked in, waiting for the bite".
 		MotionUtil.tweenOrSnap(marker, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			BackgroundTransparency = 0.5,
 		})
-		return lastMarker
+		local pLow  = greenCenter - (greenSize * FT.PerfectZoneFraction) / 2
+		local pHigh = greenCenter + (greenSize * FT.PerfectZoneFraction) / 2
+		return lastMarker, lastMarker >= pLow and lastMarker <= pHigh
 	end
 
 	local function setHold(pressed: boolean)

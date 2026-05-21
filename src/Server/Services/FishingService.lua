@@ -492,6 +492,7 @@ function FishingService.Client:ClaimCast(player: Player, castId: string, marker:
 
 	if os.clock() - pending.startedAt > GameConfig.AntiExploit.CatchClaimWindowSeconds then
 		self._pendingCasts[player] = nil
+		self.Client.CastResolved:Fire(player, { success = false, reason = "timeout" })
 		return { result = "error", reason = "claim_too_late" }
 	end
 

@@ -71,7 +71,7 @@ function CastMeterController:show(greenCenter: number, greenSize: number, period
 	local meterTrove = Trove.new()
 	self._meterTrove = meterTrove
 
-	local handle = CastMeter.show(greenCenter, greenSize, period)
+	local handle = CastMeter.show(greenCenter, greenSize, period, {})
 	self._handle = handle
 
 	-- Reduced motion: freeze the oscillation so no animation runs. The handle's
@@ -109,11 +109,11 @@ function CastMeterController:show(greenCenter: number, greenSize: number, period
 	return handle.castButton
 end
 
--- Lock the cast oscillation and return the current marker (0..1).
+-- Lock the cast oscillation and return (marker, isPerfect).
 -- Must be called just before FishingController:ClaimCast so the value is
 -- frozen before shipping to the server.
-function CastMeterController:releaseCast(): number
-	if not self._handle then return 0.5 end
+function CastMeterController:releaseCast(): (number, boolean)
+	if not self._handle then return 0.5, false end
 	return self._handle.releaseCast()
 end
 

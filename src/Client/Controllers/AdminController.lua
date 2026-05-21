@@ -1,45 +1,52 @@
 --!strict
 -- AdminController.lua
--- Client half of the admin command system. Server (AdminService) parses
--- /commands and either applies them directly to player data or, for
--- per-player presentational concerns (fly mode, popup text), fires Knit
--- signals that this controller responds to.
+-- Client half of the admin command system.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService  = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 local RunService        = game:GetService("RunService")
 local Workspace         = game:GetService("Workspace")
 local Players           = game:GetService("Players")
 local TweenService      = game:GetService("TweenService")
 local Knit              = require(ReplicatedStorage.Packages.Knit)
+local GameConfig        = require(ReplicatedStorage.Shared.Config.GameConfig)
+local Trove             = require(ReplicatedStorage.Packages.Trove)
 local UIUtil            = require(script.Parent.Parent.UI.UIUtil)
+local AdminWeatherUI    = require(script.Parent.Parent.UI.AdminWeatherUI)
+
+local ATTR_WEATHER = GameConfig.Weather.WorkspaceAttribute
+local REMOTES_FOLDER = "TidesRemotes"
+local REMOTE_FORCE_WEATHER = "ForceWeather"
 
 local AdminController = Knit.CreateController({
 	Name = "AdminController",
-
-	-- fly state
 	_flying = false,
 	_flyVelocity = nil :: BodyVelocity?,
 	_flyGyro = nil :: BodyGyro?,
 	_flyHeartbeat = nil :: RBXScriptConnection?,
 	_flyInput = { fwd = 0, side = 0, up = 0 },
-
-	-- announcement gui (singleton; reused for each announce)
 	_announceGui = nil :: ScreenGui?,
 	_announceLabel = nil :: TextLabel?,
 	_announceClearTask = nil :: thread?,
+	_weatherUi = nil :: AdminWeatherUI.AdminWeatherUI?,
+	_adminTrove = nil :: any,
+	_lastRequestedWeather = nil :: string?,
 })
 
-local FLY_SPEED = 80     -- studs per second, feels good for surveying a harbor
-local FLY_GYRO_POWER = 100_000   -- enough to make the character face camera-forward smoothly
+local FLY_SPEED = 80
+local FLY_GYRO_POWER = 100_000
 
--- ====================================================================
--- FLY MODE
--- We attach a BodyVelocity + BodyGyro to the HumanoidRootPart. The
--- BodyVelocity's vector is updated each Heartbeat based on WASD + Space
--- (up) + LeftControl (down), camera-relative. We also set
--- Humanoid.PlatformStand = true so the default ground physics don't fight us.
--- ====================================================================
+local function readAttrWeather(): string
+	local v = Workspace:GetAttribute(ATTR_WEATHER)
+	return if type(v) == "string" then v else "?"
+end
+
+local function getForceWeatherRemote(): RemoteEvent?
+	local folder = ReplicatedStorage:FindFirstChild(REMOTES_FOLDER)
+	local remote = folder and folder:FindFirstChild(REMOTE_FORCE_WEATHER)
+	return if remote and remote:IsA("RemoteEvent") then remote else nil
+end
 
 function AdminController:_startFly()
 	if self._flying then return end
@@ -49,7 +56,6 @@ function AdminController:_startFly()
 	local humanoid = char:FindFirstChildOfClass("Humanoid")
 	if not hrp or not humanoid then return end
 	self._flying = true
-
 	humanoid.PlatformStand = true
 
 	local bv = Instance.new("BodyVelocity")
@@ -73,8 +79,6 @@ function AdminController:_startFly()
 		if not self._flying or not self._flyVelocity then return end
 		local cam = Workspace.CurrentCamera
 		if not cam then return end
-		-- Compose direction from input keys, then transform by camera-yaw so
-		-- W = "forward where you're looking".
 		local fwd  = self._flyInput.fwd
 		local side = self._flyInput.side
 		local up   = self._flyInput.up
@@ -83,7 +87,6 @@ function AdminController:_startFly()
 		local dir = (lookFlat * fwd) + (rightFlat * side) + Vector3.new(0, up, 0)
 		if dir.Magnitude > 0 then dir = dir.Unit end
 		self._flyVelocity.Velocity = dir * FLY_SPEED
-		-- Face camera forward so the avatar isn't sliding sideways.
 		self._flyGyro.CFrame = CFrame.new(Vector3.zero, lookFlat)
 	end)
 end
@@ -100,28 +103,20 @@ function AdminController:_stopFly()
 	self._flyInput = { fwd = 0, side = 0, up = 0 }
 end
 
--- ====================================================================
--- ANNOUNCEMENT POPUP
--- Singleton ScreenGui that tweens text in, holds, tweens out. Multiple
--- announcements in a row replace the previous (latest wins) rather than
--- queuing — admin spam stays readable.
--- ====================================================================
 function AdminController:_ensureAnnounceGui()
 	if self._announceGui then return end
 	local gui = UIUtil.makeScreenGui("AdminAnnouncement")
 	self._announceGui = gui
-
 	local panel = UIUtil.makePanel({
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, -80),  -- starts off-screen above; tweens down
+		Position = UDim2.new(0.5, 0, 0, -80),
 		Size = UDim2.new(0.7, 0, 0, 64),
 		BackgroundColor3 = UIUtil.Palette.SunsetDeep,
 	})
 	local pcap = Instance.new("UISizeConstraint")
 	pcap.MaxSize = Vector2.new(640, 64); pcap.Parent = panel
 	panel.Parent = gui
-
 	local label = UIUtil.makeLabel("", "title", {
 		Size = UDim2.fromScale(1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -136,28 +131,176 @@ function AdminController:_announce(text: string, duration: number)
 	local panel = (self._announceGui :: ScreenGui):FindFirstChild("Banner") :: Frame
 	if not panel or not self._announceLabel then return end
 	self._announceLabel.Text = text
-
-	-- Cancel any pending fade-out so the new message doesn't get hidden early.
-	if self._announceClearTask then task.cancel(self._announceClearTask) end
-
-	-- Slide in from above the screen.
+	if self._announceClearTask then
+		pcall(task.cancel, self._announceClearTask)
+	end
 	panel.Position = UDim2.new(0.5, 0, 0, -80)
-	local slideIn = TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-	TweenService:Create(panel, slideIn, { Position = UDim2.new(0.5, 0, 0, 36) }):Play()
-
+	TweenService:Create(panel, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, 0, 0, 36),
+	}):Play()
 	self._announceClearTask = task.delay(duration, function()
-		local slideOut = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		TweenService:Create(panel, slideOut, { Position = UDim2.new(0.5, 0, 0, -80) }):Play()
+		TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.new(0.5, 0, 0, -80),
+		}):Play()
+		self._announceClearTask = nil
 	end)
 end
 
--- ====================================================================
--- INPUT BINDINGS — only active while flying. We use ContextActionService
--- via UserInputService.InputBegan/Ended so we don't permanently steal
--- keys.
--- ====================================================================
+function AdminController:_updateStatusFromAttr(locked: boolean?, mismatch: boolean?)
+	if not self._weatherUi then return end
+	local attr = readAttrWeather()
+	local lockedVal = if locked ~= nil then locked else (Workspace:GetAttribute(GameConfig.Weather.WorkspaceLockedAttribute) == true)
+	self._weatherUi.setStatus(attr, lockedVal, attr, mismatch)
+end
+
+function AdminController:_checkAttrMismatch(requested: string)
+	task.delay(0.25, function()
+		if not self._weatherUi or self._lastRequestedWeather ~= requested then return end
+		local attr = readAttrWeather()
+		local mismatch = attr ~= requested
+		if RunService:IsStudio() then
+			print(("[AdminController] weather requested=%s attr=%s mismatch=%s"):format(
+				requested, attr, tostring(mismatch)
+			))
+		end
+		self:_updateStatusFromAttr(true, mismatch)
+		if mismatch then
+			self:_announce(("Attr still %s (wanted %s)"):format(attr, requested), 3)
+		end
+	end)
+end
+
+function AdminController:_refreshWeatherStatus()
+	local WeatherService = Knit.GetService("WeatherService")
+	WeatherService:GetWeatherState():andThen(function(payload: { weather: string, timeOfDay: string })
+		local locked = Workspace:GetAttribute(GameConfig.Weather.WorkspaceLockedAttribute) == true
+		self:_updateStatusFromAttr(locked, false)
+	end):catch(function(err)
+		warn("[AdminController] GetWeatherState failed:", err)
+	end)
+end
+
+function AdminController:_setWeather(weather: string)
+	self._lastRequestedWeather = weather
+	if RunService:IsStudio() then
+		print(("[AdminController] requesting weather=%s"):format(weather))
+	end
+
+	local remote = getForceWeatherRemote()
+	if remote then
+		remote:FireServer(weather, true)
+	end
+
+	local WeatherService = Knit.GetService("WeatherService")
+	WeatherService:ForceWeather(weather, true):andThen(function(res: any)
+		if type(res) ~= "table" then
+			warn("[AdminController] ForceWeather unexpected return:", res, typeof(res))
+			self:_announce("Weather RPC returned unexpected data — see Output", 3)
+			return
+		end
+		if res.ok and res.weather then
+			self:_announce(("Weather → %s (locked)"):format(res.weather), 2)
+			if RunService:IsStudio() then
+				print(("[AdminController] ForceWeather ok → %s"):format(res.weather))
+			end
+		elseif res.reason then
+			self:_announce(("Weather failed: %s"):format(res.reason), 3)
+			warn("[AdminController] ForceWeather:", res.reason)
+		end
+		self:_checkAttrMismatch(weather)
+	end):catch(function(err)
+		warn("[AdminController] ForceWeather failed:", err)
+		self:_announce("Weather RPC failed — see Output", 3)
+	end)
+
+	self:_checkAttrMismatch(weather)
+end
+
+function AdminController:_setWeatherAuto()
+	local AdminService = Knit.GetService("AdminService")
+	AdminService:SetWeatherAuto():andThen(function(res: { ok: boolean, reason: string?, weather: string? })
+		if res.ok and res.weather then
+			self:_announce(("Weather auto (now %s)"):format(res.weather), 2)
+			self:_updateStatusFromAttr(false, false)
+		elseif res.reason then
+			self:_announce(("Weather auto failed: %s"):format(res.reason), 3)
+		end
+	end):catch(function(err)
+		warn("[AdminController] SetWeatherAuto failed:", err)
+	end)
+end
+
+function AdminController:_toggleWeatherPanel()
+	if not self._weatherUi then return end
+	local show = not self._weatherUi.isPanelVisible()
+	self._weatherUi.setPanelVisible(show)
+	if show then
+		self:_refreshWeatherStatus()
+	end
+end
+
+function AdminController:_initWeatherPanel()
+	self._weatherUi = AdminWeatherUI.build(
+		function(weather: string) self:_setWeather(weather) end,
+		function() self:_setWeatherAuto() end,
+		function() self:_toggleWeatherPanel() end
+	)
+
+	local openInStudio = RunService:IsStudio() and GameConfig.Admin.OpenWeatherPanelInStudio
+	self._weatherUi.setPanelVisible(openInStudio)
+	self:_refreshWeatherStatus()
+
+	self._adminTrove:Add(Workspace:GetAttributeChangedSignal(ATTR_WEATHER):Connect(function()
+		self:_updateStatusFromAttr(nil, false)
+	end))
+
+	self._adminTrove:Add(Workspace:GetAttributeChangedSignal(GameConfig.Weather.WorkspaceLockedAttribute):Connect(function()
+		self:_updateStatusFromAttr(nil, false)
+	end))
+
+	local WeatherService = Knit.GetService("WeatherService")
+	self._adminTrove:Add(WeatherService.WeatherChanged:Connect(function()
+		self:_updateStatusFromAttr(nil, false)
+	end))
+
+	if RunService:IsStudio() then
+		print(("[AdminController] Weather admin ready — %d states: %s"):format(
+			#GameConfig.Admin.WeatherStates,
+			table.concat(GameConfig.Admin.WeatherStates, ", ")
+		))
+	end
+end
+
 function AdminController:KnitStart()
 	local AdminService = Knit.GetService("AdminService")
+	self._adminTrove = Trove.new()
+
+	AdminService:IsAdmin():andThen(function(isAdmin: boolean)
+		if not isAdmin then
+			if RunService:IsStudio() then
+				warn("[AdminController] Not admin — add your UserId to ADMIN_USER_IDS in AdminService.lua")
+			end
+			return
+		end
+		self:_initWeatherPanel()
+
+		ContextActionService:BindAction(
+			"TidesAdminWeatherToggle",
+			function(_name, state)
+				if state == Enum.UserInputState.Begin then
+					self:_toggleWeatherPanel()
+				end
+				return Enum.ContextActionResult.Sink
+			end,
+			false,
+			Enum.KeyCode.F8
+		)
+		self._adminTrove:Add(function()
+			ContextActionService:UnbindAction("TidesAdminWeatherToggle")
+		end)
+	end):catch(function(err)
+		warn("[AdminController] IsAdmin failed:", err)
+	end)
 
 	AdminService.FlyToggled:Connect(function(on)
 		if on then self:_startFly() else self:_stopFly() end
@@ -167,8 +310,6 @@ function AdminController:KnitStart()
 		self:_announce(text, duration or 4)
 	end)
 
-	-- Always-listening input handlers. They only mutate _flyInput when in
-	-- fly mode, so non-admin keyboard usage isn't affected.
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end
 		if not self._flying then return end

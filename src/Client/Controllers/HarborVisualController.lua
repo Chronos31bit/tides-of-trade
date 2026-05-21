@@ -20,7 +20,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
 local CollectionService = game:GetService("CollectionService")
 local TweenService      = game:GetService("TweenService")
-local SoundService      = game:GetService("SoundService")
 local UserInputService  = game:GetService("UserInputService")
 local HapticService     = game:GetService("HapticService")
 
@@ -36,6 +35,7 @@ local BuildingAssetUtil     = require(ReplicatedStorage.Shared.Util.BuildingAsse
 local VT = GameConfig.Harbor.VisualTuning
 
 local DEBRIS_TAG = "HarborDebris"
+local BUILDING_ANCHOR_TAG = "BuildingAnchor"
 
 local HarborVisualController = Knit.CreateController({
 	Name = "HarborVisualController",
@@ -334,9 +334,7 @@ function HarborVisualController:_animateUpgrade(plotOwnerId: number, plotOrigin:
 	task.delay(VT.ParticleSpawnDelay * timeScale, function()
 		if not newModel.Parent then return end
 		if not reduced then self:_particleBurst(newModel, newTrove) end
-		-- TODO: rbxassetid for the "ka-chunk + chime" upgrade sound.
-		-- Aesthetic: short satisfying mechanical click + soft chime tail.
-		self:_playUpgradeSound("")
+		Knit.GetController("SoundController"):Play("HarborUpgrade", { volume = 0.5 })
 		self:_upgradeHaptic()
 	end)
 
@@ -434,20 +432,8 @@ function HarborVisualController:_particleBurst(model: Model, trove: any)
 end
 
 -- ====================================================================
--- AUDIO / HAPTIC
+-- HAPTIC
 -- ====================================================================
-function HarborVisualController:_playUpgradeSound(soundId: string)
-	if not soundId or soundId == "" then return end
-	pcall(function()
-		local s = Instance.new("Sound")
-		s.SoundId = soundId
-		s.Volume = 0.5
-		s.Parent = SoundService
-		s:Play()
-		s.Ended:Connect(function() s:Destroy() end)
-	end)
-end
-
 function HarborVisualController:_upgradeHaptic()
 	-- Mobile: single medium pulse via the Touch motor. Gamepad gets a small
 	-- bump for parity (cheap, no opt-in needed). PC: noop.
@@ -604,8 +590,14 @@ end
 -- LIFECYCLE
 -- ====================================================================
 function HarborVisualController:KnitStart()
+	if self._knitStartDone then
+		return
+	end
+	self._knitStartDone = true
+	print("[HarborVisualController] KnitStart")
 	self:_ensureRoot()
 	local HarborVisualService = Knit.GetService("HarborVisualService")
+	local PlayerDataService = Knit.GetService("PlayerDataService")
 
 	HarborVisualService.HarborVisualUpdate:Connect(function(payload)
 		local ok, err = pcall(function()
@@ -622,26 +614,81 @@ function HarborVisualController:KnitStart()
 		self:_onClear(plotOwnerId)
 	end)
 
-	-- Server join-replay often fires before this controller connects.
-	HarborVisualService:RequestWorldReplay():andThen(function()
-		-- RequestWorldReplay is a RemoteFunction. The server fires one
-		-- HarborVisualUpdate RemoteEvent per building and then returns true.
-		-- Both use the same ordered channel, but the RemoteEvent callbacks
-		-- are deferred into the next task-scheduler step. Yielding one frame
-		-- lets those queued _onUpdate calls run before we count models.
-		task.wait()
-		local root = self:_ensureRoot()
-		local count = 0
-		for _, child in ipairs(root:GetChildren()) do
-			for _, m in ipairs(child:GetChildren()) do
-				if m:IsA("Model") then
-					count += 1
-				end
+	-- Profile / building snapshots can arrive after the first replay.
+	PlayerDataService.ProfileLoaded:Connect(function()
+		task.defer(function()
+			self:_requestWorldReplay(1)
+		end)
+	end)
+	PlayerDataService.BuildingsChanged:Connect(function()
+		task.defer(function()
+			self:_requestWorldReplay(1)
+		end)
+	end)
+
+	-- Server anchors can appear after the first replay; resync visuals.
+	local anchorDebounce = false
+	self._trove = self._trove or Trove.new()
+	self._trove:Add(CollectionService:GetInstanceAddedSignal(BUILDING_ANCHOR_TAG):Connect(function()
+		if anchorDebounce then return end
+		anchorDebounce = true
+		task.delay(0.5, function()
+			anchorDebounce = false
+			self:_requestWorldReplay(1)
+		end)
+	end))
+
+	self:_requestWorldReplay()
+end
+
+-- Count spawned harbor building models under HarborVisuals.
+function HarborVisualController:_countBuildingModels(): number
+	local root = self:_ensureRoot()
+	local count = 0
+	for _, child in ipairs(root:GetChildren()) do
+		for _, m in ipairs(child:GetChildren()) do
+			if m:IsA("Model") then
+				count += 1
 			end
 		end
-		print(("[HarborVisualController] Replay done — %d building model(s) in HarborVisuals"):format(count))
+	end
+	return count
+end
+
+-- Server join-replay can race KnitStart (events deferred) or run before
+-- profiles are ready. Retry briefly so the dock is not empty on first join.
+function HarborVisualController:_requestWorldReplay(attempt: number?)
+	local attemptNum = attempt or 1
+	local maxAttempts = 4
+	local HarborVisualService = Knit.GetService("HarborVisualService")
+
+	local replayPending = true
+	task.delay(8, function()
+		if replayPending then
+			warn("[HarborVisualController] RequestWorldReplay still pending after 8s — retrying")
+			self:_requestWorldReplay((attemptNum :: number) + 1)
+		end
+	end)
+
+	HarborVisualService:RequestWorldReplay():andThen(function()
+		replayPending = false
+		local deadline = os.clock() + 2.5
+		local count = 0
+		while os.clock() < deadline do
+			task.wait()
+			count = self:_countBuildingModels()
+			if count > 0 then break end
+		end
+
+		print(("[HarborVisualController] Replay done — %d building model(s) in HarborVisuals (attempt %d)"):format(count, attemptNum))
+		if count == 0 and attemptNum < maxAttempts then
+			task.delay(0.75 * attemptNum, function()
+				self:_requestWorldReplay(attemptNum + 1)
+			end)
+			return
+		end
 		if count == 0 then
-			warn("[HarborVisualController] No building visuals — install ReplicatedStorage.Assets.Buildings (see scripts/Studio/MCP_HarborBuildings.md) or check Output for spawn errors")
+			warn("[HarborVisualController] No building visuals after retries — install ReplicatedStorage.Assets.Buildings (see scripts/Studio/MCP_HarborBuildings.md) or check Output for spawn errors")
 		end
 	end):catch(function(err)
 		warn("[HarborVisualController] RequestWorldReplay failed:", err)

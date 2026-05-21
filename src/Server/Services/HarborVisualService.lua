@@ -73,12 +73,28 @@ end
 -- Push every online player's building visuals to one client. Used on join
 -- (server-side replay) and when the client finishes KnitStart — initial
 -- FireAll/Fire calls often land before HarborVisualController connects.
+-- Fire HarborVisualUpdate for every building on a player's plot. Called after
+-- HarborService finishes spawning anchors so visuals are not lost to join races.
+function HarborVisualService:BroadcastPlayerBuildings(player: Player)
+	local HarborService = Knit.GetService("HarborService")
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:WaitForProfile(player, 15)
+	if not data then return end
+	local origin = HarborService:GetPlotOrigin(player)
+	if not origin then return end
+	for _, b in ipairs(data.buildings) do
+		self.Client.HarborVisualUpdate:FireAll(makePayload(player.UserId, origin, b, nil, b.tier))
+	end
+end
+
 function HarborVisualService:_replayWorldTo(player: Player)
 	local HarborService = Knit.GetService("HarborService")
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	for _, owner in ipairs(Players:GetPlayers()) do
-		local data = PlayerDataService:GetProfile(owner); if not data then continue end
-		local origin = HarborService:GetPlotOrigin(owner); if not origin then continue end
+		local data = PlayerDataService:WaitForProfile(owner, 15)
+		if not data then continue end
+		local origin = HarborService:GetPlotOrigin(owner)
+		if not origin then continue end
 		for _, b in ipairs(data.buildings) do
 			self.Client.HarborVisualUpdate:Fire(player, makePayload(owner.UserId, origin, b, nil, b.tier))
 		end

@@ -1,26 +1,40 @@
 --!strict
 -- WeatherService.lua
 -- Drives the Lighting environment (clock time, atmosphere, post-FX) and
--- exposes the current weather/timeOfDay to other services. The state machine
--- is a simple weighted Markov chain configured in GameConfig.Weather.
+-- exposes the current weather/timeOfDay to other services.
 
 local Lighting          = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players           = game:GetService("Players")
+local Workspace         = game:GetService("Workspace")
+local RunService        = game:GetService("RunService")
 
-local Knit       = require(ReplicatedStorage.Packages.Knit)
-local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local Knit           = require(ReplicatedStorage.Packages.Knit)
+local GameConfig     = require(ReplicatedStorage.Shared.Config.GameConfig)
+local WeatherVisuals = require(ReplicatedStorage.Shared.Util.WeatherVisuals)
+
+local ATTR_WEATHER = GameConfig.Weather.WorkspaceAttribute
+local ATTR_LOCKED  = GameConfig.Weather.WorkspaceLockedAttribute
+local REMOTES_FOLDER = "TidesRemotes"
+local REMOTE_FORCE_WEATHER = "ForceWeather"
 
 local WeatherService = Knit.CreateService({
 	Name = "WeatherService",
 	Client = {
-		WeatherChanged = Knit.CreateSignal(),  -- (weather)
-		TimeOfDayChanged = Knit.CreateSignal(),-- (timeOfDay)
+		WeatherChanged = Knit.CreateSignal(),
+		TimeOfDayChanged = Knit.CreateSignal(),
 	},
 	_weather = "Clear",
 	_timeOfDay = "Day",
-	_clock = 8,  -- starts at 08:00 game-time
+	_clock = 8,
+	_weatherLocked = false,
+	_forceWeatherRemote = nil :: RemoteEvent?,
 })
+
+local VALID_WEATHER: {[string]: boolean} = {}
+for state in pairs(GameConfig.Weather.Transitions) do
+	VALID_WEATHER[state] = true
+end
 
 local function pickNext(current: string): string
 	local row = GameConfig.Weather.Transitions[current]
@@ -35,58 +49,85 @@ local function pickNext(current: string): string
 end
 
 local function classifyTimeOfDay(clock: number): string
-	-- Bands match GameConfig comments: Morning 5-9, Day 9-17, Dusk 17-20, Night 20-5.
 	if clock >= 5 and clock < 9 then return "Morning" end
 	if clock >= 9 and clock < 17 then return "Day" end
 	if clock >= 17 and clock < 20 then return "Dusk" end
 	return "Night"
 end
 
--- Lazily create the Atmosphere instance the first time we need it. Doing
--- this in code (rather than the Rojo project file) keeps the project file
--- minimal and avoids Color3-as-array deserialization issues.
-local function ensureAtmosphere(): Atmosphere
-	local atm = Lighting:FindFirstChildOfClass("Atmosphere")
-	if atm then return atm end
-	atm = Instance.new("Atmosphere")
-	atm.Density = 0.35
-	atm.Glare = 0.3
-	atm.Haze = 1.2
-	atm.Color = Color3.fromRGB(232, 200, 168)
-	atm.Decay = Color3.fromRGB(153, 115, 89)
-	atm.Parent = Lighting
-	return atm
+function WeatherService:_syncWorkspaceAttributes()
+	Workspace:SetAttribute(ATTR_WEATHER, self._weather)
+	Workspace:SetAttribute(ATTR_LOCKED, self._weatherLocked)
 end
 
-function WeatherService:_applyVisuals()
-	-- ClockTime drives sun position. We update it each tick.
-	Lighting.ClockTime = self._clock
-
-	local atm = ensureAtmosphere()
-
-	if self._weather == "Clear" then
-		atm.Density = 0.30; atm.Haze = 1.0
-		atm.Color = Color3.fromRGB(232, 200, 168)
-	elseif self._weather == "Cloudy" then
-		atm.Density = 0.45; atm.Haze = 1.6
-		atm.Color = Color3.fromRGB(190, 190, 195)
-	elseif self._weather == "Rain" then
-		atm.Density = 0.55; atm.Haze = 2.0
-		atm.Color = Color3.fromRGB(150, 160, 175)
-	elseif self._weather == "Storm" then
-		atm.Density = 0.65; atm.Haze = 2.6
-		atm.Color = Color3.fromRGB(110, 115, 130)
-	elseif self._weather == "Fog" then
-		atm.Density = 0.6; atm.Haze = 3.5
-		atm.Color = Color3.fromRGB(220, 220, 220)
+function WeatherService:_broadcastWeather()
+	for _, player in ipairs(Players:GetPlayers()) do
+		self.Client.WeatherChanged:Fire(player, self._weather)
 	end
 end
 
-function WeatherService:KnitStart()
-	-- Two background loops: one advances time-of-day, one rolls weather.
-	-- A real game-day completes in MinutesPerGameDay real minutes.
+function WeatherService:SetWeather(weather: string, lockMarkov: boolean?): boolean
+	if not VALID_WEATHER[weather] then
+		return false
+	end
+	self._weather = weather
+	if lockMarkov ~= nil then
+		self._weatherLocked = lockMarkov
+	end
+	self:_syncWorkspaceAttributes()
+	self:_applyVisuals()
+	self:_broadcastWeather()
+	if RunService:IsStudio() then
+		print(("[WeatherService] SetWeather → %s locked=%s"):format(weather, tostring(self._weatherLocked)))
+	end
+	return true
+end
 
-	-- Time-of-day loop: advance ClockTime by 1 hour every (MinutesPerGameDay * 60 / 24) seconds.
+function WeatherService:UnlockWeather()
+	self._weatherLocked = false
+	self:_syncWorkspaceAttributes()
+end
+
+function WeatherService:IsWeatherLocked(): boolean
+	return self._weatherLocked
+end
+
+function WeatherService:_applyVisuals()
+	Lighting.ClockTime = self._clock
+	WeatherVisuals.apply(self._weather)
+end
+
+function WeatherService:_handleForceWeatherRequest(player: Player, weather: string, lockMarkov: boolean?)
+	local AdminService = Knit.GetService("AdminService")
+	if not AdminService:_isAdmin(player) then
+		return
+	end
+	if type(weather) ~= "string" or not VALID_WEATHER[weather] then
+		return
+	end
+	local lock = if lockMarkov == nil then true else lockMarkov
+	self:SetWeather(weather, lock)
+end
+
+function WeatherService:KnitStart()
+	local folder = ReplicatedStorage:FindFirstChild(REMOTES_FOLDER)
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = REMOTES_FOLDER
+		folder.Parent = ReplicatedStorage
+	end
+	local remote = folder:FindFirstChild(REMOTE_FORCE_WEATHER)
+	if not remote or not remote:IsA("RemoteEvent") then
+		remote = Instance.new("RemoteEvent")
+		remote.Name = REMOTE_FORCE_WEATHER
+		remote.Parent = folder
+	end
+	self._forceWeatherRemote = remote
+
+	remote.OnServerEvent:Connect(function(player: Player, weather: string, lockMarkov: boolean?)
+		self:_handleForceWeatherRequest(player, weather, lockMarkov)
+	end)
+
 	task.spawn(function()
 		local secondsPerHour = (GameConfig.TimeOfDay.MinutesPerGameDay * 60) / 24
 		while true do
@@ -103,27 +144,59 @@ function WeatherService:KnitStart()
 		end
 	end)
 
-	-- Weather loop.
 	task.spawn(function()
 		while true do
 			task.wait(GameConfig.Weather.TickSeconds)
-			local next_ = pickNext(self._weather)
-			if next_ ~= self._weather then
-				self._weather = next_
-				self:_applyVisuals()
-				for _, player in ipairs(Players:GetPlayers()) do
-					self.Client.WeatherChanged:Fire(player, next_)
+			if not self._weatherLocked then
+				local next_ = pickNext(self._weather)
+				if next_ ~= self._weather then
+					self._weather = next_
+					self:_syncWorkspaceAttributes()
+					self:_applyVisuals()
+					self:_broadcastWeather()
 				end
 			end
 		end
 	end)
 
-	-- Initial paint so the world looks intentional from second zero.
+	Players.PlayerAdded:Connect(function(player)
+		self.Client.WeatherChanged:Fire(player, self._weather)
+		self.Client.TimeOfDayChanged:Fire(player, self._timeOfDay)
+	end)
+
+	self:_syncWorkspaceAttributes()
 	self:_applyVisuals()
 end
 
 function WeatherService:GetWeather(): string return self._weather end
 function WeatherService:GetTimeOfDay(): string return self._timeOfDay end
 function WeatherService:GetClock(): number return self._clock end
+
+function WeatherService.Client:ForceWeather(
+	player: Player,
+	weather: string,
+	lockMarkov: boolean?
+): { ok: boolean, reason: string?, weather: string? }
+	local server = self.Server
+	local AdminService = Knit.GetService("AdminService")
+	if not AdminService:_isAdmin(player) then
+		return { ok = false, reason = "denied" }
+	end
+	if not VALID_WEATHER[weather] then
+		return { ok = false, reason = "invalid" }
+	end
+	local lock = if lockMarkov == nil then true else lockMarkov
+	if not server:SetWeather(weather, lock) then
+		return { ok = false, reason = "failed" }
+	end
+	return { ok = true, weather = server:GetWeather() }
+end
+
+function WeatherService.Client:GetWeatherState(_player: Player): { weather: string, timeOfDay: string }
+	return {
+		weather = self.Server:GetWeather(),
+		timeOfDay = self.Server:GetTimeOfDay(),
+	}
+end
 
 return WeatherService

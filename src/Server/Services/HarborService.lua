@@ -324,6 +324,13 @@ function HarborService:_spawnExistingBuildings(player: Player)
 	for _, b in ipairs(data.buildings) do
 		self:_spawnBuildingVisual(player, b)
 	end
+	-- Anchors exist; push client visuals after Knit is fully up (setupPlayer can
+	-- finish before HarborVisualService:KnitStart during fast profile loads).
+	task.defer(function()
+		if not player.Parent then return end
+		local HarborVisualService = Knit.GetService("HarborVisualService")
+		HarborVisualService:BroadcastPlayerBuildings(player)
+	end)
 end
 
 function HarborService:_destroyBuildingVisual(player: Player, uid: string)

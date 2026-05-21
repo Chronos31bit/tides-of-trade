@@ -10,6 +10,21 @@
       },
       "Shared": {
         "$path": "src/Shared"
+      },
+      "TidesClient": {
+        "$className": "Folder",
+        "Bootstrap": {
+          "$path": "src/Client/Bootstrap.lua"
+        },
+        "Controllers": {
+          "$path": "src/Client/Controllers"
+        },
+        "UI": {
+          "$path": "src/Client/UI"
+        },
+        "AssetIds": {
+          "$path": "src/Client/AssetIds.lua"
+        }
       }
     },
 
@@ -25,7 +40,7 @@
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "Client": {
-          "$path": "src/Client"
+          "$path": "src/Client/Client.client.lua"
         }
       }
     },

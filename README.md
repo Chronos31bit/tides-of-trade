@@ -194,8 +194,8 @@ tiers; `HarborService` and `MarketService` automatically pick up:
 These are stubbed with placeholder logic. Search the codebase for `TODO:` to
 find them all:
 
-- **Audio asset IDs**: `WorldFXController.lua` references a placeholder
-  ambient ocean sound. Replace with your `rbxassetid://...`.
+- **Audio asset IDs**: Phase 1 library IDs in `src/Client/AssetIds.lua`
+  (see `assets/audio/TRACKING.md`). Replace with your uploads when ready.
 - **Building meshes**: `HarborService:_spawnBuildingVisual` makes a tinted
   box. Swap with a `:Clone()` from `ReplicatedStorage.Assets.Buildings.<kind>`.
 - **Animations**: Emotes are server-broadcast but `SocialController` only

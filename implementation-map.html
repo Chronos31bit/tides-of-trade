@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tides of Trade — Implementation Map</title>
+<style>
+:root{
+  --bg:#0b1220; --ink:#e7eef9; --muted:#8aa0bd;
+  --panel:#121c33; --panel2:#1a2645; --line:#2a3a63;
+  --done:#22c55e; --done-bg:rgba(34,197,94,.12); --done-bd:rgba(34,197,94,.45);
+  --wip:#f59e0b; --wip-bg:rgba(245,158,11,.12); --wip-bd:rgba(245,158,11,.45);
+  --todo:#60a5fa; --todo-bg:rgba(96,165,250,.10); --todo-bd:rgba(96,165,250,.40);
+  --gap:#f97316; --gap-bg:rgba(249,115,22,.12); --gap-bd:rgba(249,115,22,.45);
+  --post:#a78bfa; --post-bg:rgba(167,139,250,.12); --post-bd:rgba(167,139,250,.45);
+  --pillar:#7dd3fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+body{padding:18px 20px 80px;max-width:1400px;margin:0 auto}
+
+h1{font-size:20px;font-weight:700;letter-spacing:-.4px}
+.sub{color:var(--muted);font-size:12px;margin-top:4px;max-width:760px;line-height:1.5}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:5px 10px;border-radius:14px}
+.leg .sw{width:9px;height:9px;border-radius:50%}
+.sw.s-done{background:var(--done)} .sw.s-wip{background:var(--wip)} .sw.s-todo{background:var(--todo)} .sw.s-gap{background:var(--gap)} .sw.s-post{background:var(--post)}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+.pill{background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;padding:6px 12px;border-radius:20px;cursor:pointer;transition:all .15s}
+.pill:hover{color:var(--ink);border-color:var(--pillar)}
+.pill.on{background:rgba(125,211,252,.12);border-color:var(--pillar);color:var(--pillar)}
+.spacer{flex:1;min-width:8px}
+.tag{font-size:11px;color:var(--muted)}
+
+/* graph */
+.graph{position:relative;margin-top:22px;background:linear-gradient(180deg,#0c1428 0%,#0a1124 100%);border:1px solid var(--line);border-radius:14px;padding:18px;overflow:hidden}
+.graph-inner{position:relative;width:100%;min-height:760px}
+svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.lane-title{position:absolute;font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);top:6px;text-align:center;transform:translateX(-50%)}
+
+.node{position:absolute;width:148px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 11px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;user-select:none;transform:translate(-50%,-50%)}
+.node:hover{transform:translate(-50%,-50%) translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.node:focus-visible{outline:2px solid var(--pillar);outline-offset:2px}
+.node .nm{font-size:12px;font-weight:600;line-height:1.2}
+.node .sb{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.3}
+.node .badge{position:absolute;top:-7px;right:-7px;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+
+.node.done{background:var(--done-bg);border-color:var(--done-bd)}
+.node.done .nm{color:var(--done)}
+.node.wip{background:var(--wip-bg);border-color:var(--wip-bd)}
+.node.wip .nm{color:var(--wip)}
+.node.todo{background:var(--todo-bg);border-color:var(--todo-bd)}
+.node.todo .nm{color:var(--todo)}
+.node.gap{background:var(--gap-bg);border-color:var(--gap-bd)}
+.node.gap .nm{color:var(--gap)}
+.node.post{background:var(--post-bg);border-color:var(--post-bd)}
+.node.post .nm{color:var(--post)}
+.node.dim{opacity:.22}
+.node.hl{box-shadow:0 0 0 2px var(--pillar),0 10px 28px rgba(125,211,252,.22)}
+
+.edge{stroke:var(--line);stroke-width:1.4;fill:none;transition:stroke .15s,stroke-width .15s,opacity .15s}
+.edge.active{stroke:var(--pillar);stroke-width:2}
+.edge.dim{opacity:.15}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(2,6,18,.72);display:none;align-items:center;justify-content:center;padding:18px;z-index:50;backdrop-filter:blur(6px)}
+.scrim.on{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:760px;width:100%;max-height:88vh;overflow:auto}
+.mh{padding:18px 20px 12px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.mh .ttl{font-size:16px;font-weight:700}
+.mh .ms{font-size:12px;color:var(--muted);margin-top:3px}
+.chip{font-size:10px;font-weight:700;letter-spacing:.4px;padding:3px 8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);text-transform:uppercase}
+.chip.done{color:var(--done);border-color:var(--done-bd);background:var(--done-bg)}
+.chip.wip{color:var(--wip);border-color:var(--wip-bd);background:var(--wip-bg)}
+.chip.todo{color:var(--todo);border-color:var(--todo-bd);background:var(--todo-bg)}
+.chip.gap{color:var(--gap);border-color:var(--gap-bd);background:var(--gap-bg)}
+.chip.post{color:var(--post);border-color:var(--post-bd);background:var(--post-bg)}
+.close{margin-left:auto;background:transparent;border:0;color:var(--muted);font-size:22px;cursor:pointer;padding:0 4px}
+.close:hover{color:var(--ink)}
+.mb{padding:14px 20px 20px}
+.mb h4{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;font-weight:700}
+.mb h4:first-child{margin-top:0}
+.mb p{font-size:13px;line-height:1.55;color:var(--ink)}
+.mb ul{margin:4px 0 0 18px;color:var(--ink);font-size:13px;line-height:1.55}
+.mb ul li{margin-bottom:3px}
+.prompt-box{position:relative;background:#06101f;border:1px solid var(--line);border-radius:10px;padding:14px 14px 14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;color:#cfe2ff;white-space:pre-wrap;word-wrap:break-word;margin-top:6px}
+.prompt-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn{background:var(--pillar);color:#062136;border:0;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;transition:filter .15s}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--pillar)}
+.pillars-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.pchip{font-size:10px;padding:3px 8px;border-radius:10px;border:1px dashed var(--line);color:var(--muted)}
+
+@media (max-width:780px){
+  .node{width:124px;padding:7px 9px}
+  .node .nm{font-size:11px}
+  .node .sb{font-size:9px}
+  .graph-inner{min-height:1400px}
+}
+</style>
+</head>
+<body>
+
+<h1>Tides of Trade — Implementation Map</h1>
+<p class="sub">A <strong>dependency flowchart</strong> of every system in the game. Each node shows current status; click any node to open a CLAUDE.md-guarded prompt you can paste into Claude Code or Cursor. Arrows point from prerequisites → consumers. Filter by status or design pillar to focus.</p>
+
+<div class="legend">
+  <span class="leg"><span class="sw s-done"></span>Done / shipped</span>
+  <span class="leg"><span class="sw s-wip"></span>In progress</span>
+  <span class="leg"><span class="sw s-todo"></span>Planned (near-term)</span>
+  <span class="leg"><span class="sw s-gap"></span>Critical gap</span>
+  <span class="leg"><span class="sw s-post"></span>Post-launch</span>
+</div>
+
+<div class="controls">
+  <span class="tag">Filter by status:</span>
+  <button class="pill on" data-filter="all">All</button>
+  <button class="pill" data-filter="done">Done</button>
+  <button class="pill" data-filter="wip">In progress</button>
+  <button class="pill" data-filter="todo">Planned</button>
+  <button class="pill" data-filter="gap">Gaps</button>
+  <button class="pill" data-filter="post">Post-launch</button>
+  <span class="spacer"></span>
+  <span class="tag">Pillar:</span>
+  <button class="pill on" data-pillar="all">All</button>
+  <button class="pill" data-pillar="cozy">Cozy</button>
+  <button class="pill" data-pillar="visible">Visible</button>
+  <button class="pill" data-pillar="mobile">Mobile</button>
+  <button class="pill" data-pillar="server">Server-auth</button>
+  <button class="pill" data-pillar="identity">Identity-only $$</button>
+</div>
+
+<div class="graph">
+  <div class="graph-inner" id="graph">
+    <svg class="edges" id="edges" preserveAspectRatio="none"></svg>
+    <!-- nodes injected by JS -->
+  </div>
+</div>
+
+<div class="scrim" id="scrim" role="dialog" aria-modal="true">
+  <div class="modal" id="modal">
+    <div class="mh">
+      <div>
+        <div class="ttl" id="m-title">—</div>
+        <div class="ms" id="m-sub">—</div>
+        <div class="pillars-row" id="m-pillars"></div>
+      </div>
+      <span class="chip" id="m-chip">—</span>
+      <button class="close" id="m-close" aria-label="Close">×</button>
+    </div>
+    <div class="mb">
+      <h4>Why this matters</h4>
+      <p id="m-why">—</p>
+      <h4>What needs doing</h4>
+      <ul id="m-todo"></ul>
+      <h4>Prompt for Claude</h4>
+      <div class="prompt-box" id="m-prompt">—</div>
+      <div class="prompt-actions">
+        <button class="btn" id="m-copy">Copy prompt</button>
+        <button class="btn ghost" id="m-send">Send to Claude here</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   NODES — each placed on a lane (column) and row (vertical pos)
+   Lanes (x): 0=Foundations, 1=Loop, 2=World, 3=Progression, 4=Social, 5=Polish/Monetize
+   y is normalized 0..1 within the canvas
+   ============================================================ */
+const LANES = ["Foundations","Core Loop","Living World","Progression","Social","Polish & $$"];
+const NODES = [
+  // Foundations (lane 0) - mostly done
+  {id:"profile",  name:"PlayerData",      sub:"ProfileService", lane:0, y:.07, status:"done",
+   pillars:["server"],
+   why:"Single source of truth for coins/inventory/buildings. Already shipped via ProfileService + session locks.",
+   todo:["No work needed. Don't bump TidesProfile_v1 — that wipes saves."],
+   prompt:"Open src/Server/Services/PlayerDataService.lua and explain in 5 bullets how the ProfileService reconcile pattern handles additive schema changes without a version bump. Reference src/Shared/Types.lua for the current Profile shape."},
+
+  {id:"knit",     name:"Knit framework", sub:"Services + Controllers", lane:0, y:.18, status:"done",
+   pillars:["server"],
+   why:"Service/controller scaffolding is in place per CLAUDE.md.",
+   todo:["No work needed — additive only."],
+   prompt:"Audit src/Server/Services/ and src/Client/Controllers/ against the Knit conventions in CLAUDE.md. Flag any service that creates connections/tweens without holding a Trove."},
+
+  {id:"config",   name:"GameConfig",     sub:"All tuning values", lane:0, y:.30, status:"done",
+   pillars:["server"],
+   why:"All tunable values centralized per CLAUDE.md.",
+   todo:["Sweep code for magic numbers and migrate any stragglers."],
+   prompt:"Grep src/Server and src/Client for magic numbers (numeric literals used in gameplay logic). For each, propose a namespaced sub-table key in src/Shared/Config/GameConfig.lua and show the patch. Don't change behavior — only relocate constants."},
+
+  {id:"rate",     name:"Anti-exploit",   sub:"RateLimiter + checks", lane:0, y:.42, status:"wip",
+   pillars:["server"],
+   why:"Rate limiter is shipped; per-remote validation coverage is uneven. See MarketService/HarborService TODOs about a Remote/Server affix sweep.",
+   todo:["Audit every RemoteEvent handler for ownership + rate-limit + value-range checks.","Reel-release window validation (6s claim) — confirm tampering is blocked."],
+   prompt:"Per CLAUDE.md (server-authoritative, client can only request): audit every RemoteEvent handler under src/Server/Services/. For each, verify (a) ownership check, (b) RateLimiter call, (c) value-range validation. Produce a table of remote → pass/fail with file:line. Do not change code yet."},
+
+  // Core Loop (lane 1)
+  {id:"fishing",  name:"Fishing",        sub:"Cast meter + reel", lane:1, y:.08, status:"done",
+   pillars:["cozy","mobile","server"],
+   why:"Server-authoritative cast → reel → award flow works end-to-end with mobile-friendly meter.",
+   todo:["Reel validation hardening (see Anti-exploit node)."],
+   prompt:"Read src/Server/Services/FishingService.lua and src/Client/Controllers/FishingController.lua. Confirm the server picks the fish before the client knows, and the client only signals timing release. List any path where the client can influence outcome beyond timing."},
+
+  {id:"inv",      name:"Inventory",      sub:"Catch storage + sell", lane:1, y:.22, status:"done",
+   pillars:["mobile","server"],
+   why:"Inventory UI + sell flow shipped.",
+   todo:["Touch-target audit at 380px portrait."],
+   prompt:"Open src/Client/UI/InventoryUI.lua. At a 380px-wide portrait viewport, audit every interactive element for the 44px min hit-target rule from CLAUDE.md. Report violations with line numbers and propose patches that don't change layout for larger devices."},
+
+  {id:"market",   name:"Cross-server Market", sub:"DataStore + Messaging", lane:1, y:.36, status:"done",
+   pillars:["cozy","server"],
+   why:"Listings + buy flow are live with DataStore-backed cross-server search.",
+   todo:["Price history sparkline (see node).","Listing browsing perf at scale."],
+   prompt:"Open src/Server/Services/MarketService.lua. Walk me through the Create → list → Buy lifecycle and confirm that the inventory item is only removed AFTER the listing DataStore write succeeds, per CLAUDE.md anti-exploit notes."},
+
+  {id:"price",    name:"Price History",  sub:"Sparkline + trends", lane:1, y:.50, status:"todo",
+   pillars:["cozy"],
+   why:"Players need to feel market dynamics. Sparkline on MarketUI cards gives traders a reason to time sales without being stressful.",
+   todo:["Server: rolling 24h price window per fish.id in MarketService.","Client: tiny canvas/sparkline component on MarketUI listing cards.","No fail states — read-only info."],
+   prompt:"Per CLAUDE.md, design a price-history sparkline feature. Server-side: add a rolling 24-hour price log per fish.id to MarketService (DataStore-backed). Client-side: add a 60×16 sparkline above each listing card in src/Client/UI/MarketUI.lua. No magic numbers — all in GameConfig.Market.PriceHistory. Cozy tone, no FOMO copy. Show a step-by-step plan first, then the patches."},
+
+  // World (lane 2)
+  {id:"tide",     name:"Tide cycle",     sub:"20-min cycle", lane:2, y:.07, status:"done",
+   pillars:["cozy","visible"],
+   why:"Server-driven tide loop is live; weather pulls from it.",
+   todo:["Make the visible water shift more dramatic for cozy 'visible transformation' pillar."],
+   prompt:"Read src/Server/Services/TideService.lua and src/Client/Controllers/WorldFXController.lua. Currently the tide cycle is mostly numeric. Propose 3 cheap, CLAUDE.md-compliant ways to make the tide visually OBVIOUS from 30 studs away (per visible-transformation pillar) without combat/failure states. Then implement option 1."},
+
+  {id:"weather",  name:"Weather",        sub:"Markov + lighting", lane:2, y:.20, status:"done",
+   pillars:["cozy","visible"],
+   why:"Weather rotation shipped.",
+   todo:["WorldFXController has a TODO to spawn rain ParticleEmitters during rainy phases."],
+   prompt:"Open src/Client/Controllers/WorldFXController.lua line ~66. Implement the rain ParticleEmitters under the camera when WeatherService broadcasts a rainy phase. Respect GuiService.ReducedMotionEnabled — reduce particle count and disable wind sway when enabled. Keep all tuning in GameConfig."},
+
+  {id:"harbor",   name:"Harbor Building", sub:"Plot + 6 building kinds", lane:2, y:.33, status:"wip",
+   pillars:["visible","server"],
+   why:"Placement + persistence work. Visuals are placeholder cubes (HarborService:_spawnBuildingVisual TODO).",
+   todo:["Swap placeholder cubes for real cloned models from ReplicatedStorage.Assets.Buildings.<kind>.","Wire tier visuals so upgrades are visible from 30 studs away."],
+   prompt:"CRITICAL: this hits the 'visible transformation' design pillar. Read src/Server/Services/HarborService.lua (look at _spawnBuildingVisual around line 260). Plan the swap from placeholder cubes to ReplicatedStorage.Assets.Buildings.<kind>.Tier<n> clones. Constraints: server-authoritative, no client-side spawning, StreamingEnabled aware, no animations during upgrade that violate ReducedMotion. Output a step-by-step plan first."},
+
+  {id:"meshes",   name:"Building Meshes", sub:"Art assets per tier", lane:2, y:.46, status:"gap",
+   pillars:["visible"],
+   why:"Without real meshes, the 'visible transformation' pillar fails entirely. This is the highest-impact visual gap.",
+   todo:["6 buildings × 3 tiers = 18 models in ReplicatedStorage.Assets.Buildings.","Each tier must be obviously different from 30 studs.","Tinted-box stub stays as fallback if asset missing."],
+   prompt:"Per CLAUDE.md visible-transformation pillar: I need 18 building models (6 kinds × 3 tiers) in ReplicatedStorage.Assets.Buildings. For each of the 6 BuildingCatalog entries, propose a tier-1/2/3 silhouette description that reads from 30 studs (size delta, color shift, signature shape change). Don't generate art — give me a written art-direction brief I can hand to an artist or MCP mesh tool."},
+
+  {id:"npc",      name:"NPCs (Mira)",    sub:"Text-only dialogue", lane:2, y:.59, status:"done",
+   pillars:["cozy"],
+   why:"Tutorial guide shipped per the no-TTS rule.",
+   todo:["Mira portrait asset (TutorialConfig.MiraPortraitAssetId TODO)."],
+   prompt:"Open src/Shared/Config/TutorialConfig.lua line ~141. Document the Mira portrait asset slot and propose the prompt I'd give to an artist (cozy harbor-keeper aesthetic, 256×256 portrait). Text-only NPCs per CLAUDE.md — no audio."},
+
+  // Progression (lane 3)
+  {id:"rods",     name:"Rod tiers",      sub:"Catalog + selector", lane:3, y:.08, status:"done",
+   pillars:["cozy","identity"],
+   why:"Rod tier system in place; no pay-to-progress per CLAUDE.md.",
+   todo:["Cosmetic skins for rods (post-launch shop)."],
+   prompt:"Confirm src/Shared/Config/RodCatalog.lua has no rod gated behind Robux. Per CLAUDE.md, cosmetic rod skins are fine but a paid rod that catches better fish is forbidden. Audit and report."},
+
+  {id:"bait",     name:"Bait shop",      sub:"Lure types + economy", lane:3, y:.20, status:"done",
+   pillars:["cozy"],
+   why:"BaitService + BaitShopUI shipped.",
+   todo:["Wire baitDiscountPct from BuildingCatalog when MarketStall is built (README TODO)."],
+   prompt:"Per the README §7 Adding buildings notes: BaitShopService should consult HarborService for the player's MarketStall tier and apply baitDiscountPct from BuildingCatalog. Walk through the wiring needed, then patch BaitService.lua."},
+
+  {id:"quests",   name:"Daily quests",   sub:"3 quests + streak", lane:3, y:.32, status:"done",
+   pillars:["cozy"],
+   why:"QuestService + tracker UI are live with login streak.",
+   todo:["Cosmetic streak rewards (catalog stubs in GameConfig — TODO at line ~528).","Decorative-props quest type DROPPED — see QuestTemplates note."],
+   prompt:"Open src/Shared/Config/GameConfig.lua near line 528 (LoginRewards). The day-14/21/28 cosmetic rewards reference IDs that have no catalog. Propose a Cosmetics catalog under src/Shared/Config/CosmeticsCatalog.lua with stable IDs (NEVER rename per CLAUDE.md) and 3 sample entries. No Robux — these are streak rewards."},
+
+  {id:"tutorial", name:"Tutorial",       sub:"6 core beats, no skip", lane:3, y:.44, status:"done",
+   pillars:["cozy","mobile"],
+   why:"Per CLAUDE.md: no skip button. Tutorial shipped.",
+   todo:["First-spawn ownership: TutorialService has a TODO suggesting HarborService should own it."],
+   prompt:"TutorialService line ~453 notes that HarborService should own first-spawn placement instead of TutorialService. Read both files and propose the ownership migration. Schema-additive only — no breaking changes to TidesProfile_v1."},
+
+  {id:"aquarium", name:"Aquarium",       sub:"Display rare catches", lane:3, y:.56, status:"done",
+   pillars:["cozy","visible","identity"],
+   why:"Aquarium feature in place — pure identity/decoration.",
+   todo:["More fish display slots as a cosmetic upsell (post-launch)."],
+   prompt:"Confirm AquariumService is purely cosmetic (no gameplay bonus from displaying a fish). Per CLAUDE.md identity-not-progress pillar."},
+
+  {id:"smoke",    name:"Smokehouse",     sub:"Preserve & batch-sell", lane:3, y:.68, status:"wip",
+   pillars:["cozy"],
+   why:"Service + UI exist; Studio QA pending per roadmap.html.",
+   todo:["Studio QA pass.","Confirm no time-gated punishment if player logs off mid-smoke (cozy pillar)."],
+   prompt:"Read src/Server/Services/SmokehouseService.lua. CRITICAL CHECK per CLAUDE.md cozy pillar: confirm that if a player disconnects mid-smoke, the smoke timer pauses or completes offline — it must NOT 'spoil' or punish absence. If it currently punishes, flag and propose a fix."},
+
+  {id:"achv",     name:"Achievements",   sub:"Catalog + UI", lane:3, y:.80, status:"todo",
+   pillars:["cozy","identity"],
+   why:"Cozy players love checklists. Achievements are identity, not progress.",
+   todo:["Achievement catalog (stable IDs forever).","UI surface on profile/HUD.","Trigger hooks in Fishing/Harbor/Market services."],
+   prompt:"Per CLAUDE.md: achievements are identity, not progress — they award cosmetic titles/badges only, never coins or stat boosts. Propose src/Shared/Config/AchievementCatalog.lua with 20 starter achievements (5 fishing, 5 harbor, 5 market, 5 social), all with stable string IDs that are forever. Then propose the trigger pattern (Knit Signal subscriptions in a new AchievementService)."},
+
+  // Social (lane 4)
+  {id:"social",   name:"Social/Emotes",  sub:"Crew chat + emotes", lane:4, y:.10, status:"wip",
+   pillars:["cozy","mobile"],
+   why:"Service broadcasts emotes but SocialController only prints — no animation hookup yet.",
+   todo:["Hook SocialController to an AnimationController so emotes actually play on characters."],
+   prompt:"Open src/Client/Controllers/SocialController.lua line ~22. Per CLAUDE.md no-combat/text-only-NPC rules: emotes are cosmetic character animations (wave, dance, fish-tip). Hook the existing emote broadcast to a new AnimationController that loads humanoid animations from ReplicatedStorage.Assets.Animations. Respect ReducedMotion (skip subtle idles, keep big emotes since they're player-triggered)."},
+
+  {id:"crew",     name:"Crews",          sub:"Roster v1", lane:4, y:.24, status:"wip",
+   pillars:["cozy"],
+   why:"Crew roster scaffolding exists; UI v1 in progress.",
+   todo:["Crew creation/join flow.","Crew chat scoped to crew.","Crew slot bonus from Guildhall (BuildingCatalog hook)."],
+   prompt:"Open src/Server/Services/SocialService.lua. Design the crew creation/invite/join flow per CLAUDE.md (cozy, no kick/ban drama). Wire guildhallCrewBonus from BuildingCatalog so a tier-3 Guildhall expands Crew.MaxMembers. Server-authoritative; no client mutation of crew rosters."},
+
+  {id:"visit",    name:"Visiting",       sub:"Ghost harbor", lane:4, y:.38, status:"todo",
+   pillars:["cozy","visible"],
+   why:"Letting players walk through a crewmate's harbor showcases the visible-transformation pillar.",
+   todo:["Read-only ghost mode for visiting another harbor.","No interaction with their economy (no stealing — cozy pillar)."],
+   prompt:"Design a 'visit harbor' feature per CLAUDE.md (no combat, no theft, cozy). When a player visits a crewmate, they teleport into a read-only clone of that harbor — they can walk, emote, and admire, but cannot interact with buildings or inventory. Server-authoritative ownership check. StreamingEnabled-friendly. Show me the service plan first."},
+
+  {id:"leader",   name:"Leaderboards",   sub:"Top 10 HUD", lane:4, y:.52, status:"todo",
+   pillars:["cozy"],
+   why:"Cozy leaderboards lean toward 'most decorated harbor' rather than 'richest player' to avoid pressure.",
+   todo:["Pick metrics that align with cozy pillar (decoration count, species caught) — NOT raw coins.","Server aggregation via MessagingService.","Mobile-first HUD widget."],
+   prompt:"Per CLAUDE.md cozy pillar: design 3 leaderboard metrics that reward identity/decoration, NOT raw wealth. (Hint: 'coins' creates FOMO; 'species cataloged' or 'buildings tier-3' creates pride.) Propose the LeaderboardService aggregation pattern, weekly reset, and a mobile-first HUD widget that respects the 44px hit-target rule."},
+
+  // Polish & Monetize (lane 5)
+  {id:"ui",       name:"UI Redesign",    sub:"Design system v2", lane:5, y:.05, status:"wip",
+   pillars:["mobile","cozy"],
+   why:"docs/UI_OVERHAUL.md tracks progress; 8/14 screens done per roadmap.html.",
+   todo:["Remaining 6 screens (Cast, HUD, etc.).","380px portrait QA pass on every screen."],
+   prompt:"Read docs/UI_OVERHAUL.md and list the 6 remaining screens. For each, produce a checklist: 44px hit targets, ≥12px effective font, ReducedMotion handling, no flashing >3hz. Then pick the highest-impact screen and propose the patch."},
+
+  {id:"toasts",   name:"Notifications",  sub:"Toast system", lane:5, y:.16, status:"todo",
+   pillars:["mobile","cozy"],
+   why:"FishingController line ~692 has a TODO to replace prints with an ephemeral toast. Aquarium already uses a toast pattern — reuse it.",
+   todo:["Centralize the Aquarium toast pattern into NotificationController.","Replace all print()/warn()-as-user-feedback in client controllers."],
+   prompt:"Open src/Client/Controllers/NotificationController.lua and src/Client/UI/NotificationUI.lua. Promote the Aquarium toast pattern into a generic NotifyController:Show(text, opts). Then grep src/Client/Controllers/ for prints used as user feedback and replace them. Cozy tone — no urgent red alerts unless data loss."},
+
+  {id:"audio",    name:"Audio / SFX",    sub:"SoundController", lane:5, y:.28, status:"gap",
+   pillars:["cozy","mobile"],
+   why:"AssetIds.lua is a wall of TODOs. Game is silent right now — major polish gap.",
+   todo:["Source/license cozy ambient ocean loop.","Cast/reel/catch/upgrade SFX.","Mute toggle in settings (mobile-first, respects platform mute switch)."],
+   prompt:"Read src/Client/AssetIds.lua. There are ~8 audio TODOs. Design a SoundController (Knit controller) that: (1) loads asset IDs from AssetIds.lua, (2) exposes Play(name, opts), (3) respects a user mute toggle, (4) ducks ambient when SFX play. Then propose patches to WorldFXController, FishingController, HarborVisualController to call it instead of holding sound refs directly. Don't fill in real asset IDs — leave placeholders."},
+
+  {id:"mobileqa", name:"Mobile QA",      sub:"380px audit", lane:5, y:.39, status:"todo",
+   pillars:["mobile"],
+   why:"CLAUDE.md mandates 380px portrait as the baseline. We need a one-pass audit before launch.",
+   todo:["Screenshot every UI screen at 380px.","Verify 44px hit targets.","Verify ≥12px effective font.","Thumb-zone reachability check."],
+   prompt:"Produce a Mobile-QA checklist for Tides of Trade that covers every UI module under src/Client/UI/. For each, output: target widget, 44px check, 12px check, thumb-zone check, ReducedMotion check. Format as a Markdown table I can paste into a QA tracker. Don't change code yet."},
+
+  {id:"reduce",   name:"ReducedMotion",  sub:"Accessibility sweep", lane:5, y:.50, status:"todo",
+   pillars:["mobile","cozy"],
+   why:"CLAUDE.md mandates respecting GuiService.ReducedMotionEnabled. Coverage across controllers is uneven.",
+   todo:["Audit every TweenService call.","Halve durations when enabled.","Replace slide-ins with fade-ins.","Skip camera shake + particle bursts."],
+   prompt:"Per CLAUDE.md accessibility rule: audit every TweenService:Create call across src/Client/. For each, classify as (a) gameplay-critical, (b) decorative motion, (c) UI transition. For (b) and (c), wrap in a MotionUtil helper that reads GuiService.ReducedMotionEnabled and adjusts duration/style. Then implement MotionUtil and patch one controller as proof."},
+
+  {id:"cosmetic", name:"Cosmetic Shop",  sub:"Robux only, no P2W", lane:5, y:.61, status:"post",
+   pillars:["identity"],
+   why:"Per CLAUDE.md: monetization is cosmetic / decorative / QoL — never speed-ups, never coins, never gear that catches better fish.",
+   todo:["Cosmetics catalog (stable IDs).","Robux Developer Product flow.","UI shop with preview, no gacha/loot boxes."],
+   prompt:"Per CLAUDE.md identity-not-progress pillar: design the Cosmetic Shop. Constraints: (1) Robux only, no coins, (2) every item is a known-quantity transaction (no loot boxes/gacha), (3) preview-before-buy, (4) free + paying players feel equally winning. Propose CosmeticsCatalog.lua schema, ShopService server flow with Roblox MarketplaceService, and a mobile-first ShopUI. Stable IDs forever."},
+
+  {id:"season",   name:"Season Pass",    sub:"Cosmetics only", lane:5, y:.72, status:"post",
+   pillars:["identity"],
+   why:"Season passes are fine if rewards are cosmetic; XP/coin doublers OK if they don't gate progress.",
+   todo:["Track structure (free + paid tiers).","No FOMO copy (cozy tone).","Reward catalog (cosmetics + small QoL)."],
+   prompt:"Design a Season Pass per CLAUDE.md. Hard rules: (1) every reward is cosmetic or QoL (never coins, never better-rod), (2) free track must feel substantial, (3) copy stays cozy — no countdown FOMO red text. Propose schema, service plan, and 20 sample rewards (10 free, 10 paid). 30-day season."},
+
+  {id:"events",   name:"Live Events",    sub:"Festival fish", lane:5, y:.83, status:"post",
+   pillars:["cozy","visible"],
+   why:"Cozy live events drive return visits — Lantern Festival, Harvest Tide, etc.",
+   todo:["Event scheduling service.","Event-specific fish (returning, not exclusive — cozy pillar avoids FOMO)."],
+   prompt:"Design a Live Events system per CLAUDE.md cozy pillar. Key rule: event fish must RETURN in future years — never one-shot FOMO. Propose EventService schedule, 4 sample events (Lantern Tide, Harvest Catch, Star Migration, Quiet Snow), and how harbors visually change during events (visible-transformation pillar)."},
+
+  {id:"captain",  name:"Captain's Log",  sub:"Gamepass: XP doubler + analytics", lane:5, y:.94, status:"post",
+   pillars:["identity"],
+   why:"README §8 calls this out. Gamepass adds XP doubler + analytics (QoL/identity, not pay-to-progress).",
+   todo:["Create gamepass on Roblox dashboard.","Drop ID into a new Monetization.lua.","Hook XP multiplier (server-authoritative)."],
+   prompt:"Per CLAUDE.md identity-not-progress: design the Captain's Log gamepass. It's an XP doubler + a personal stats/analytics dashboard. CRITICAL constraint: the XP it doubles must NOT gate exclusive gameplay — a non-paying player still unlocks every system on the standard cadence, just slightly slower. Propose Monetization.lua structure, server-side multiplier wiring, and the stats UI."},
+];
+
+const EDGES = [
+  // Foundations feed everything (drawn lightly)
+  ["profile","fishing"], ["profile","inv"], ["profile","market"], ["profile","harbor"], ["profile","quests"], ["profile","social"],
+  ["knit","fishing"], ["knit","harbor"], ["knit","market"],
+  ["config","fishing"], ["config","tide"], ["config","weather"], ["config","price"],
+  ["rate","fishing"], ["rate","market"],
+  // Core loop
+  ["fishing","inv"], ["inv","market"], ["market","price"],
+  // World
+  ["tide","fishing"], ["weather","fishing"],
+  ["harbor","meshes"], ["meshes","visit"],
+  ["harbor","leader"],
+  // Progression
+  ["rods","fishing"], ["bait","fishing"], ["quests","achv"], ["tutorial","quests"],
+  ["aquarium","achv"], ["smoke","market"],
+  // Social
+  ["social","crew"], ["crew","visit"], ["crew","leader"],
+  // Polish & monetize
+  ["ui","toasts"], ["ui","mobileqa"], ["ui","reduce"],
+  ["audio","fishing"], ["audio","harbor"],
+  ["cosmetic","season"], ["season","events"], ["captain","cosmetic"],
+];
+
+/* ============================================================
+   Layout: compute pixel positions per lane/row
+   ============================================================ */
+const PILLAR_NAMES = {cozy:"Cozy sessions",visible:"Visible transformation",mobile:"Mobile-first",server:"Server-authoritative",identity:"Identity not progress"};
+
+function layoutNodes() {
+  const root = document.getElementById('graph');
+  const rect = root.getBoundingClientRect();
+  const W = rect.width, H = Math.max(760, rect.height);
+  const padX = 80, padY = 50;
+  const usableW = W - padX*2;
+  const usableH = H - padY*2;
+  const laneCount = LANES.length;
+  const colStep = usableW / (laneCount - 1);
+  const positions = {};
+  for (const n of NODES) {
+    const x = padX + n.lane * colStep;
+    const y = padY + n.y * usableH;
+    positions[n.id] = {x, y};
+  }
+  return {positions, W, H, padX, padY};
+}
+
+function render() {
+  const root = document.getElementById('graph');
+  // remove old nodes/labels (keep <svg>)
+  [...root.querySelectorAll('.node, .lane-title')].forEach(n=>n.remove());
+  const {positions, W, H, padX} = layoutNodes();
+
+  // lane titles
+  const colStep = (W - padX*2) / (LANES.length - 1);
+  LANES.forEach((label, i)=>{
+    const el = document.createElement('div');
+    el.className = 'lane-title';
+    el.textContent = label;
+    el.style.left = (padX + i*colStep) + 'px';
+    root.appendChild(el);
+  });
+
+  // edges
+  const svg = document.getElementById('edges');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = '';
+  for (const [from, to] of EDGES) {
+    const a = positions[from], b = positions[to];
+    if (!a || !b) continue;
+    const dx = b.x - a.x;
+    const c1 = `${a.x + dx*0.4},${a.y}`;
+    const c2 = `${b.x - dx*0.4},${b.y}`;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${a.x},${a.y} C ${c1} ${c2} ${b.x},${b.y}`);
+    path.setAttribute('class','edge');
+    path.setAttribute('data-from', from);
+    path.setAttribute('data-to', to);
+    svg.appendChild(path);
+  }
+
+  // nodes
+  for (const n of NODES) {
+    const p = positions[n.id];
+    const el = document.createElement('div');
+    el.className = 'node ' + n.status;
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.tabIndex = 0;
+    el.setAttribute('data-id', n.id);
+    el.setAttribute('data-status', n.status);
+    el.setAttribute('data-pillars', n.pillars.join(','));
+    el.innerHTML = `<div class="nm">${n.name}</div><div class="sb">${n.sub}</div>`;
+    if (n.status === 'gap') {
+      const b = document.createElement('div');
+      b.className = 'badge';
+      b.textContent = 'GAP';
+      el.appendChild(b);
+    }
+    el.addEventListener('click', ()=>openNode(n.id));
+    el.addEventListener('mouseenter', ()=>highlightEdges(n.id, true));
+    el.addEventListener('mouseleave', ()=>highlightEdges(n.id, false));
+    el.addEventListener('keydown', e=>{
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNode(n.id); }
+    });
+    root.appendChild(el);
+  }
+}
+
+function highlightEdges(id, on) {
+  const edges = document.querySelectorAll('.edge');
+  edges.forEach(e=>{
+    const match = e.dataset.from === id || e.dataset.to === id;
+    if (on) {
+      e.classList.toggle('active', match);
+      e.classList.toggle('dim', !match);
+    } else {
+      e.classList.remove('active');
+      e.classList.remove('dim');
+    }
+  });
+  document.querySelectorAll('.node').forEach(n=>{
+    if (!on) { n.classList.remove('hl','dim'); return; }
+    const nid = n.dataset.id;
+    const connected = nid === id || EDGES.some(([a,b])=> (a===id&&b===nid)||(b===id&&a===nid));
+    n.classList.toggle('hl', nid === id);
+    n.classList.toggle('dim', !connected);
+  });
+}
+
+/* ============================================================
+   Filters
+   ============================================================ */
+let curStatus = 'all', curPillar = 'all';
+document.querySelectorAll('.pill[data-filter]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.pill[data-filter]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    curStatus = b.dataset.filter; applyFilter();
+  });
+});
+document.querySelectorAll('.pill[data-pillar]').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.pill[data-pillar]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    curPillar = b.dataset.pillar; applyFilter();
+  });
+});
+function applyFilter(){
+  document.querySelectorAll('.node').forEach(n=>{
+    const s = n.dataset.status;
+    const pillars = (n.dataset.pillars||'').split(',');
+    const statusOk = curStatus === 'all' || s === curStatus;
+    const pillarOk = curPillar === 'all' || pillars.includes(curPillar);
+    n.classList.toggle('dim', !(statusOk && pillarOk));
+  });
+}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+function openNode(id) {
+  const n = NODES.find(x=>x.id===id);
+  if (!n) return;
+  document.getElementById('m-title').textContent = n.name;
+  document.getElementById('m-sub').textContent = n.sub + ' · ' + LANES[n.lane];
+  const chip = document.getElementById('m-chip');
+  chip.className = 'chip ' + n.status;
+  const map = {done:'Done',wip:'In progress',todo:'Planned',gap:'Critical gap',post:'Post-launch'};
+  chip.textContent = map[n.status] || n.status;
+  document.getElementById('m-why').textContent = n.why;
+  const ul = document.getElementById('m-todo'); ul.innerHTML = '';
+  for (const t of n.todo) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+  // pillars
+  const pr = document.getElementById('m-pillars'); pr.innerHTML='';
+  for (const p of n.pillars) { const c=document.createElement('span'); c.className='pchip'; c.textContent=PILLAR_NAMES[p]||p; pr.appendChild(c); }
+  // prompt: prefix with CLAUDE.md guard
+  const prefix = `[Context: read CLAUDE.md before responding. Tides of Trade is a cozy + social + persistent Roblox harbor-trading game. Design pillars are non-negotiable. If my request conflicts with a pillar, complete it as specified and add a note flagging the conflict at the end.]\n\n`;
+  document.getElementById('m-prompt').textContent = prefix + n.prompt;
+  document.getElementById('scrim').classList.add('on');
+  document.getElementById('m-copy').onclick = () => {
+    navigator.clipboard.writeText(prefix + n.prompt).then(()=>{
+      const b = document.getElementById('m-copy');
+      const old = b.textContent; b.textContent = 'Copied ✓';
+      setTimeout(()=>{ b.textContent = old; }, 1400);
+    });
+  };
+  document.getElementById('m-send').onclick = () => {
+    if (typeof window.sendPrompt === 'function') {
+      window.sendPrompt(prefix + n.prompt);
+    } else if (window.parent && typeof window.parent.sendPrompt === 'function') {
+      window.parent.sendPrompt(prefix + n.prompt);
+    } else {
+      // fallback: copy
+      navigator.clipboard.writeText(prefix + n.prompt);
+      const b = document.getElementById('m-send');
+      const old = b.textContent; b.textContent = 'Copied — paste in chat';
+      setTimeout(()=>{ b.textContent = old; }, 1800);
+    }
+  };
+}
+document.getElementById('m-close').addEventListener('click', closeModal);
+document.getElementById('scrim').addEventListener('click', e=>{ if (e.target.id==='scrim') closeModal(); });
+document.addEventListener('keydown', e=>{ if (e.key==='Escape') closeModal(); });
+function closeModal(){ document.getElementById('scrim').classList.remove('on'); }
+
+/* init + responsive */
+render();
+let ro;
+if (window.ResizeObserver) {
+  ro = new ResizeObserver(()=>render());
+  ro.observe(document.getElementById('graph'));
+} else {
+  window.addEventListener('resize', render);
+}
+</script>
+</body>
+</html>
