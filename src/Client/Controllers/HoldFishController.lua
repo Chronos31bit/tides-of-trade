@@ -115,7 +115,9 @@ function HoldFishController:HoldFish(
 	weld.Part1 = attachPart
 	weld.Parent = attachPart
 
-	_mutHandle = FishMutations.attach(attachPart, modifiers or {})
+	_mutHandle = FishMutations.attach(attachPart, modifiers or {}, {
+		heldScale = true,
+	})
 
 	_heldModel = clone
 

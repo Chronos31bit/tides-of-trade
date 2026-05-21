@@ -971,11 +971,17 @@ GameConfig.FishBite = {
 }
 
 -- ====================================================================
--- MODIFIER VISUALS — GAG-style mesh mutations.
--- Per-modifier visual treatments (color cycle, material swap, Highlight,
--- PointLight) live in src/Shared/Config/ModifierMutations.lua, driven
--- by src/Shared/Util/FishMutations.lua (client-only).
+-- MODIFIER VISUALS — held-fish density (see HoldFishController, FishMutations).
 -- ====================================================================
+GameConfig.FishMutationVisuals = {
+	HeldParticleRateScale    = 0.45,
+	HeldLightBrightnessScale = 0.5,
+	DefaultParticleSpread    = Vector2.new(35, 35),
+	-- FishMutations: strip MeshPart.TextureID / SurfaceAppearance / SpecialMesh.TextureId
+	-- so materialLock+tint show on all fish models (held, inventory viewport, preview).
+	ClearMeshTextureOnMutation = true,
+	DefaultMetalReflectance  = 0.4,
+}
 
 -- ====================================================================
 -- ADMIN — dev tools (AdminService / AdminController). Whitelist in AdminService.
