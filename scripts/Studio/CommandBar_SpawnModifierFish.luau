@@ -1,15 +1,8 @@
--- Command bar: spawn one preview fish per modifier in a grid in front of you.
--- Paste into the Studio command bar (Play Solo gives you the LocalPlayer this
--- relies on). Re-running clears the previous batch first.
+-- Command bar: spawn one preview fish per modifier in a grid.
+-- Works in Play Solo (grid in front of you) OR Edit mode (fixed world position).
+-- Paste entire script into Studio command bar, or run via Rojo-synced ModuleScript.
 --
--- Each fish is:
---   * cloned from ReplicatedStorage.Assets.Fish[SPECIES_ID]
---   * anchored (no physics), no collision, no shadow
---   * decorated via FishMutations.attach() so you see the live look
---   * labelled with a BillboardGui showing the modifier id + displayName
---
--- Tweak the CONFIG block below to switch fish species, include deprecated
--- modifiers, change grid spacing, or drop the BillboardGui labels.
+-- Re-running clears workspace._ModifierPreview and respawns everything.
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,30 +15,34 @@ local FishMutations = require(ReplicatedStorage.Shared.Util.FishMutations)
 -- CONFIG
 -- ====================================================================
 local CONFIG = {
-	-- Which species model to clone for every preview fish.
-	-- Must exist as ReplicatedStorage.Assets.Fish.<id>.
+	-- Fish model used for EVERY preview cell (one species, all modifiers).
 	SPECIES_ID = "harbor_mackerel",
 
-	-- Include deprecated modifiers (dropChance=0 AND deprecated=true)?
-	-- Off by default — those are legacy mappings, you usually want only the
-	-- shipping mutations plus the world-state ones.
-	INCLUDE_DEPRECATED = false,
+	-- true = every entry in GameConfig.FishModifiers that has ModifierMutations visuals
+	INCLUDE_ALL = false,
+	-- When INCLUDE_ALL is false, spawn only these ids (grid order left→right).
+	MODIFIER_IDS = { "rainbow", "silver", "golden", "storm_forged", "shocked", "frozen" },
 
-	-- Show world-state modifiers (tide_kissed, storm_forged, etc.)?
+	-- Only used when INCLUDE_ALL is false:
+	INCLUDE_DEPRECATED  = false,
 	INCLUDE_WORLD_STATE = true,
 
-	-- Grid layout (looking forward from the player).
-	COLUMNS         = 5,    -- fish per row
-	SPACING_STUDS   = 5,    -- gap between centres
-	FRONT_OFFSET    = 8,    -- distance from player to nearest row
-	HEIGHT_ABOVE_HRP = 0,   -- vertical offset relative to HumanoidRootPart
+	-- Edit mode: spawn at fixed world CFrame (no LocalPlayer needed).
+	-- Play Solo: set false to place grid in front of your character.
+	USE_FIXED_SPAWN = true,
+	SPAWN_CFRAME    = CFrame.new(0, 6, -28), -- centre of grid; look from +Z
 
-	-- Uniform fish scale (target longest dim in studs).
-	FISH_STUDS = 2.0,
+	-- Grid layout
+	COLUMNS          = 6,
+	SPACING_STUDS    = 6,
+	ROW_SPACING      = 6,
+	FRONT_OFFSET     = 0,   -- extra Z when using player-relative spawn
+	HEIGHT_OFFSET    = 0,
 
-	-- BillboardGui label above each fish.
-	SHOW_LABELS = true,
-	LABEL_OFFSET_Y = 1.8,
+	FISH_STUDS = 2.5,
+
+	SHOW_LABELS     = true,
+	LABEL_OFFSET_Y  = 2.2,
 }
 
 local ROOT_FOLDER_NAME = "_ModifierPreview"
@@ -58,19 +55,40 @@ local function clearExisting()
 	if existing then existing:Destroy() end
 end
 
-local function pickModifiers()
-	local mods = {}
+local function pickModifiers(): {{id: string, displayName: string?}}
+	if not CONFIG.INCLUDE_ALL and CONFIG.MODIFIER_IDS and #CONFIG.MODIFIER_IDS > 0 then
+		local byId: {[string]: {id: string, displayName: string?}} = {}
+		for _, m in ipairs(GameConfig.FishModifiers) do
+			byId[m.id] = m
+		end
+		local mods: {{id: string, displayName: string?}} = {}
+		for _, id in ipairs(CONFIG.MODIFIER_IDS) do
+			local m = byId[id]
+			if m then
+				table.insert(mods, m)
+			else
+				warn(("[ModifierPreview] Unknown modifier id '%s' — skip"):format(id))
+			end
+		end
+		return mods
+	end
+
+	local mods: {{id: string, displayName: string?}} = {}
 	for _, m in ipairs(GameConfig.FishModifiers) do
 		local isDeprecated = m.deprecated == true
 		local isWorldState = (m.dropChance or 0) == 0 and not isDeprecated
 		local isActive     = (m.dropChance or 0) > 0
-		local include = isActive
+		local include = CONFIG.INCLUDE_ALL
+			or isActive
 			or (isWorldState and CONFIG.INCLUDE_WORLD_STATE)
 			or (isDeprecated and CONFIG.INCLUDE_DEPRECATED)
 		if include then
 			table.insert(mods, m)
 		end
 	end
+	table.sort(mods, function(a, b)
+		return a.id < b.id
+	end)
 	return mods
 end
 
@@ -83,32 +101,49 @@ local function getTemplate(): Model?
 	end
 	local tmpl = fishFolder:FindFirstChild(CONFIG.SPECIES_ID)
 	if not tmpl then
-		warn(("[ModifierPreview] No model for species '%s' — falling back to first child"):format(CONFIG.SPECIES_ID))
+		warn(("[ModifierPreview] No '%s' — using first Fish model"):format(CONFIG.SPECIES_ID))
 		tmpl = fishFolder:FindFirstChildOfClass("Model")
 	end
 	return tmpl :: Model?
 end
 
-local function getPlayerCFrame(): CFrame
+local function getSpawnBaseCFrame(): CFrame
+	if CONFIG.USE_FIXED_SPAWN then
+		return CONFIG.SPAWN_CFRAME
+	end
 	local lp = Players.LocalPlayer
 	local char = lp and lp.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	if hrp and hrp:IsA("BasePart") then
-		-- Look direction without pitch (so the grid sits at ground level).
-		local lookFlat = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z).Unit
+		local lookFlat = Vector3.new(hrp.CFrame.LookVector.X, 0, hrp.CFrame.LookVector.Z)
+		if lookFlat.Magnitude < 0.01 then lookFlat = Vector3.new(0, 0, -1) end
+		lookFlat = lookFlat.Unit
 		return CFrame.lookAt(hrp.Position, hrp.Position + lookFlat)
 	end
-	-- Fallback: world origin.
-	return CFrame.new()
+	return CONFIG.SPAWN_CFRAME
 end
 
-local function scaleFishToTarget(parts: {BasePart}, targetStuds: number)
-	if #parts ~= 1 then return end
-	local p = parts[1]
-	local maxDim = math.max(p.Size.X, p.Size.Y, p.Size.Z)
-	if maxDim > 0.01 then
-		p.Size = p.Size * (targetStuds / maxDim)
+local function findAnchorPart(model: Model): BasePart?
+	if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then
+		return model.PrimaryPart
 	end
+	local named = model:FindFirstChild("body_geom", true)
+	if named and named:IsA("BasePart") then return named end
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then return d :: BasePart end
+	end
+	return nil
+end
+
+local function scaleModelUniform(model: Model, targetStuds: number)
+	local _cf, size = model:GetBoundingBox()
+	local maxDim = math.max(size.X, size.Y, size.Z)
+	if maxDim < 0.01 then return end
+	local factor = targetStuds / maxDim
+	-- ScaleTo keeps welds intact on rigged / nested fish.
+	pcall(function()
+		model:ScaleTo(factor)
+	end)
 end
 
 local function makeLabel(parent: Instance, modId: string, displayName: string, anchorPart: BasePart)
@@ -116,30 +151,38 @@ local function makeLabel(parent: Instance, modId: string, displayName: string, a
 	bg.Name = "Label"
 	bg.Adornee = anchorPart
 	bg.AlwaysOnTop = true
-	bg.Size = UDim2.fromOffset(180, 36)
+	bg.Size = UDim2.fromOffset(200, 40)
 	bg.StudsOffsetWorldSpace = Vector3.new(0, CONFIG.LABEL_OFFSET_Y, 0)
-	bg.MaxDistance = 80
+	bg.MaxDistance = 200
 	bg.Parent = parent
 
 	local lbl = Instance.new("TextLabel")
 	lbl.BackgroundColor3 = Color3.fromRGB(20, 22, 28)
-	lbl.BackgroundTransparency = 0.25
+	lbl.BackgroundTransparency = 0.2
 	lbl.BorderSizePixel = 0
 	lbl.Size = UDim2.fromScale(1, 1)
 	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 14
+	lbl.TextSize = 13
 	lbl.TextColor3 = Color3.fromRGB(245, 240, 220)
-	lbl.Text = ("%s\n(%s)"):format(displayName, modId)
+	lbl.Text = ("%s\n%s"):format(displayName or modId, modId)
 	lbl.Parent = bg
 
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = lbl
+end
 
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 4)
-	pad.PaddingRight = UDim.new(0, 4)
-	pad.Parent = lbl
+local function aimCameraAtGrid(root: Folder, cols: number, rows: number, spacing: number)
+	local cam = Workspace.CurrentCamera
+	if not cam then return end
+	local centre = CONFIG.SPAWN_CFRAME.Position
+	local width = (cols - 1) * spacing
+	local depth = (rows - 1) * CONFIG.ROW_SPACING
+	local dist = math.max(width, depth) * 0.85 + 14
+	cam.CFrame = CFrame.new(
+		centre + Vector3.new(width * 0.25, dist * 0.35, dist),
+		centre
+	)
 end
 
 -- ====================================================================
@@ -154,63 +197,57 @@ if not template then
 end
 
 local mods = pickModifiers()
-print(("[ModifierPreview] Spawning %d modifier previews using species '%s'")
-	:format(#mods, CONFIG.SPECIES_ID))
+local cols = math.max(1, CONFIG.COLUMNS)
+local rows = math.ceil(#mods / cols)
+
+print(("[ModifierPreview] Spawning %d modifiers (%d×%d grid) — species '%s'")
+	:format(#mods, cols, rows, CONFIG.SPECIES_ID))
 
 local root = Instance.new("Folder")
 root.Name = ROOT_FOLDER_NAME
 root.Parent = Workspace
 
-local baseCF = getPlayerCFrame()
-local cols = math.max(1, CONFIG.COLUMNS)
+local baseCF = getSpawnBaseCFrame()
 local spacing = CONFIG.SPACING_STUDS
+local rowSpacing = CONFIG.ROW_SPACING
 
 for i, m in ipairs(mods) do
 	local idx0 = i - 1
 	local col = idx0 % cols
 	local row = math.floor(idx0 / cols)
 
-	-- Centre the grid horizontally on the player's look line.
 	local xOffset = (col - (cols - 1) * 0.5) * spacing
-	local zOffset = -(CONFIG.FRONT_OFFSET + row * spacing)
-	local yOffset = CONFIG.HEIGHT_ABOVE_HRP
+	local zOffset = row * rowSpacing + CONFIG.FRONT_OFFSET
+	local yOffset = CONFIG.HEIGHT_OFFSET
 
 	local clone: Model = template:Clone()
 	clone.Name = "Preview_" .. m.id
 	clone.Parent = root
 
-	-- Collect parts + neutralise physics so the grid is stable.
-	local parts: {BasePart} = {}
 	for _, d in ipairs(clone:GetDescendants()) do
 		if d:IsA("BasePart") then
 			local bp = d :: BasePart
-			bp.Anchored   = true
-			bp.CanCollide = false
-			bp.CanTouch   = false
-			bp.CanQuery   = false
-			bp.Massless   = true
-			bp.CastShadow = false
-			table.insert(parts, bp)
+			bp.Anchored     = true
+			bp.CanCollide   = false
+			bp.CanTouch     = false
+			bp.CanQuery     = false
+			bp.Massless     = true
+			bp.CastShadow   = false
 		end
 	end
-	if #parts == 0 then continue end
 
-	scaleFishToTarget(parts, CONFIG.FISH_STUDS)
+	scaleModelUniform(clone, CONFIG.FISH_STUDS)
 
-	-- Place at grid cell. clone:PivotTo with a CFrame keeps every part welded
-	-- to the model's PrimaryPart/first BasePart.
-	local cell = baseCF * CFrame.new(xOffset, yOffset, zOffset)
-	if clone.PrimaryPart then
-		clone:PivotTo(cell)
-	else
-		clone.PrimaryPart = parts[1]
-		clone:PivotTo(cell)
+	local anchor = findAnchorPart(clone)
+	if not anchor then
+		warn("[ModifierPreview] No BasePart for", m.id)
+		clone:Destroy()
+		continue
 	end
 
-	-- Anchor target for attach() — prefer PrimaryPart, fall back to first part.
-	local anchor: BasePart = (clone.PrimaryPart or parts[1]) :: BasePart
+	local cell = baseCF * CFrame.new(xOffset, yOffset, zOffset)
+	clone:PivotTo(cell)
 
-	-- Attach the mutation. intensity=1.0 matches the in-hand look.
 	FishMutations.attach(anchor, { m.id })
 
 	if CONFIG.SHOW_LABELS then
@@ -218,5 +255,9 @@ for i, m in ipairs(mods) do
 	end
 end
 
-print(("[ModifierPreview] Done. Folder: workspace.%s — re-run this script to refresh."):format(ROOT_FOLDER_NAME))
-print("[ModifierPreview] Tip: to clean up without spawning, run:  workspace:FindFirstChild('" .. ROOT_FOLDER_NAME .. "'):Destroy()")
+if CONFIG.USE_FIXED_SPAWN then
+	aimCameraAtGrid(root, cols, rows, spacing)
+end
+
+print(("[ModifierPreview] Done → workspace.%s (%d fish). Re-run to refresh."):format(ROOT_FOLDER_NAME, #mods))
+print("[ModifierPreview] Cleanup: workspace:FindFirstChild('_ModifierPreview'):Destroy()")

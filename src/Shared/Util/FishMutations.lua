@@ -130,7 +130,8 @@ local ORDER: {[string]: number} = {
 	pointLight        = 7,
 	shell             = 8,
 	decal             = 9,
-	attachedParticle  = 10,
+	attachedParticle    = 10,
+	attachmentParticles = 10,
 	fire              = 11,
 	smoke             = 12,
 	sparkles          = 13,
@@ -145,17 +146,89 @@ export type MutationHandle = {
 	Destroy: (self: MutationHandle) -> (),
 }
 
+type PartSnap = {
+	Color: Color3,
+	Material: Enum.Material,
+	Transparency: number,
+	TextureID: string?,
+	UsePartColor: boolean?,
+	Reflectance: number?,
+	SurfaceAppearance: SurfaceAppearance?,
+	SpecialMesh: SpecialMesh?,
+	SpecialMeshTextureId: string?,
+}
+
 type _HandleState = {
 	tickerIds   : {number},
 	createdInst : {Instance},                         -- Highlights, PointLights
-	originals   : {[BasePart]: {Color: Color3, Material: Enum.Material, Transparency: number}},
+	originals   : {[BasePart]: PartSnap},
 	highlightBy : {[BasePart]: Highlight},            -- per-anchor-part merge target
 	_destroyed  : boolean,
 }
 
 local function _snapshot(state: _HandleState, p: BasePart)
 	if state.originals[p] then return end
-	state.originals[p] = { Color = p.Color, Material = p.Material, Transparency = p.Transparency }
+	local snap: PartSnap = {
+		Color = p.Color,
+		Material = p.Material,
+		Transparency = p.Transparency,
+	}
+	if p:IsA("MeshPart") then
+		local mp = p :: MeshPart
+		snap.TextureID = mp.TextureID
+		local okU, usePart = pcall(function() return mp.UsePartColor end)
+		if okU then snap.UsePartColor = usePart end
+		snap.Reflectance = mp.Reflectance
+		local sa = mp:FindFirstChildOfClass("SurfaceAppearance")
+		if sa then
+			snap.SurfaceAppearance = sa
+		end
+	end
+	local sm = p:FindFirstChildOfClass("SpecialMesh")
+	if sm then
+		snap.SpecialMesh = sm
+		snap.SpecialMeshTextureId = sm.TextureId
+	end
+	state.originals[p] = snap
+end
+
+local function _mutationVisualCfg(): {[string]: any}
+	return (GameConfig :: any).FishMutationVisuals or {}
+end
+
+local function _shouldClearMeshTexture(): boolean
+	local cfg = _mutationVisualCfg()
+	return cfg.ClearMeshTextureOnMutation ~= false
+end
+
+local SHINY_MATERIALS: {[Enum.Material]: boolean} = {
+	[Enum.Material.Metal] = true,
+	[Enum.Material.Foil]  = true,
+}
+
+local function _defaultShinyReflectance(material: Enum.Material): number?
+	if not SHINY_MATERIALS[material] then return nil end
+	local cfg = _mutationVisualCfg()
+	return cfg.DefaultMetalReflectance or 0.4
+end
+
+-- Textured MeshParts ignore Material until albedo / PBR / SpecialMesh texture is cleared.
+local function _stripPartAlbedoForMutation(p: BasePart, snap: PartSnap)
+	if p:IsA("MeshPart") then
+		local mp = p :: MeshPart
+		local sa = snap.SurfaceAppearance
+		if sa and sa.Parent == p then
+			sa.Parent = nil
+		end
+		mp.TextureID = ""
+		pcall(function()
+			mp.UsePartColor = true
+		end)
+	end
+	local sm = snap.SpecialMesh
+	if sm and sm.Parent and snap.SpecialMeshTextureId ~= nil then
+		sm.TextureId = ""
+	end
 end
 
 local function _ensureHighlight(state: _HandleState, anchor: BasePart, opts: {viewport: boolean?}): Highlight
@@ -179,15 +252,32 @@ end
 -- ====================================================================
 
 local function _applyMaterialLock(state, anchor, parts, effect, _opts)
+	local clearTexture = effect.clearTexture ~= false and _shouldClearMeshTexture()
 	for _, p in ipairs(parts) do
 		_snapshot(state, p)
+		local snap = state.originals[p]
+		if clearTexture and snap then
+			_stripPartAlbedoForMutation(p, snap)
+		end
 		p.Material = effect.material
+		local refl = effect.reflectance
+		if refl == nil then
+			refl = _defaultShinyReflectance(effect.material)
+		end
+		if refl ~= nil and p:IsA("MeshPart") then
+			(p :: MeshPart).Reflectance = refl
+		end
 	end
 end
 
 local function _applyTintLock(state, anchor, parts, effect, _opts)
+	local clearTexture = _shouldClearMeshTexture()
 	for _, p in ipairs(parts) do
 		_snapshot(state, p)
+		local snap = state.originals[p]
+		if clearTexture and snap then
+			_stripPartAlbedoForMutation(p, snap)
+		end
 		p.Color = effect.color
 	end
 end
@@ -418,37 +508,89 @@ local function _applyDecal(state, anchor, parts, effect, _opts)
 	end
 end
 
--- attachedParticle: small, focused ParticleEmitter directly on the anchor
--- part (not a floating cloud). Use for sparkles, electric arcs, frost crystals.
--- Skipped in viewport mode (ViewportFrame ignores ParticleEmitters).
+local function _particleHost(anchor: BasePart): Instance
+	if anchor.Parent and anchor.Parent:IsA("Model") then
+		return anchor.Parent
+	end
+	return anchor
+end
+
+local function _applyParticleSpec(pe: ParticleEmitter, spec: {[string]: any})
+	if spec.texture        then pe.Texture        = spec.texture end
+	pe.Color           = spec.color           or ColorSequence.new(Color3.new(1, 1, 1))
+	pe.LightEmission   = spec.lightEmission   or 0.75
+	pe.LightInfluence  = spec.lightInfluence  or 0.0
+	pe.Lifetime        = spec.lifetime        or NumberRange.new(0.5, 0.9)
+	pe.Rate            = spec.rate            or 10
+	pe.Size            = spec.size            or NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.2, 0.14),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	pe.Transparency    = spec.transparency    or NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.95),
+		NumberSequenceKeypoint.new(0.15, 0.1),
+		NumberSequenceKeypoint.new(0.85, 0.1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	pe.Speed           = spec.speed           or NumberRange.new(0.3, 1.2)
+	local cfg = _mutationVisualCfg()
+	pe.SpreadAngle     = spec.spreadAngle     or (cfg.DefaultParticleSpread or Vector2.new(35, 35))
+	if spec.rotation     then pe.Rotation     = spec.rotation end
+	if spec.rotSpeed     then pe.RotSpeed     = spec.rotSpeed end
+	if spec.acceleration then pe.Acceleration = spec.acceleration end
+	if spec.drag              then pe.Drag              = spec.drag end
+	if spec.velocityInheritance ~= nil then
+		pe.VelocityInheritance = spec.velocityInheritance
+	else
+		pe.VelocityInheritance = 0.8
+	end
+	if spec.lockedToPart == false then
+		pe.LockedToPart = false
+	else
+		pe.LockedToPart = spec.lockedToPart ~= false
+	end
+	pe.EmissionDirection = spec.emissionDirection or Enum.NormalId.Top
+end
+
+-- attachedParticle: one emitter on the anchor part.
 local function _applyAttachedParticle(state, anchor, _parts, effect, opts)
 	if opts.viewport then return end
 	local pe = Instance.new("ParticleEmitter")
-	if effect.texture        then pe.Texture        = effect.texture end
-	pe.Color           = effect.color           or ColorSequence.new(Color3.new(1, 1, 1))
-	pe.LightEmission   = effect.lightEmission   or 1.0
-	pe.LightInfluence  = effect.lightInfluence  or 0.0
-	pe.Lifetime        = effect.lifetime        or NumberRange.new(0.4, 0.8)
-	pe.Rate            = effect.rate            or 12
-	pe.Size            = effect.size            or NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(0.2, 0.4),
-		NumberSequenceKeypoint.new(1, 0),
-	})
-	pe.Transparency    = effect.transparency    or NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.9),
-		NumberSequenceKeypoint.new(0.15, 0),
-		NumberSequenceKeypoint.new(0.85, 0),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	pe.Speed           = effect.speed           or NumberRange.new(0.3, 1.2)
-	pe.SpreadAngle     = effect.spreadAngle     or Vector2.new(180, 180)
-	if effect.rotation     then pe.Rotation     = effect.rotation end
-	if effect.rotSpeed     then pe.RotSpeed     = effect.rotSpeed end
-	if effect.acceleration then pe.Acceleration = effect.acceleration end
-	pe.EmissionDirection = effect.emissionDirection or Enum.NormalId.Top
+	_applyParticleSpec(pe, effect)
 	pe.Parent = anchor
 	table.insert(state.createdInst, pe)
+end
+
+-- attachmentParticles: Studio tester layout — Attachment on fish Model + 1..N emitters.
+local function _applyAttachmentParticles(state, anchor, _parts, effect, opts)
+	if opts.viewport then return end
+	local host = _particleHost(anchor)
+	local att = Instance.new("Attachment")
+	att.Name = "MutationAttachment"
+	att.Position = effect.position or Vector3.zero
+	att.Parent = host
+	table.insert(state.createdInst, att)
+	for i, spec in ipairs(effect.emitters or {}) do
+		local pe = Instance.new("ParticleEmitter")
+		if spec.name then pe.Name = spec.name end
+		_applyParticleSpec(pe, spec)
+		pe.Parent = att
+		table.insert(state.createdInst, pe)
+	end
+end
+
+local function _applyHeldScale(state: _HandleState)
+	local cfg = _mutationVisualCfg()
+	local particleScale: number = cfg.HeldParticleRateScale or 0.45
+	local lightScale: number = cfg.HeldLightBrightnessScale or 0.5
+	for _, inst in ipairs(state.createdInst) do
+		if inst:IsA("ParticleEmitter") then
+			(inst :: ParticleEmitter).Rate *= particleScale
+		elseif inst:IsA("PointLight") then
+			(inst :: PointLight).Brightness *= lightScale
+		end
+	end
 end
 
 -- fire: Roblox built-in Fire instance — orange/red flame visual with the
@@ -535,7 +677,8 @@ local APPLIERS = {
 	pointLight        = _applyPointLight,
 	shell             = _applyShell,
 	decal             = _applyDecal,
-	attachedParticle  = _applyAttachedParticle,
+	attachedParticle    = _applyAttachedParticle,
+	attachmentParticles = _applyAttachmentParticles,
 	fire              = _applyFire,
 	smoke             = _applySmoke,
 	sparkles          = _applySparkles,
@@ -546,9 +689,13 @@ local APPLIERS = {
 -- Public API.
 -- ====================================================================
 
-export type AttachOpts = { viewport: boolean?, intensity: number? }
+export type AttachOpts = {
+	viewport: boolean?,
+	intensity: number?,
+	heldScale: boolean?,
+}
 
-function FishMutations.attach(part: BasePart, mods: {string}, opts: AttachOpts?): MutationHandle
+local function _attachImpl(part: BasePart, mods: {string}, opts: AttachOpts?): MutationHandle
 	local opts2: AttachOpts = opts or {}
 	local state: _HandleState = {
 		tickerIds   = {},
@@ -618,6 +765,10 @@ function FishMutations.attach(part: BasePart, mods: {string}, opts: AttachOpts?)
 		end
 	end
 
+	if opts2.heldScale and not opts2.viewport then
+		_applyHeldScale(state)
+	end
+
 	local handle: MutationHandle = {} :: MutationHandle
 	function handle:Destroy()
 		if state._destroyed then return end
@@ -631,6 +782,28 @@ function FishMutations.attach(part: BasePart, mods: {string}, opts: AttachOpts?)
 				p.Color        = snap.Color
 				p.Material     = snap.Material
 				p.Transparency = snap.Transparency
+				if p:IsA("MeshPart") then
+					local mp = p :: MeshPart
+					if snap.TextureID ~= nil then
+						mp.TextureID = snap.TextureID
+					end
+					if snap.UsePartColor ~= nil then
+						pcall(function()
+							mp.UsePartColor = snap.UsePartColor :: boolean
+						end)
+					end
+					if snap.Reflectance ~= nil then
+						mp.Reflectance = snap.Reflectance
+					end
+					local sa = snap.SurfaceAppearance
+					if sa and sa.Parent == nil then
+						sa.Parent = mp
+					end
+				end
+				local sm = snap.SpecialMesh
+				if sm and sm.Parent and snap.SpecialMeshTextureId ~= nil then
+					sm.TextureId = snap.SpecialMeshTextureId
+				end
 			end
 		end
 	end
@@ -638,9 +811,17 @@ function FishMutations.attach(part: BasePart, mods: {string}, opts: AttachOpts?)
 	return handle
 end
 
--- Suppress unused-warning for the still-required GameConfig import — kept
--- so future per-modifier visual flags in GameConfig (e.g. globalIntensity)
--- can be wired without an import shuffle.
-local _ = GameConfig
+function FishMutations.attach(part: BasePart, mods: {string}, opts: AttachOpts?): MutationHandle
+	local ok, result = xpcall(_attachImpl, function(err)
+		warn("[FishMutations] attach failed:", err)
+		return nil
+	end, part, mods, opts)
+	if ok and result then
+		return result
+	end
+	return {
+		Destroy = function(_self) end,
+	} :: MutationHandle
+end
 
 return FishMutations
