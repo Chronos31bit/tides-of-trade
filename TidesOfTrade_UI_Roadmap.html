@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tides of Trade — UI Overhaul Roadmap</title>
+<style>
+  /* Cozy palette pulled from the in-game UIKit */
+  :root {
+    --tot-parchment:      #F5ECDA;
+    --tot-parchment-deep: #E8DCC6;
+    --tot-parchment-wash: #FCF7EE;
+    --tot-mint:           #8CC4B6;
+    --tot-mint-dark:      #58988A;
+    --tot-mint-deep:      #306C60;
+    --tot-amber:          #D29E50;
+    --tot-amber-deep:     #A87630;
+    --tot-amber-light:    #EEC480;
+    --tot-ink:            #30261C;
+    --tot-ink-soft:       #605040;
+    --tot-ink-faint:      #94826E;
+    --tot-border:         #D2C2A8;
+    --tot-border-strong:  #AC987A;
+    --tot-cream:          #FCF4E4;
+    --tot-stat-bg:        color-mix(in srgb, var(--tot-parchment-wash) 85%, transparent);
+    --tot-success:        #6CBA76;
+    --tot-warn:           #DEA03C;
+    --tot-danger:         #D25A50;
+    --tot-radius-sm: 6px;
+    --tot-radius-md: 10px;
+    --tot-radius-lg: 14px;
+    --tot-radius-xl: 18px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --tot-parchment:      #2A2520;
+      --tot-parchment-deep: #221E1A;
+      --tot-parchment-wash: #322B25;
+      --tot-ink:            #F5ECDA;
+      --tot-ink-soft:       #C7B8A0;
+      --tot-ink-faint:      #8C7E6A;
+      --tot-border:         #4A3F32;
+      --tot-border-strong:  #6B5A47;
+      --tot-cream:          #1C1814;
+      --tot-stat-bg:        color-mix(in srgb, var(--tot-parchment-wash) 70%, transparent);
+      --tot-mint:           #6FAE9C;
+      --tot-mint-dark:      #4A8478;
+      --tot-amber:          #C28F3F;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--tot-cream);
+    color: var(--tot-ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  body.tt-modal-open { overflow: hidden; }
+
+  .tt-nav {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 14px 20px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: center;
+    font-size: 12px;
+  }
+  .tt-nav a {
+    color: var(--tot-ink-soft);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .tt-nav a:hover { color: var(--tot-mint-deep); text-decoration: underline; }
+  .tt-nav .tt-nav-here { color: var(--tot-ink); font-weight: 600; pointer-events: none; }
+
+  .tt-root {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0.5rem 20px 3rem;
+  }
+
+  .tt-hero {
+    position: relative;
+    background: linear-gradient(180deg, var(--tot-parchment-wash) 0%, var(--tot-parchment) 100%);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-xl);
+    padding: 28px 32px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .tt-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 200px at 90% -10%, rgba(140,196,182,0.18), transparent 60%),
+      radial-gradient(ellipse 500px 180px at -10% 110%, rgba(210,158,80,0.14), transparent 60%);
+    pointer-events: none;
+  }
+  .tt-hero-inner { position: relative; z-index: 1; }
+  .tt-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--tot-mint-deep);
+    margin-bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tt-hero-eyebrow::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--tot-mint);
+    box-shadow: 0 0 0 4px rgba(140,196,182,0.25);
+  }
+  .tt-hero-title {
+    font-size: 30px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: var(--tot-ink);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  .tt-hero-sub {
+    font-size: 14.5px;
+    color: var(--tot-ink-soft);
+    margin: 0 0 20px 0;
+    max-width: 700px;
+  }
+  .tt-hero-sub code {
+    font-size: 0.92em;
+    background: var(--tot-parchment-deep);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .tt-hero-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .tt-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 24px;
+    position: relative;
+    z-index: 1;
+  }
+  .tt-stat {
+    background: var(--tot-stat-bg);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-md);
+    padding: 10px 14px;
+  }
+  .tt-stat-num {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--tot-ink);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  .tt-stat-lbl {
+    font-size: 11px;
+    color: var(--tot-ink-soft);
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .tt-btn {
+    appearance: none;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: var(--tot-radius-md);
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1;
+  }
+  .tt-btn:focus-visible {
+    outline: 2px solid var(--tot-mint-dark);
+    outline-offset: 2px;
+  }
+  .tt-btn-primary {
+    background: var(--tot-mint-deep);
+    color: var(--tot-cream);
+    border-color: var(--tot-mint-deep);
+    box-shadow: 0 1px 0 rgba(48,108,96,0.4);
+  }
+  .tt-btn-primary:hover {
+    background: var(--tot-mint-dark);
+    border-color: var(--tot-mint-dark);
+    transform: translateY(-1px);
+  }
+  .tt-btn-primary:active { transform: translateY(0); }
+  .tt-btn-secondary {
+    background: var(--tot-parchment);
+    color: var(--tot-ink);
+    border-color: var(--tot-border-strong);
+  }
+  .tt-btn-secondary:hover {
+    background: var(--tot-parchment-deep);
+    transform: translateY(-1px);
+  }
+  .tt-btn-ghost {
+    background: transparent;
+    color: var(--tot-ink-soft);
+    border-color: var(--tot-border);
+  }
+  .tt-btn-ghost:hover {
+    background: var(--tot-parchment-deep);
+    color: var(--tot-ink);
+  }
+  .tt-btn-sm {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+
+  .tt-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    background: var(--tot-parchment-deep);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-md);
+  }
+  .tt-toolbar-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--tot-ink-soft);
+  }
+  .tt-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tt-chip {
+    appearance: none;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--tot-border);
+    background: var(--tot-parchment-wash);
+    color: var(--tot-ink-soft);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tt-chip:focus-visible {
+    outline: 2px solid var(--tot-mint-dark);
+    outline-offset: 2px;
+  }
+  .tt-chip-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .tt-chip:hover { border-color: var(--tot-border-strong); color: var(--tot-ink); }
+  .tt-chip.active {
+    background: var(--tot-ink);
+    color: var(--tot-cream);
+    border-color: var(--tot-ink);
+  }
+  .tt-search {
+    margin-left: auto;
+    background: var(--tot-parchment-wash);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-md);
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--tot-ink);
+    width: 220px;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .tt-search:focus {
+    outline: none;
+    border-color: var(--tot-mint-dark);
+    box-shadow: 0 0 0 3px rgba(140,196,182,0.25);
+  }
+
+  .tt-flow { position: relative; padding-left: 56px; }
+  .tt-flow::before {
+    content: "";
+    position: absolute;
+    left: 23px;
+    top: 28px;
+    bottom: 28px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--tot-mint) 0%, var(--tot-amber) 50%, var(--tot-mint-deep) 100%);
+    border-radius: 2px;
+    opacity: 0.55;
+  }
+  .tt-phase { position: relative; margin-bottom: 24px; }
+  .tt-phase:last-child { margin-bottom: 0; }
+
+  .tt-phase-marker {
+    position: absolute;
+    left: -56px;
+    top: 14px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--tot-parchment);
+    border: 2px solid var(--tot-mint-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--tot-mint-deep);
+    letter-spacing: -0.01em;
+    box-shadow: 0 2px 0 rgba(48,108,96,0.15);
+  }
+  .tt-phase[data-accent="amber"] .tt-phase-marker {
+    border-color: var(--tot-amber-deep);
+    color: var(--tot-amber-deep);
+  }
+  .tt-phase[data-accent="ink"] .tt-phase-marker {
+    border-color: var(--tot-ink);
+    color: var(--tot-ink);
+  }
+
+  .tt-phase-card {
+    background: var(--tot-parchment-wash);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-lg);
+    padding: 18px 20px 20px;
+  }
+  .tt-phase-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .tt-phase-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--tot-ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .tt-phase-tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--tot-ink-faint);
+    letter-spacing: 0.02em;
+  }
+
+  .tt-nodes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+  }
+  .tt-node-wrap { position: relative; }
+  .tt-node {
+    appearance: none;
+    font: inherit;
+    text-align: left;
+    background: var(--tot-parchment);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-md);
+    padding: 14px 14px 36px 14px;
+    cursor: pointer;
+    transition: transform 0.1s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, opacity 0.12s ease;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    min-height: 134px;
+    overflow: hidden;
+    width: 100%;
+  }
+  .tt-node::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--tot-border);
+    transition: background 0.12s ease;
+  }
+  .tt-node[data-state="overhaul"]::before { background: var(--tot-amber); }
+  .tt-node[data-state="missing"]::before { background: var(--tot-danger); }
+
+  .tt-node:hover {
+    border-color: var(--tot-border-strong);
+    background: var(--tot-cream);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px -8px rgba(48,38,28,0.25);
+  }
+  .tt-node:active { transform: translateY(0); }
+  .tt-node:focus-visible {
+    outline: 2px solid var(--tot-mint-dark);
+    outline-offset: 2px;
+  }
+  .tt-node.tt-node-done {
+    opacity: 0.72;
+    border-color: var(--tot-success);
+  }
+  .tt-node.tt-node-done::before { background: var(--tot-success); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tt-node:hover { transform: none; }
+    .tt-btn-primary:hover, .tt-btn-secondary:hover { transform: none; }
+  }
+
+  .tt-node-check {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 14px;
+    color: var(--tot-success);
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    opacity: 0;
+  }
+  .tt-node.tt-node-done .tt-node-check { opacity: 1; }
+
+  .tt-node-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--tot-ink);
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    padding-right: 20px;
+  }
+  .tt-node-blurb {
+    font-size: 12px;
+    color: var(--tot-ink-soft);
+    line-height: 1.45;
+    flex: 1;
+  }
+  .tt-node-meta {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .tt-tag {
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--tot-parchment-deep);
+    color: var(--tot-ink-soft);
+    border: 1px solid var(--tot-border);
+    letter-spacing: 0.01em;
+  }
+  .tt-node-go {
+    font-size: 10.5px;
+    color: var(--tot-mint-deep);
+    font-weight: 600;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .tt-node:hover .tt-node-go { opacity: 1; }
+
+  .tt-node-done-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 2;
+  }
+
+  .tt-empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--tot-ink-faint);
+    font-size: 13px;
+    background: var(--tot-parchment-wash);
+    border: 1px dashed var(--tot-border);
+    border-radius: var(--tot-radius-md);
+  }
+
+  /* Fixed modal scrim */
+  .tt-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+    background: rgba(30,24,18,0.55);
+    backdrop-filter: blur(4px);
+  }
+  .tt-scrim.open { display: flex; }
+  .tt-modal {
+    background: var(--tot-parchment);
+    border-radius: var(--tot-radius-lg);
+    border: 1px solid var(--tot-border-strong);
+    max-width: 780px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 60px -16px rgba(30,24,18,0.4);
+  }
+  .tt-modal-head {
+    background: var(--tot-parchment-deep);
+    border-bottom: 1px solid var(--tot-border);
+    padding: 16px 22px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .tt-modal-head-text { flex: 1; min-width: 0; }
+  .tt-modal-eyebrow {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tot-mint-deep);
+    margin-bottom: 4px;
+  }
+  .tt-modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--tot-ink);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+  }
+  .tt-modal-blurb {
+    font-size: 13px;
+    color: var(--tot-ink-soft);
+    margin: 0;
+  }
+  .tt-modal-close {
+    appearance: none;
+    background: var(--tot-parchment-wash);
+    border: 1px solid var(--tot-border);
+    color: var(--tot-ink-soft);
+    width: 32px; height: 32px;
+    border-radius: var(--tot-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .tt-modal-close:hover { background: var(--tot-parchment-deep); color: var(--tot-ink); }
+  .tt-modal-close:focus-visible {
+    outline: 2px solid var(--tot-mint-dark);
+    outline-offset: 2px;
+  }
+  .tt-modal-body {
+    padding: 16px 22px 8px;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+  }
+  .tt-prompt {
+    background: var(--tot-parchment-wash);
+    border: 1px solid var(--tot-border);
+    border-radius: var(--tot-radius-md);
+    padding: 14px 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--tot-ink);
+    white-space: pre-wrap;
+    margin: 0;
+    line-height: 1.55;
+  }
+  .tt-modal-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 16px 22px 22px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--tot-border);
+    background: var(--tot-parchment);
+  }
+
+  .tt-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--tot-ink);
+    color: var(--tot-cream);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: var(--tot-radius-md);
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    max-width: 90vw;
+    text-align: center;
+  }
+  .tt-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (max-width: 720px) {
+    .tt-hero { padding: 22px 20px; }
+    .tt-hero-title { font-size: 24px; }
+    .tt-stats { grid-template-columns: repeat(2, 1fr); }
+    .tt-flow { padding-left: 0; }
+    .tt-flow::before { display: none; }
+    .tt-phase-marker {
+      position: static;
+      margin-bottom: 10px;
+      width: 36px; height: 36px;
+      font-size: 14px;
+    }
+    .tt-nodes { grid-template-columns: 1fr; }
+    .tt-search { width: 100%; margin-left: 0; }
+    .tt-nav { padding-left: 16px; padding-right: 16px; }
+    .tt-root { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="tt-nav" aria-label="Project roadmaps">
+  <span class="tt-nav-here">UI Overhaul</span>
+  <a href="implementation-map-v2.html">Implementation map</a>
+  <a href="roadmap.html">Dev roadmap</a>
+  <a href="CLAUDE.md">CLAUDE.md</a>
+</nav>
+
+<div class="tt-root">
+
+  <section class="tt-hero">
+    <div class="tt-hero-inner">
+      <div class="tt-hero-eyebrow">Tides of Trade · UI Overhaul Roadmap</div>
+      <h1 class="tt-hero-title">Move the UI out of Lua and into StarterGui</h1>
+      <p class="tt-hero-sub">
+        Today every ScreenGui is built at runtime with <code>Instance.new</code>. This roadmap
+        migrates the 16 player-facing UIs to designer-authored StarterGui templates so artists can edit
+        layout in Studio while controllers stay focused on behavior. Each node is one combined
+        <strong>Studio template + Lua wiring</strong> session. Click any card for a copy-ready prompt.
+      </p>
+      <div class="tt-hero-cta">
+        <button type="button" class="tt-btn tt-btn-primary" id="ttBtnMasterOpen">Open master prompt →</button>
+        <button type="button" class="tt-btn tt-btn-secondary" id="ttBtnMasterSend">Send to Claude ↗</button>
+        <button type="button" class="tt-btn tt-btn-ghost" id="ttBtnExportAll">Copy all prompts</button>
+      </div>
+      <div class="tt-stats">
+        <div class="tt-stat">
+          <div class="tt-stat-num">16</div>
+          <div class="tt-stat-lbl">ScreenGuis to migrate</div>
+        </div>
+        <div class="tt-stat">
+          <div class="tt-stat-num">~6,600</div>
+          <div class="tt-stat-lbl">UI Lua (screens + kit)</div>
+        </div>
+        <div class="tt-stat">
+          <div class="tt-stat-num">6</div>
+          <div class="tt-stat-lbl">Phases planned</div>
+        </div>
+        <div class="tt-stat">
+          <div class="tt-stat-num" id="ttStatProgress">0 / 21</div>
+          <div class="tt-stat-lbl">Nodes complete</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="tt-toolbar">
+    <span class="tt-toolbar-label">Filter</span>
+    <div class="tt-chips" id="ttChips">
+      <button type="button" class="tt-chip active" data-filter="all">All</button>
+      <button type="button" class="tt-chip" data-filter="missing"><span class="tt-chip-dot" style="background:var(--tot-danger)"></span>Missing</button>
+      <button type="button" class="tt-chip" data-filter="overhaul"><span class="tt-chip-dot" style="background:var(--tot-amber)"></span>Overhaul</button>
+      <button type="button" class="tt-chip" data-filter="done"><span class="tt-chip-dot" style="background:var(--tot-success)"></span>Done</button>
+    </div>
+    <input type="text" class="tt-search" id="ttSearch" placeholder="Search nodes…" aria-label="Search nodes" />
+  </div>
+
+  <div class="tt-flow" id="ttFlow"></div>
+
+</div>
+
+<div class="tt-scrim" id="ttScrim" role="dialog" aria-modal="true" aria-labelledby="ttModalTitle">
+  <div class="tt-modal" id="ttModalPanel">
+    <div class="tt-modal-head">
+      <div class="tt-modal-head-text">
+        <div class="tt-modal-eyebrow" id="ttModalEyebrow">Prompt</div>
+        <h2 class="tt-modal-title" id="ttModalTitle">—</h2>
+        <p class="tt-modal-blurb" id="ttModalBlurb">—</p>
+      </div>
+      <button type="button" class="tt-modal-close" id="ttModalClose" aria-label="Close">×</button>
+    </div>
+    <div class="tt-modal-body">
+      <pre class="tt-prompt" id="ttModalPrompt">—</pre>
+    </div>
+    <div class="tt-modal-actions">
+      <button type="button" class="tt-btn tt-btn-primary" id="ttBtnSend">Send to Claude ↗</button>
+      <button type="button" class="tt-btn tt-btn-secondary" id="ttCopyBtn">Copy prompt</button>
+      <button type="button" class="tt-btn tt-btn-ghost" id="ttBtnModalClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="tt-toast" id="ttToast" role="status" aria-live="polite"></div>
+
+<script>
+  const TT_STORAGE_KEY = "tot-ui-roadmap-v1";
+  const TT_NODE_KEYS = [
+    "rojo","templateloader","modalshell","hud","inventory","market","quest",
+    "aquarium","harboredit","smokehouse","baitshop","castmeter","catchreveal",
+    "dialogue","notification","rodselect","social","shop","uikit","polish"
+  ];
+
+  function ttMasterPrompt() {
+    return `You are a top 0.1% Roblox developer working on "Tides of Trade", a cozy harbor-trading game built on Knit + ProfileService + Trove + Rojo. The repo is at C:\\\\Users\\\\derin\\\\Documents\\\\tides-of-trade. Read CLAUDE.md before doing anything — the cozy + mobile-first + server-authoritative pillars override your instincts.
+
+## The mission
+
+Today every ScreenGui is constructed at runtime via Instance.new() in Lua. There are 16 player-facing UIs (HUD, InventoryUI, MarketUI, AquariumUI, HarborEditUI, SmokehouseUI, BaitShopUI, QuestTrackerUI, CastMeter, CatchRevealUI, DialogueUI, NotificationUI, RodSelectUI, SocialUI, ShopUI, AdminWeatherUI) plus UIKit + UIUtil factories (~6,600 LOC). That made early iteration fast but now blocks artists, slows skinning, makes diffs unreadable, and forces every cosmetic tweak through a programmer.
+
+Migrate the UI to a "designer-authored, code-driven" model:
+
+- Every ScreenGui lives as a real Instance tree under StarterGui (committed via Rojo .rbxmx files in src/StarterGuiAssets).
+- Controllers stop calling Instance.new for layout. They Clone the StarterGui template, find named descendants, and wire behavior (Activated handlers, label updates, visibility, tweens).
+- UIKit / UIUtil keep the design tokens (palette, spacing, radii, typography) and a small set of behavior helpers (MotionUtil hooks, ReducedMotion, RarityChip/ModifierPill recolor). They no longer build the modal shell from scratch.
+- StarterGui templates use UIListLayout / UIGridLayout / UIPadding / UICorner / UIStroke / UIScale / UISizeConstraint / UIAspectRatioConstraint so layout is data, not code.
+
+## Hard constraints (do not violate)
+
+1. Server-authoritative. Client never decides state. Templates are presentational only.
+2. Mobile-first: 380px portrait phone is the design target. 44px minimum hit-target. 12px minimum font.
+3. Respect GuiService.ReducedMotionEnabled — never disable gameplay, only decoration.
+4. All tunable numbers (colors, spacing, radii, font sizes, modal widths, notification stack offsets) remain in GameConfig.UI. Templates pick reasonable defaults; controllers may override at runtime by reading GameConfig.
+5. DisplayOrder layering stays exactly as GameConfig.UI.DisplayOrder declares. Each template stores its DisplayOrder via a StringValue child named "DisplayOrderKey" so the controller looks it up and applies it on clone.
+6. ResetOnSpawn = false, IgnoreGuiInset matches today's behavior per-template.
+7. Schema versioning (TidesProfile_v1) and stable string IDs (fish.id, building.kind, cosmetic IDs, quest IDs) are unchanged.
+8. No new packages. No new top-level folders without confirming the Rojo mapping in default.project.json.
+
+## The plan you must follow
+
+Phase 1 — Foundation
+- StarterGui → src/StarterGuiAssets is already in default.project.json; add first .rbxmx templates.
+- Each template ends in "_Template" and starts with Enabled=false.
+- Each template includes a "Meta" Folder child carrying DisplayOrderKey, ResetOnSpawn, IgnoreGuiInset, RespectTopbar.
+- Write src/Client/UI/TemplateLoader.lua with a single TemplateLoader.spawn(name) function.
+
+Phase 2 — Migrate screens (Studio template + Lua wiring per UI)
+- Port HUD, InventoryUI, MarketUI, AquariumUI, HarborEditUI, SmokehouseUI, BaitShopUI, QuestTrackerUI, CastMeter, CatchRevealUI, DialogueUI, NotificationUI, RodSelectUI, SocialUI, ShopUI, AdminWeatherUI, and ModalShell_Template.
+- For dynamic rows, add a single "RowTemplate" Frame with Visible=false; tag with CollectionService "TotRowTemplate".
+
+Phase 3 — Refactor UIKit + UIUtil
+- Move recolor / MotionUtil feedback into UIKit helpers (attachButtonFeedback, attachCardFeedback, applyTierPalette).
+- Replace UIKit.ModalShell() with a wrapper that clones ModalShell_Template. Keep the public return shape identical.
+
+Phase 4 — Polish, accessibility, ship
+- Verify 44px / 12px floors at the template level via a one-shot Studio plugin.
+- Verify Selectable=true on all interactive elements.
+- Walk every flow and confirm parity with the current build.
+
+## Output contract for this conversation
+
+For each phase, before writing code, propose the exact file additions/edits and wait for me to approve. If a step conflicts with an existing service contract, STOP and surface it. Additive only. Preserve every top-of-file comment block when you touch a file.`;
+  }
+
+  const TT_PROMPTS = {
+    "rojo": `StarterGui authoring for Tides of Trade — verify and finish foundation.
+
+The repo ALREADY has StarterGui → src/StarterGuiAssets in default.project.json and a README in that folder. Your job:
+
+1. Confirm the Rojo mapping syncs .rbxmx files as children of game.StarterGui.StarterGuiAssets (read default.project.json — do not duplicate work).
+2. Add .gitattributes treating .rbxmx as binary if missing.
+3. Author the FIRST template: ModalShell_Template.rbxmx (or HUD_Template) saved into src/StarterGuiAssets/, Enabled=false, with Meta folder (DisplayOrderKey, ResetOnSpawn, IgnoreGuiInset).
+4. Document the Studio save workflow in README if anything is unclear.
+
+Show me the diff and wait for approval before adding more templates.`,
+
+    "templateloader": `Create src/Client/UI/TemplateLoader.lua for Tides of Trade.
+
+Contract:
+- TemplateLoader.spawn(name: string, opts?: {parent: Instance?}) -> ScreenGui
+- Looks up game.StarterGui.StarterGuiAssets:FindFirstChild(name .. "_Template") (or game.StarterGui — match actual Rojo mount)
+- Clones it into PlayerGui (or opts.parent), destroys any prior ScreenGui with the resolved name
+- Reads the "Meta" Folder for DisplayOrderKey (StringValue -> GameConfig.UI.DisplayOrder lookup), ResetOnSpawn, IgnoreGuiInset, RespectTopbar; applies them
+- Adds the same UIScale "AutoScale" + viewport binding that UIKit.makeScreenGui uses (extract that math into a shared helper both call)
+- Returns the cloned ScreenGui with Enabled=true
+- Strict-typed (--!strict), Trove-friendly, with a comment-block at the top explaining the contract
+
+After the loader, refactor UIKit.makeScreenGui to delegate viewport scaling to a new internal applyAutoScale(gui) so TemplateLoader can reuse it. Don't change UIKit's public surface.
+
+Show me the file before writing it.`,
+
+    "modalshell": `Author ModalShell_Template as a StarterGui asset for Tides of Trade and wire UIKit.ModalShell to it.
+
+Template tree (build in Studio, save as src/StarterGuiAssets/ModalShell_Template.rbxmx):
+- ScreenGui "ModalShell_Template" (Enabled=false, ResetOnSpawn=false, IgnoreGuiInset=true)
+  - Meta (Folder) { DisplayOrderKey="Modal", ResetOnSpawn=false, IgnoreGuiInset=true, FadeDuration=NumberValue, SlideOffsetPx=NumberValue }
+  - Backdrop (TextButton, full-screen, transparent at rest)
+  - Panel (Frame, AnchorPoint 0.5,0.5, Position 0.5,0.5, Size 0.92,0,0.78,0)
+    - UICorner, UIStroke, UISizeConstraint (MaxSize from GameConfig.UI.Modal.MaxWidthPx)
+    - Header (Frame, height = GameConfig.UI.Modal.HeaderHeightPx)
+      - Title (TextLabel, GothamBold 20)
+      - Close (TextButton 44x44, text "X")
+    - Body (Frame, fills remaining, UIPadding from GameConfig.UI.Modal.BodyPaddingPx)
+
+Then refactor UIKit.ModalShell() to call TemplateLoader.spawn("ModalShell"). KEEP the public return shape identical so MarketUI/InventoryUI/SmokehouseUI/BaitShopUI/AquariumUI/HarborEditUI/SocialUI/AdminWeatherUI don't need changes.
+
+Preserve the top-of-file comment block in UIKit.lua. Add a paragraph noting the new template dependency.`,
+
+    "hud": `Migrate HUD.lua from script-built to template-driven (Studio + Lua).
+
+Read src/Client/UI/HUD.lua (~340 lines). Port layout to HUD_Template.rbxmx:
+
+Template tree:
+- ScreenGui "HUD_Template" (DisplayOrderKey="HUD", ResetOnSpawn=false, RespectTopbar=true)
+  - Wallet (Frame, pill, top-left): CoinsIcon, CoinsLabel, Divider, LureIcon, LureLabel
+  - StatusColumn (Frame, top-right, UIListLayout vertical): LevelChip, RodChip (TextButton)
+  - ActionBar (Frame, bottom-center, UIListLayout horizontal): RodButton, InventoryButton, MarketButton, AquariumButton, HarborButton, SocialButton, HomeButton
+
+Refactor HUD.lua:
+1. TemplateLoader.spawn("HUD")
+2. Resolve refs by name — KEEP THE SAME RETURN SHAPE for HUDController
+3. UIKit.skinActionButton for MotionUtil hover/press
+4. Delete every Instance.new used for layout
+5. Preserve the top-of-file comment block`,
+
+    "inventory": `Migrate InventoryUI.lua to template-driven (Studio + Lua). ~773 lines — biggest UI.
+
+Read carefully: inventory grid, fish card row, selection, tier filters, sort, mutation pills, swap-to-aquarium. Don't lose wiring.
+
+Template:
+- ScreenGui "InventoryUI_Template" (DisplayOrderKey="Modal")
+  - Panel with Header, FilterRow (TotInvFilterChip tag), SortControls, GridContainer (ScrollingFrame + UIGridLayout)
+  - FishCard_Template (Visible=false): ThumbView, NameLabel, RarityChip, ModifierPillContainer, CoinValueLabel, ActionButton
+
+Refactor: template clones only. UIKit.attachFishThumb(viewport, fishId). Preserve every public method/field for InventoryController. Stop on RemoteSignal mismatches.`,
+
+    "market": `Migrate MarketUI.lua to template-driven (Studio + Lua). ~203 lines.
+
+Template:
+- ScreenGui "MarketUI_Template" (DisplayOrderKey="Modal")
+  - SearchRow, ListingScroll, ListingRow_Template (SellerLabel, FishThumb, FishName, RarityChip, PriceLabel, BuyButton)
+
+Clone ListingRow_Template per result. KEEP buy-confirm tween. Comment service signal names.`,
+
+    "aquarium": `Migrate AquariumUI.lua to template-driven (Studio + Lua). ~159 lines.
+
+Template:
+- ScreenGui "AquariumUI_Template" (DisplayOrderKey="Modal")
+  - Slot_Template: ViewportFrame, RarityRing, NameLabel, ModifierPillStrip, EmptyHint
+
+Clone slots per GameConfig. KEEP AquariumController contract.`,
+
+    "harboredit": `Migrate HarborEditUI.lua to template-driven (Studio + Lua). ~289 lines.
+
+Template:
+- ScreenGui "HarborEditUI_Template" (DisplayOrderKey="Modal")
+  - BuildingRow_Template: ThumbnailViewport, NameLabel, TierBadges, CostLabel, UpgradeButton, PlaceButton
+
+Fill from BuildingCatalog.lua at runtime — don't hardcode in template. UIKit.skinUpgradeButton for visible-transformation pillar.`,
+
+    "smokehouse": `Migrate SmokehouseUI.lua to template-driven (Studio + Lua). ~285 lines.
+
+Template:
+- ScreenGui "SmokehouseUI_Template" (DisplayOrderKey="Modal")
+  - SmokeSlot_Template: ThumbViewport, ProgressRing, TimeLabel, FishNameLabel, CollectButton
+  - CollectAllButton
+
+Preserve QuestService hook for smoked-fish quests.`,
+
+    "baitshop": `Migrate BaitShopUI.lua to template-driven (Studio + Lua). ~188 lines.
+
+Template:
+- ScreenGui "BaitShopUI_Template" (DisplayOrderKey="Modal")
+  - BaitTile_Template: Icon, NameLabel, EffectDescLabel, PriceLabel, BuyButton, OwnedCountBadge
+
+Tag tiles "TotBaitTile". Bait IDs are forever — never rename.`,
+
+    "quest": `Migrate QuestTrackerUI.lua to template-driven (Studio + Lua). ~575 lines.
+
+Template:
+- ScreenGui "QuestTrackerUI_Template" (DisplayOrderKey="QuestTracker", RespectTopbar=true)
+  - StreakBanner, QuestRow_Template, AllCompleteBanner (hidden)
+
+Encode claim tween TweenInfo as NumberValues in Meta.`,
+
+    "castmeter": `Migrate CastMeter.lua to template-driven (Studio + Lua). ~549 lines.
+
+OSCILLATION math stays in script (Heartbeat OK). Only chrome moves to template.
+
+Template:
+- ScreenGui "CastMeter_Template" (DisplayOrderKey="CastMeter")
+  - Track (ZoneCommon/ZoneRare/ZoneLegendary), Indicator, ReleaseHintLabel
+
+KEEP controller contract.`,
+
+    "catchreveal": `Migrate CatchRevealUI.lua to template-driven (Studio + Lua). ~429 lines.
+
+Template:
+- ScreenGui "CatchRevealUI_Template" (DisplayOrderKey="CatchReveal")
+  - FishViewport, NameLabel, RarityChip, ModifierPillStrip, CoinPreviewLabel, DismissButton
+  - SparkleCommon / SparkleRare / SparkleLegendary — skip under ReducedMotion`,
+
+    "dialogue": `Migrate DialogueUI.lua to template-driven (Studio + Lua). ~216 lines.
+
+Text-only NPC panel. NO TTS. Template:
+- ScreenGui "DialogueUI_Template" (DisplayOrderKey="Dialogue")
+  - PortraitFrame, SpeakerNameLabel, BodyTextLabel, ChoiceButton_Template, ContinueHint
+
+World keeps moving during dialogue — no pause logic.`,
+
+    "notification": `Migrate NotificationUI.lua to template-driven (Studio + Lua). ~155 lines.
+
+Template:
+- ScreenGui "NotificationUI_Template" (DisplayOrderKey="Notification")
+  - StackContainer, Toast_Template
+
+ReducedMotion: fade only, no slide.`,
+
+    "rodselect": `Migrate RodSelectUI.lua to template-driven (Studio + Lua). ~311 lines.
+
+Template:
+- ScreenGui "RodSelectUI_Template" (DisplayOrderKey="Modal")
+  - RodRow_Template: TierBadge, NameLabel, EffectSummaryLabel, EquipButton, LockOverlay
+
+Keep RodService contract.`,
+
+    "social": `Migrate SocialUI.lua to template-driven (Studio + Lua). ~99 lines.
+
+Template:
+- ScreenGui "SocialUI_Template" (DisplayOrderKey="Modal")
+  - Tabs, PlayerRow_Template, hidden ChatPanel slot for future crew chat`,
+
+    "shop": `Migrate ShopUI.lua + AdminWeatherUI.lua to template-driven (Studio + Lua). ~119 + ~131 lines.
+
+Templates: ShopUI_Template, AdminWeatherUI_Template (weather buttons + dev toggles).
+
+Admin UI stays gated by AdminService — DO NOT remove the gate.`,
+
+    "uikit": `Refactor UIKit.lua and UIUtil.lua to support template-driven UIs.
+
+KEEP: tokens, rarityColor, modifierColor, tierPalette, attachFishThumb, makeScreenGui (deprecate gradually).
+ADD: attachButtonFeedback, applyCardStyle, applyRarityChip.
+ModalShell() → thin TemplateLoader.spawn("ModalShell") wrapper — identical return shape.
+
+Preserve top-of-file comment blocks. Add TEMPLATE INTEGRATION section.`,
+
+    "polish": `Final UI overhaul pass: accessibility + parity audit.
+
+1. TextButton/ImageButton AbsoluteSize.Y >= 44
+2. TextLabel TextSize >= 12, TextScaled = false
+3. ResetOnSpawn=false + DisplayOrder via Meta on every ScreenGui
+4. Selectable=true + SelectionOrder on interactives
+5. No hardcoded Color3.fromRGB in templates — UIKit at spawn
+6. Decoration respects UIKit.reducedMotion()
+
+Write src/Tools/ValidateStarterGui.server.lua as Studio-only lint. Screenshot parity after fixes.`
+  };
+
+  const TT_META = {
+    "rojo":          { eyebrow: "Foundation", title: "StarterGui + first .rbxmx", blurb: "Rojo path exists — verify sync and ship the first template asset.", tags: ["infra", "partial"], state: "overhaul" },
+    "templateloader":{ eyebrow: "Foundation", title: "TemplateLoader module", blurb: "Clone StarterGui templates into PlayerGui and apply Meta values.", tags: ["new module", "Studio + Lua"], state: "missing" },
+    "modalshell":    { eyebrow: "Foundation", title: "ModalShell template", blurb: "Shared modal chrome as .rbxmx; UIKit.ModalShell clones it.", tags: ["8 modals", "Studio + Lua"], state: "overhaul" },
+    "hud":           { eyebrow: "High-traffic", title: "HUD", blurb: "Wallet + status chips + 7-tile action bar.", tags: ["340 LOC", "Studio + Lua"], state: "overhaul" },
+    "inventory":     { eyebrow: "High-traffic", title: "Inventory", blurb: "Biggest UI — grid, filters, sort, viewport thumbs.", tags: ["773 LOC", "Studio + Lua"], state: "overhaul" },
+    "market":        { eyebrow: "High-traffic", title: "Market", blurb: "Cross-server listing board.", tags: ["203 LOC", "Studio + Lua"], state: "overhaul" },
+    "quest":         { eyebrow: "High-traffic", title: "Quest Tracker", blurb: "Streak banner + daily rows + claim celebration.", tags: ["575 LOC", "Studio + Lua"], state: "overhaul" },
+    "aquarium":      { eyebrow: "Cozy moments", title: "Aquarium", blurb: "Pinned fish viewports + mutation pills.", tags: ["159 LOC", "Studio + Lua"], state: "overhaul" },
+    "harboredit":    { eyebrow: "Cozy moments", title: "Harbor Edit", blurb: "6 buildings × 3 tiers — visible transformation.", tags: ["289 LOC", "Studio + Lua"], state: "overhaul" },
+    "smokehouse":    { eyebrow: "Cozy moments", title: "Smokehouse", blurb: "Smoke queue + progress rings.", tags: ["285 LOC", "Studio + Lua"], state: "overhaul" },
+    "baitshop":      { eyebrow: "Cozy moments", title: "Bait Shop", blurb: "Bait tile grid with effect copy.", tags: ["188 LOC", "Studio + Lua"], state: "overhaul" },
+    "castmeter":     { eyebrow: "Gameplay", title: "Cast Meter", blurb: "Chrome to template; oscillation math stays in Lua.", tags: ["549 LOC", "Studio + Lua"], state: "overhaul" },
+    "catchreveal":   { eyebrow: "Gameplay", title: "Catch Reveal", blurb: "Reveal modal + rarity sparkle stacks.", tags: ["429 LOC", "Studio + Lua"], state: "overhaul" },
+    "dialogue":      { eyebrow: "Gameplay", title: "Dialogue", blurb: "Text-only NPC panel.", tags: ["216 LOC", "Studio + Lua"], state: "overhaul" },
+    "notification":  { eyebrow: "Gameplay", title: "Notifications", blurb: "Toast stack upper-right.", tags: ["155 LOC", "Studio + Lua"], state: "overhaul" },
+    "rodselect":     { eyebrow: "Gameplay", title: "Rod Select", blurb: "Tier-gated rod chooser.", tags: ["311 LOC", "Studio + Lua"], state: "overhaul" },
+    "social":        { eyebrow: "Gameplay", title: "Social / Crew", blurb: "Friends + crew list.", tags: ["99 LOC", "Studio + Lua"], state: "overhaul" },
+    "shop":          { eyebrow: "Gameplay", title: "Shop + Admin Weather", blurb: "Placeholder shop + dev weather panel.", tags: ["250 LOC", "Studio + Lua"], state: "overhaul" },
+    "uikit":         { eyebrow: "API refactor", title: "UIKit / UIUtil", blurb: "Tokens stay; layout factories become attach* helpers.", tags: ["938+823 LOC"], state: "overhaul" },
+    "polish":        { eyebrow: "Ship", title: "Accessibility + parity audit", blurb: "44px / 12px lint plugin + screenshot parity.", tags: ["lint", "QA"], state: "missing" }
+  };
+
+  const TT_PHASES = [
+    { num: "1", title: "Foundation", tag: "Rojo verified · loader · ModalShell", accent: "mint", nodes: ["rojo", "templateloader", "modalshell"] },
+    { num: "2A", title: "Migrate high-traffic UIs", tag: "Studio template + Lua wiring", accent: "amber", nodes: ["hud", "inventory", "market", "quest"] },
+    { num: "2B", title: "Migrate cozy-moment UIs", tag: "Visible transformation pillar", accent: "amber", nodes: ["aquarium", "harboredit", "smokehouse", "baitshop"] },
+    { num: "2C", title: "Migrate gameplay UIs", tag: "Cast loop · reveal · dialogue · toasts", accent: "amber", nodes: ["castmeter", "catchreveal", "dialogue", "notification", "rodselect", "social", "shop"] },
+    { num: "3", title: "Refactor UIKit + UIUtil", tag: "Tokens stay · factories → helpers", accent: "mint", nodes: ["uikit"] },
+    { num: "4", title: "Polish & ship", tag: "Lint · parity · accessibility", accent: "ink", nodes: ["polish"] }
+  ];
+
+  let ttFilter = "all";
+  let ttSearch = "";
+  let ttCurrentPrompt = "";
+  let ttProgress = {};
+  let ttToastTimer = null;
+
+  function ttLoadProgress() {
+    try {
+      const raw = localStorage.getItem(TT_STORAGE_KEY);
+      ttProgress = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      ttProgress = {};
+    }
+  }
+
+  function ttSaveProgress() {
+    try {
+      localStorage.setItem(TT_STORAGE_KEY, JSON.stringify(ttProgress));
+    } catch (e) { /* private mode */ }
+    ttUpdateStats();
+    ttUpdateChipLabels();
+  }
+
+  function ttIsDone(key) {
+    return ttProgress[key] === "done";
+  }
+
+  function ttCountDone() {
+    return TT_NODE_KEYS.filter(k => ttIsDone(k)).length;
+  }
+
+  function ttCountByState(state) {
+    return TT_NODE_KEYS.filter(k => TT_META[k].state === state).length;
+  }
+
+  function ttUpdateStats() {
+    const el = document.getElementById("ttStatProgress");
+    if (el) el.textContent = ttCountDone() + " / " + TT_NODE_KEYS.length;
+  }
+
+  function ttUpdateChipLabels() {
+    const all = TT_NODE_KEYS.length;
+    const missing = ttCountByState("missing");
+    const overhaul = ttCountByState("overhaul");
+    const done = ttCountDone();
+    const chips = document.querySelectorAll(".tt-chip[data-filter]");
+    chips.forEach(chip => {
+      const f = chip.getAttribute("data-filter");
+      const base = chip.getAttribute("data-label") || chip.textContent.replace(/\s*\(\d+\)\s*$/, "").trim();
+      chip.setAttribute("data-label", base);
+      if (f === "all") chip.textContent = "All (" + all + ")";
+      else if (f === "missing") chip.innerHTML = '<span class="tt-chip-dot" style="background:var(--tot-danger)"></span>Missing (' + missing + ')';
+      else if (f === "overhaul") chip.innerHTML = '<span class="tt-chip-dot" style="background:var(--tot-amber)"></span>Overhaul (' + overhaul + ')';
+      else if (f === "done") chip.innerHTML = '<span class="tt-chip-dot" style="background:var(--tot-success)"></span>Done (' + done + ')';
+    });
+  }
+
+  function ttEsc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  }
+
+  function ttMatches(key, meta) {
+    if (ttFilter === "done") {
+      if (!ttIsDone(key)) return false;
+    } else if (ttFilter !== "all" && meta.state !== ttFilter) {
+      return false;
+    }
+    if (ttSearch) {
+      const q = ttSearch.toLowerCase();
+      const hay = (meta.title + " " + meta.blurb + " " + meta.tags.join(" ")).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }
+
+  function ttToggleDone(key, ev) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    if (ttIsDone(key)) delete ttProgress[key];
+    else ttProgress[key] = "done";
+    ttSaveProgress();
+    ttRender();
+  }
+
+  function ttRender() {
+    const root = document.getElementById("ttFlow");
+    const parts = [];
+    let totalVisible = 0;
+
+    TT_PHASES.forEach(phase => {
+      const visibleNodes = phase.nodes.filter(key => ttMatches(key, TT_META[key]));
+      if (visibleNodes.length === 0) return;
+      totalVisible += visibleNodes.length;
+
+      const nodeHtml = visibleNodes.map(key => {
+        const m = TT_META[key];
+        const done = ttIsDone(key);
+        const tags = m.tags.map(t => `<span class="tt-tag">${ttEsc(t)}</span>`).join("");
+        const doneCls = done ? " tt-node-done" : "";
+        const doneLbl = done ? "Undo done" : "Mark done";
+        return `
+          <div class="tt-node-wrap">
+            <button type="button" class="tt-node${doneCls}" data-state="${m.state}" data-key="${key}" aria-label="Open prompt: ${ttEsc(m.title)}">
+              <span class="tt-node-check" aria-hidden="true">✓</span>
+              <div class="tt-node-title">${ttEsc(m.title)}</div>
+              <div class="tt-node-blurb">${ttEsc(m.blurb)}</div>
+              <div class="tt-node-meta">${tags}<span class="tt-node-go">Open →</span></div>
+            </button>
+            <button type="button" class="tt-btn tt-btn-ghost tt-btn-sm tt-node-done-btn" data-done-key="${key}" aria-label="${doneLbl} for ${ttEsc(m.title)}">${doneLbl}</button>
+          </div>
+        `;
+      }).join("");
+
+      parts.push(`
+        <section class="tt-phase" data-accent="${phase.accent}">
+          <div class="tt-phase-marker">${ttEsc(phase.num)}</div>
+          <div class="tt-phase-card">
+            <div class="tt-phase-head">
+              <h2 class="tt-phase-title">${ttEsc(phase.title)}</h2>
+              <span class="tt-phase-tag">${ttEsc(phase.tag)}</span>
+            </div>
+            <div class="tt-nodes">${nodeHtml}</div>
+          </div>
+        </section>
+      `);
+    });
+
+    if (totalVisible === 0) {
+      parts.push(`<div class="tt-empty">No nodes match the current filter.</div>`);
+    }
+
+    root.innerHTML = parts.join("");
+
+    root.querySelectorAll(".tt-node[data-key]").forEach(btn => {
+      btn.addEventListener("click", () => ttOpenNode(btn.getAttribute("data-key")));
+    });
+    root.querySelectorAll("[data-done-key]").forEach(btn => {
+      btn.addEventListener("click", ev => ttToggleDone(btn.getAttribute("data-done-key"), ev));
+    });
+  }
+
+  function ttToast(msg) {
+    const el = document.getElementById("ttToast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(ttToastTimer);
+    ttToastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function ttCopyText(text, okLabel) {
+    const ok = () => ttToast(okLabel || "Copied");
+    const bad = () => ttToast("Copy failed");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(ok, bad);
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      ok();
+      return Promise.resolve();
+    } catch (e) {
+      bad();
+      return Promise.reject(e);
+    }
+  }
+
+  function ttSend(text) {
+    if (typeof window.sendPrompt === "function") {
+      window.sendPrompt(text);
+      return;
+    }
+    if (window.parent && typeof window.parent.sendPrompt === "function") {
+      window.parent.sendPrompt(text);
+      return;
+    }
+    ttCopyText(text, "Copied — paste in Cursor or Claude");
+    const btn = document.getElementById("ttBtnSend");
+    const masterBtn = document.getElementById("ttBtnMasterSend");
+    [btn, masterBtn].forEach(b => {
+      if (!b) return;
+      const old = b.textContent;
+      b.textContent = "Copied — paste in chat";
+      setTimeout(() => { b.textContent = old; }, 1800);
+    });
+  }
+
+  function ttOpenModal(eyebrow, title, blurb, prompt) {
+    ttCurrentPrompt = prompt;
+    document.getElementById("ttModalEyebrow").textContent = eyebrow;
+    document.getElementById("ttModalTitle").textContent = title;
+    document.getElementById("ttModalBlurb").textContent = blurb;
+    document.getElementById("ttModalPrompt").textContent = prompt;
+    document.getElementById("ttCopyBtn").textContent = "Copy prompt";
+    document.getElementById("ttScrim").classList.add("open");
+    document.body.classList.add("tt-modal-open");
+    document.getElementById("ttModalClose").focus();
+    if (history.replaceState) {
+      const hash = ttCurrentNodeKey ? "#" + ttCurrentNodeKey : "";
+      history.replaceState(null, "", hash || location.pathname + location.search);
+    }
+  }
+
+  let ttCurrentNodeKey = null;
+
+  function ttCloseModal() {
+    document.getElementById("ttScrim").classList.remove("open");
+    document.body.classList.remove("tt-modal-open");
+    ttCurrentNodeKey = null;
+    if (history.replaceState) {
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+  }
+
+  function ttOpenNode(key) {
+    if (!TT_META[key] || !TT_PROMPTS[key]) return;
+    ttCurrentNodeKey = key;
+    const m = TT_META[key];
+    ttOpenModal(m.eyebrow, m.title, m.blurb, TT_PROMPTS[key]);
+    if (history.replaceState) {
+      history.replaceState(null, "", "#" + key);
+    }
+  }
+
+  function ttOpenMaster() {
+    ttCurrentNodeKey = null;
+    ttOpenModal(
+      "Master prompt",
+      "Tides of Trade — UI Overhaul",
+      "Kickoff for the entire migration. Enforces CLAUDE.md pillars and all phases.",
+      ttMasterPrompt()
+    );
+  }
+
+  function ttExportAll() {
+    const parts = ["=== MASTER PROMPT ===\n", ttMasterPrompt(), "\n\n"];
+    TT_NODE_KEYS.forEach(key => {
+      parts.push("=== " + (TT_META[key]?.title || key) + " ===\n");
+      parts.push(TT_PROMPTS[key] || "");
+      parts.push("\n\n");
+    });
+    ttCopyText(parts.join(""), "All prompts copied");
+  }
+
+  function ttCopyCurrent() {
+    const btn = document.getElementById("ttCopyBtn");
+    ttCopyText(ttCurrentPrompt).then(
+      () => { btn.textContent = "Copied ✓"; setTimeout(() => { btn.textContent = "Copy prompt"; }, 1500); },
+      () => { btn.textContent = "Copy failed"; setTimeout(() => { btn.textContent = "Copy prompt"; }, 1500); }
+    );
+  }
+
+  function ttOpenFromHash() {
+    const hash = (location.hash || "").replace(/^#/, "").trim();
+    if (hash && TT_META[hash] && TT_PROMPTS[hash]) {
+      ttOpenNode(hash);
+    }
+  }
+
+  document.getElementById("ttChips").addEventListener("click", function(e) {
+    const btn = e.target.closest(".tt-chip");
+    if (!btn) return;
+    document.querySelectorAll(".tt-chip").forEach(c => c.classList.remove("active"));
+    btn.classList.add("active");
+    ttFilter = btn.getAttribute("data-filter");
+    ttRender();
+  });
+
+  document.getElementById("ttSearch").addEventListener("input", function(e) {
+    ttSearch = e.target.value.trim();
+    ttRender();
+  });
+
+  document.getElementById("ttScrim").addEventListener("click", function(e) {
+    if (e.target.id === "ttScrim") ttCloseModal();
+  });
+  document.getElementById("ttModalPanel").addEventListener("click", function(e) {
+    e.stopPropagation();
+  });
+
+  document.getElementById("ttModalClose").addEventListener("click", ttCloseModal);
+  document.getElementById("ttBtnModalClose").addEventListener("click", ttCloseModal);
+  document.getElementById("ttBtnMasterOpen").addEventListener("click", ttOpenMaster);
+  document.getElementById("ttBtnMasterSend").addEventListener("click", () => ttSend(ttMasterPrompt()));
+  document.getElementById("ttBtnSend").addEventListener("click", () => ttSend(ttCurrentPrompt));
+  document.getElementById("ttCopyBtn").addEventListener("click", ttCopyCurrent);
+  document.getElementById("ttBtnExportAll").addEventListener("click", ttExportAll);
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") ttCloseModal();
+  });
+
+  window.addEventListener("hashchange", ttOpenFromHash);
+
+  ttLoadProgress();
+  ttUpdateStats();
+  ttUpdateChipLabels();
+  ttRender();
+  ttOpenFromHash();
+</script>
+</body>
+</html>

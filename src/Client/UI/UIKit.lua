@@ -25,13 +25,19 @@
 --   Header           → title    (GothamBold 20)
 --   Title            → display  (GothamBlack 28)
 -- Touch floor: 44px. Font floor: 12px.
+--
+-- Modal chrome: UIKit.ModalShell clones StarterGui.StarterGuiAssets.ModalShell_Template
+-- via TemplateLoader (see src/StarterGuiAssets/). Layout/tween defaults live in the
+-- template Meta folder; tokens and motion behavior stay in this module.
 -- ====================================================================
 
 local TweenService  = game:GetService("TweenService")
 local RunService    = game:GetService("RunService")
 local GuiService    = game:GetService("GuiService")
-local GameConfig    = require(game:GetService("ReplicatedStorage").Shared.Config.GameConfig)
-local MotionUtil    = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
+local GameConfig         = require(game:GetService("ReplicatedStorage").Shared.Config.GameConfig)
+local MotionUtil         = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
+local ScreenGuiAutoScale = require(script.Parent.ScreenGuiAutoScale)
+local TemplateLoader     = require(script.Parent.TemplateLoader)
 
 local UIKit = {}
 
@@ -203,9 +209,6 @@ end
 -- Identical logic to UIUtil.makeScreenGui — included here so screens
 -- rebuilt against UIKit have no UIUtil dependency for scaffolding.
 -- opts.respectTopbar=true shifts Y=0 below the Roblox topbar chrome.
-local DESIGN_HEIGHT   = 720
-local MIN_PHONE_WIDTH = 380
-
 function UIKit.makeScreenGui(name: string, parent: Instance?, opts: {respectTopbar: boolean?}?): (ScreenGui, UIScale)
 	opts = opts or {}
 	local pg = parent or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
@@ -219,41 +222,7 @@ function UIKit.makeScreenGui(name: string, parent: Instance?, opts: {respectTopb
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = pg
 
-	local scale = Instance.new("UIScale")
-	scale.Name = "AutoScale"
-	scale.Parent = gui
-
-	local function refresh()
-		local cam = workspace.CurrentCamera
-		if not cam then scale.Scale = 1; return end
-		local size = cam.ViewportSize
-		if size.X <= 1 or size.Y <= 1 then scale.Scale = 1; return end
-		local s = size.Y / DESIGN_HEIGHT
-		if size.X < MIN_PHONE_WIDTH * s then
-			s = s * (MIN_PHONE_WIDTH / math.max(size.X, 1))
-		end
-		scale.Scale = math.clamp(s, 0.35, 2)
-	end
-
-	local function bindCamera(cam: Camera)
-		cam:GetPropertyChangedSignal("ViewportSize"):Connect(refresh)
-		refresh()
-	end
-
-	local cam = workspace.CurrentCamera
-	if cam then
-		bindCamera(cam)
-	else
-		scale.Scale = 1
-		local conn: RBXScriptConnection? = nil
-		conn = workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-			local c = workspace.CurrentCamera
-			if not c then return end
-			if conn then conn:Disconnect(); conn = nil end
-			bindCamera(c)
-		end)
-	end
-
+	local scale = ScreenGuiAutoScale.apply(gui)
 	return gui, scale
 end
 
@@ -638,9 +607,10 @@ function UIKit.Divider(props: {[string]: any}?): Frame
 end
 
 -- ====================================================================
--- MODAL SHELL
+-- MODAL SHELL (StarterGui template: ModalShell_Template.rbxmx)
 -- ====================================================================
 -- Standard full-screen modal chrome: backdrop + panel + header + close.
+-- Clones ModalShell_Template via TemplateLoader; wires behavior only.
 -- All feature modals mount content into shell.body.
 --
 -- opts:
@@ -679,120 +649,61 @@ function UIKit.ModalShell(opts: {
 	width: number?,
 	heightScale: number?,
 }): ModalShell
-	local P = UIKit.Palette
 	local M = UIKit.Modal
-	local R = UIKit.Radii
-	local S = UIKit.Spacing
 
-	local gui, scale = UIKit.makeScreenGui(opts.name, opts.parent)
-	gui.DisplayOrder = opts.displayOrder or UIKit.DisplayOrder.Modal
+	local gui = TemplateLoader.spawn("ModalShell", {
+		parent = opts.parent,
+		instanceName = opts.name,
+	})
+	if opts.displayOrder then
+		gui.DisplayOrder = opts.displayOrder
+	end
 
-	-- Full-screen backdrop
-	local backdrop = Instance.new("TextButton")
-	backdrop.Name = "Backdrop"
-	backdrop.Text = ""
-	backdrop.AutoButtonColor = false
-	backdrop.BackgroundColor3 = P.Shadow
-	backdrop.BackgroundTransparency = 1
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.ZIndex = 1
-	backdrop.Parent = gui
+	local scale = gui:WaitForChild("AutoScale") :: UIScale
+	local backdrop = gui:WaitForChild("Backdrop") :: TextButton
+	local panel = gui:WaitForChild("Panel") :: Frame
+	local header = panel:WaitForChild("Header") :: Frame
+	local titleLbl = header:WaitForChild("Title") :: TextLabel
+	local closeBtn = header:WaitForChild("Close") :: TextButton
+	local body = panel:WaitForChild("Body") :: Frame
 
-	-- Panel — warm parchment surface, cozy card feel
-	local panel = Instance.new("Frame")
-	panel.Name = "Panel"
-	panel.BackgroundColor3 = P.Parchment
-	panel.BorderSizePixel = 0
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
+	titleLbl.Text = opts.title or ""
 	panel.Size = UDim2.new(0.92, 0, opts.heightScale or 0.78, 0)
-	panel.ZIndex = 2
-	panel.Parent = gui
 
-	local sizeCap = Instance.new("UISizeConstraint")
-	sizeCap.MaxSize = Vector2.new(opts.width or M.MaxWidthPx, math.huge)
-	sizeCap.Parent = panel
+	local sizeCap = panel:FindFirstChildOfClass("UISizeConstraint")
+	if sizeCap then
+		sizeCap.MaxSize = Vector2.new(opts.width or M.MaxWidthPx, math.huge)
+	end
 
-	local panelCorner = Instance.new("UICorner")
-	panelCorner.CornerRadius = UDim.new(0, R.lg)
-	panelCorner.Parent = panel
+	local pad = body:FindFirstChildOfClass("UIPadding")
+	if pad then
+		local p = opts.bodyPadding or M.BodyPaddingPx
+		pad.PaddingLeft   = UDim.new(0, p)
+		pad.PaddingRight  = UDim.new(0, p)
+		pad.PaddingTop    = UDim.new(0, p)
+		pad.PaddingBottom = UDim.new(0, p)
+	end
 
-	local panelStroke = Instance.new("UIStroke")
-	panelStroke.Color = P.BorderMid
-	panelStroke.Thickness = 1.5
-	panelStroke.Transparency = 0.25
-	panelStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	panelStroke.Parent = panel
+	local fadeDuration = M.FadeDuration
+	local slideOffsetPx = M.SlideOffsetPx
+	local meta = gui:FindFirstChild("Meta")
+	if meta and meta:IsA("Folder") then
+		local fadeVal = meta:FindFirstChild("FadeDuration")
+		if fadeVal and fadeVal:IsA("NumberValue") then
+			fadeDuration = fadeVal.Value
+		end
+		local slideVal = meta:FindFirstChild("SlideOffsetPx")
+		if slideVal and slideVal:IsA("NumberValue") then
+			slideOffsetPx = slideVal.Value
+		end
+	end
 
-	-- Header — slightly darker parchment strip
-	local header = Instance.new("Frame")
-	header.Name = "Header"
-	header.BackgroundColor3 = P.ParchmentDeep
-	header.BorderSizePixel = 0
-	header.Size = UDim2.new(1, 0, 0, M.HeaderHeightPx)
-	header.ZIndex = 3
-	header.Parent = panel
-
-	local hCorner = Instance.new("UICorner")
-	hCorner.CornerRadius = UDim.new(0, R.lg)
-	hCorner.Parent = header
-
-	-- Mask: fill bottom-rounded corners of header so it meets panel flush
-	local hMask = Instance.new("Frame")
-	hMask.Name = "HeaderMask"
-	hMask.BackgroundColor3 = P.ParchmentDeep
-	hMask.BorderSizePixel = 0
-	hMask.AnchorPoint = Vector2.new(0, 1)
-	hMask.Position = UDim2.new(0, 0, 1, 0)
-	hMask.Size = UDim2.new(1, 0, 0, R.lg)
-	hMask.ZIndex = 3
-	hMask.Parent = header
-
-	-- Header divider line
-	local hDiv = UIKit.Divider({
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 0, 1, 0),
-		BackgroundColor3 = P.BorderLight,
-		ZIndex = 4,
-		Parent = header,
-	})
-	hDiv.Size = UDim2.new(1, 0, 0, 1)
-
-	-- Title label
-	local titleLbl = UIKit.Label(opts.title or "", "title", {
-		Parent = header,
-		Position = UDim2.fromOffset(S.lg, 0),
-		Size = UDim2.new(1, -(S.lg * 2 + M.CloseButtonPx), 1, 0),
-		TextColor3 = P.Ink,
-		ZIndex = 4,
-	})
-
-	-- Body frame — padded, transparent bg (inherits panel parchment)
-	local body = Instance.new("Frame")
-	body.Name = "Body"
-	body.BackgroundTransparency = 1
-	body.BorderSizePixel = 0
-	body.Position = UDim2.new(0, 0, 0, M.HeaderHeightPx)
-	body.Size = UDim2.new(1, 0, 1, -M.HeaderHeightPx)
-	body.ZIndex = 2
-	body.Parent = panel
-
-	local pad = Instance.new("UIPadding")
-	local p = opts.bodyPadding or M.BodyPaddingPx
-	pad.PaddingLeft   = UDim.new(0, p)
-	pad.PaddingRight  = UDim.new(0, p)
-	pad.PaddingTop    = UDim.new(0, p)
-	pad.PaddingBottom = UDim.new(0, p)
-	pad.Parent = body
-
-	-- Open / close animation
 	local isOpen = false
 	local closed = false
 	local restPos = panel.Position
 	local fromPos = UDim2.new(restPos.X.Scale, restPos.X.Offset,
-		restPos.Y.Scale, restPos.Y.Offset + M.SlideOffsetPx)
-	local fadeInfo = TweenInfo.new(M.FadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		restPos.Y.Scale, restPos.Y.Offset + slideOffsetPx)
+	local fadeInfo = TweenInfo.new(fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 	local close: (() -> ())
 	local open: (() -> ())
@@ -810,7 +721,7 @@ function UIKit.ModalShell(opts: {
 		else
 			panel.Position = fromPos
 			MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = M.BackdropAlpha })
-			MotionUtil.tweenOrSnap(panel,    fadeInfo, { BackgroundTransparency = 0, Position = restPos })
+			MotionUtil.tweenOrSnap(panel, fadeInfo, { BackgroundTransparency = 0, Position = restPos })
 		end
 	end
 
@@ -820,17 +731,13 @@ function UIKit.ModalShell(opts: {
 		if opts.onClose then opts.onClose() end
 	end
 
-	local closeBtn = UIKit.CloseButton(close, {
-		Parent = header,
-		ZIndex = 4,
-	})
-
 	local function destroy()
 		closed = true
 		if gui and gui.Parent then gui:Destroy() end
 	end
 
 	backdrop.Activated:Connect(close)
+	closeBtn.Activated:Connect(close)
 	open()
 
 	return {
