@@ -723,6 +723,17 @@ GameConfig.Crew = {
 }
 
 -- ====================================================================
+-- SOCIAL — emotes, harbor board (future)
+-- ====================================================================
+GameConfig.Social = {
+	Emotes = {
+		FadeInSeconds  = 0.15,
+		FadeOutSeconds = 0.15,
+		MaxConcurrent  = 1, -- per character; stop oldest when exceeded
+	},
+}
+
+-- ====================================================================
 -- ANTI-EXPLOIT
 -- ====================================================================
 GameConfig.AntiExploit = {
@@ -926,6 +937,7 @@ GameConfig.Topics = {
 GameConfig.Assets = {
 	BuildingModels = "Assets.Buildings",
 	Fish           = "Assets.Fish",
+	Emotes         = "Assets.Animations",
 }
 
 -- ====================================================================
