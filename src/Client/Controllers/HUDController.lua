@@ -55,7 +55,7 @@ function HUDController:KnitStart()
 		return
 	end
 	if not self._hud or not self._hud.gui then
-		warn("[HUDController] HUD.create returned no ScreenGui — check UIUtil.makeScreenGui / PlayerGui")
+		warn("[HUDController] HUD.create returned no ScreenGui — check StarterGuiAssets.HUD_Template / TemplateLoader")
 		return
 	end
 	self._hud.gui.Enabled = true

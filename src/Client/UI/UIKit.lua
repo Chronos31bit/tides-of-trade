@@ -397,6 +397,32 @@ function UIKit.Button(text: string, opts: {[string]: any}?): TextButton
 end
 
 -- ====================================================================
+-- ACTION BUTTON SKIN (HUD action-bar tiles)
+-- ====================================================================
+-- Hover / press feedback via MotionUtil (ReducedMotion-aware). Layout lives
+-- in StarterGui templates; call after TemplateLoader.spawn resolves buttons.
+
+function UIKit.skinActionButton(btn: GuiButton, restColor: Color3?)
+	local rest = restColor or btn.BackgroundColor3
+	local pressed = rest:Lerp(Color3.new(0, 0, 0), 0.22)
+	local hover = rest:Lerp(Color3.new(1, 1, 1), 0.08)
+	local info = TweenInfo.new(0.08)
+
+	btn.MouseEnter:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = hover })
+	end)
+	btn.MouseLeave:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = rest })
+	end)
+	btn.MouseButton1Down:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = pressed })
+	end)
+	btn.MouseButton1Up:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = hover })
+	end)
+end
+
+-- ====================================================================
 -- CARD FACTORY
 -- ====================================================================
 -- UIKit.Card(opts)

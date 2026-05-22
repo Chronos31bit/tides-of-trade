@@ -33,3 +33,10 @@ Tunable numbers (colors, spacing, font sizes, modal widths) stay in `GameConfig.
 - **Rojo source:** `ModalShell_Template.model.json` (hand-authored, syncs on connect).
 - **Studio rebuild:** run `scripts/Studio/CommandBar_BuildModalShellTemplate.luau` in the command bar, then optionally **Save to File…** as `ModalShell_Template.rbxmx` for artist round-trips.
 - **Runtime:** `UIKit.ModalShell` clones via `TemplateLoader.spawn("ModalShell", { instanceName = opts.name })`.
+
+## HUD
+
+- **Rojo source:** `HUD_Template.model.json` (hand-authored, syncs on connect). Optional Studio export: `HUD_Template.rbxmx`.
+- **Studio rebuild:** run `scripts/Studio/CommandBar_BuildHUDTemplate.luau` in the command bar, then **Save to File…** as `HUD_Template.rbxmx` if artists prefer rbxmx round-trips.
+- **Runtime:** `HUD.create()` clones via `TemplateLoader.spawn("HUD")`, resolves named refs, and applies `UIKit.skinActionButton` on action-bar tiles.
+- **Meta:** `DisplayOrderKey = "HUD"`, `ResetOnSpawn = false`, `RespectTopbar = true`.
