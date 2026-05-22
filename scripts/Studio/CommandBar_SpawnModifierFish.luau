@@ -8,8 +8,9 @@ local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
 
-local GameConfig    = require(ReplicatedStorage.Shared.Config.GameConfig)
-local FishMutations = require(ReplicatedStorage.Shared.Util.FishMutations)
+local GameConfig          = require(ReplicatedStorage.Shared.Config.GameConfig)
+local ModifierMutations   = require(ReplicatedStorage.Shared.Config.ModifierMutations)
+local FishMutations       = require(ReplicatedStorage.Shared.Util.FishMutations)
 
 -- ====================================================================
 -- CONFIG
@@ -18,13 +19,12 @@ local CONFIG = {
 	-- Fish model used for EVERY preview cell (one species, all modifiers).
 	SPECIES_ID = "harbor_mackerel",
 
-	-- true = every entry in GameConfig.FishModifiers that has ModifierMutations visuals
-	INCLUDE_ALL = false,
+	-- true = every FishModifiers entry that has a ModifierMutations visual (sorted A→Z).
+	INCLUDE_ALL = true,
 	-- When INCLUDE_ALL is false, spawn only these ids (grid order left→right).
 	MODIFIER_IDS = { "rainbow", "silver", "golden", "storm_forged", "shocked", "frozen" },
 
-	-- Only used when INCLUDE_ALL is false:
-	INCLUDE_DEPRECATED  = false,
+	INCLUDE_DEPRECATED  = true,
 	INCLUDE_WORLD_STATE = true,
 
 	-- Edit mode: spawn at fixed world CFrame (no LocalPlayer needed).
@@ -82,7 +82,7 @@ local function pickModifiers(): {{id: string, displayName: string?}}
 			or isActive
 			or (isWorldState and CONFIG.INCLUDE_WORLD_STATE)
 			or (isDeprecated and CONFIG.INCLUDE_DEPRECATED)
-		if include then
+		if include and (ModifierMutations :: any)[m.id] then
 			table.insert(mods, m)
 		end
 	end

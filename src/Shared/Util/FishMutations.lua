@@ -128,14 +128,16 @@ local ORDER: {[string]: number} = {
 	pulseTransparency = 5,
 	highlight         = 6,
 	pointLight        = 7,
-	shell             = 8,
-	decal             = 9,
-	attachedParticle    = 10,
-	attachmentParticles = 10,
-	fire              = 11,
-	smoke             = 12,
-	sparkles          = 13,
-	beam              = 14,
+	shell               = 8,
+	orbitOrbs           = 9,
+	decal               = 10,
+	attachedParticle    = 11,
+	attachmentParticles = 11,
+	fire                = 12,
+	smoke               = 13,
+	sparkles            = 14,
+	beam                = 15,
+	modelScale          = 16,
 }
 
 -- ====================================================================
@@ -150,6 +152,7 @@ type PartSnap = {
 	Color: Color3,
 	Material: Enum.Material,
 	Transparency: number,
+	Size: Vector3?,
 	TextureID: string?,
 	UsePartColor: boolean?,
 	Reflectance: number?,
@@ -172,6 +175,7 @@ local function _snapshot(state: _HandleState, p: BasePart)
 		Color = p.Color,
 		Material = p.Material,
 		Transparency = p.Transparency,
+		Size = p.Size,
 	}
 	if p:IsA("MeshPart") then
 		local mp = p :: MeshPart
@@ -361,11 +365,21 @@ local function _applyHighlight(state, anchor, _parts, effect, opts)
 	local intensityT = opts.intensity or 1.0
 	if effect.fillColor then h.FillColor = effect.fillColor end
 	if effect.outlineColor then h.OutlineColor = effect.outlineColor end
-	if effect.fillT ~= nil then
+	if opts.viewport then
+		local cfg = _mutationVisualCfg()
+		local fillMul = cfg.ViewportHighlightFillMul or 0.45
+		local outlineMul = cfg.ViewportHighlightOutlineMul or 0.55
+		if effect.fillT ~= nil then
+			h.FillTransparency = math.clamp(effect.fillT * fillMul, 0.12, 0.88)
+		end
+		if effect.outlineT ~= nil then
+			h.OutlineTransparency = math.clamp(effect.outlineT * outlineMul, 0, 0.55)
+		end
+	elseif effect.fillT ~= nil then
 		-- Higher intensity → lower transparency (more visible).
 		h.FillTransparency = 1 - (1 - effect.fillT) * intensityT
 	end
-	if effect.outlineT ~= nil then
+	if not opts.viewport and effect.outlineT ~= nil then
 		h.OutlineTransparency = 1 - (1 - effect.outlineT) * intensityT
 	end
 	if effect.flickerHz and effect.flickerHz > 0 then
@@ -508,7 +522,45 @@ local function _applyDecal(state, anchor, parts, effect, _opts)
 	end
 end
 
-local function _particleHost(anchor: BasePart): Instance
+-- ViewportFrame thumbnails: tame spread/transparency and boost rate/size so attachment VFX read.
+local function _tuneSpecForViewport(spec: {[string]: any}): {[string]: any}
+	local cfg = _mutationVisualCfg()
+	local s = table.clone(spec)
+	local rateMul: number = cfg.ViewportParticleRateScale or 2.5
+	local sizeMul: number = cfg.ViewportParticleSizeMul or 2.2
+	s.rate = (s.rate or 8) * rateMul
+	s.lockedToPart = true
+	s.lightEmission = math.max(s.lightEmission or 0, 0.85)
+	if s.spreadAngle then
+		s.spreadAngle = Vector2.new(
+			math.clamp(s.spreadAngle.X, 0, 50),
+			math.clamp(s.spreadAngle.Y, 0, 50)
+		)
+	end
+	if typeof(s.transparency) == "NumberSequence" then
+		local sum = 0
+		local kps = s.transparency.Keypoints
+		for _, kp in ipairs(kps) do sum += kp.Value end
+		local avg = sum / math.max(#kps, 1)
+		if avg > 0.55 then
+			s.transparency = NumberSequence.new(math.min(avg * 0.4, 0.5))
+		end
+	end
+	if typeof(s.size) == "NumberSequence" then
+		local newKps: {NumberSequenceKeypoint} = {}
+		for _, kp in s.size.Keypoints do
+			table.insert(newKps, NumberSequenceKeypoint.new(kp.Time, kp.Value * sizeMul))
+		end
+		s.size = NumberSequence.new(newKps)
+	end
+	return s
+end
+
+local function _particleHost(anchor: BasePart, opts: AttachOpts?): Instance
+	-- Bag thumbnails + held fish: parent VFX to the anchor part so they follow the mesh.
+	if opts and (opts.viewport or opts.heldScale) then
+		return anchor
+	end
 	if anchor.Parent and anchor.Parent:IsA("Model") then
 		return anchor.Parent
 	end
@@ -551,32 +603,113 @@ local function _applyParticleSpec(pe: ParticleEmitter, spec: {[string]: any})
 		pe.LockedToPart = spec.lockedToPart ~= false
 	end
 	pe.EmissionDirection = spec.emissionDirection or Enum.NormalId.Top
+	pcall(function()
+		if spec.shape then
+			pe.Shape = spec.shape
+		end
+		if spec.shapeStyle then
+			pe.ShapeStyle = spec.shapeStyle
+		end
+	end)
 end
 
 -- attachedParticle: one emitter on the anchor part.
 local function _applyAttachedParticle(state, anchor, _parts, effect, opts)
-	if opts.viewport then return end
 	local pe = Instance.new("ParticleEmitter")
-	_applyParticleSpec(pe, effect)
+	local spec = if opts.viewport then _tuneSpecForViewport(effect) else effect
+	_applyParticleSpec(pe, spec)
 	pe.Parent = anchor
 	table.insert(state.createdInst, pe)
 end
 
+-- orbitOrbs: small bright spheres circling the fish (moon-touched, etc.).
+local function _applyOrbitOrbs(state, anchor, _parts, effect, opts)
+	if opts.viewport then return end
+	local count = math.max(1, effect.count or 3)
+	local radius = effect.radius or 1.6
+	local orbSize = effect.size or 0.2
+	local color = effect.color or Color3.fromRGB(255, 250, 220)
+	local periodSec = effect.periodSec or 5
+	local height = effect.heightOffset or 0.3
+	local orbs: {BasePart} = {}
+	for i = 1, count do
+		local orb = Instance.new("Part")
+		orb.Name = "MutationOrb"
+		orb.Shape = Enum.PartType.Ball
+		orb.Size = Vector3.new(orbSize, orbSize, orbSize)
+		orb.Material = Enum.Material.Neon
+		orb.Color = color
+		orb.Anchored = true
+		orb.CanCollide = false
+		orb.CanTouch = false
+		orb.CanQuery = false
+		orb.Massless = true
+		orb.CastShadow = false
+		orb.Parent = anchor
+		table.insert(state.createdInst, orb)
+		table.insert(orbs, orb)
+	end
+	local id = _addTicker({
+		id = 0,
+		part = anchor,
+		startedAt = os.clock(),
+		periodSec = periodSec,
+		scratch = { orbs = orbs, count = count, radius = radius, height = height },
+		tick = function(_now, phase, self)
+			local cf = self.part.CFrame
+			for i, orb in ipairs(self.scratch.orbs) do
+				if orb.Parent then
+					local angle = phase * math.pi * 2 + (i - 1) * (math.pi * 2 / self.scratch.count)
+					local offset = Vector3.new(
+						math.cos(angle) * self.scratch.radius,
+						self.scratch.height,
+						math.sin(angle) * self.scratch.radius
+					)
+					orb.CFrame = cf * CFrame.new(offset)
+				end
+			end
+		end,
+	})
+	table.insert(state.tickerIds, id)
+end
+
+-- modelScale: tiny / colossal — body size only (no aura, lights, or particles).
+local function _applyModelScale(_state, _anchor, parts, effect, _opts)
+	local mult: number = effect.scale or 1
+	if mult == 1 then return end
+	for _, p in ipairs(parts) do
+		p.Size = p.Size * mult
+	end
+end
+
 -- attachmentParticles: Studio tester layout — Attachment on fish Model + 1..N emitters.
 local function _applyAttachmentParticles(state, anchor, _parts, effect, opts)
-	if opts.viewport then return end
-	local host = _particleHost(anchor)
-	local att = Instance.new("Attachment")
-	att.Name = "MutationAttachment"
-	att.Position = effect.position or Vector3.zero
-	att.Parent = host
-	table.insert(state.createdInst, att)
-	for i, spec in ipairs(effect.emitters or {}) do
-		local pe = Instance.new("ParticleEmitter")
-		if spec.name then pe.Name = spec.name end
-		_applyParticleSpec(pe, spec)
-		pe.Parent = att
-		table.insert(state.createdInst, pe)
+	local host = _particleHost(anchor, opts)
+	local isViewport = opts.viewport == true
+
+	if isViewport then
+		-- Bag/catch viewports: parent emitters on the mesh part (not Attachment) and
+		-- prime with Emit() — continuous Rate is often invisible in ViewportFrames.
+		for _, spec in ipairs(effect.emitters or {}) do
+			local pe = Instance.new("ParticleEmitter")
+			if spec.name then pe.Name = spec.name end
+			_applyParticleSpec(pe, _tuneSpecForViewport(spec))
+			pe.Parent = host
+			table.insert(state.createdInst, pe)
+		end
+	else
+		local att = Instance.new("Attachment")
+		att.Name = "MutationAttachment"
+		att.Position = effect.position or Vector3.zero
+		att.Parent = host
+		table.insert(state.createdInst, att)
+		for _, spec in ipairs(effect.emitters or {}) do
+			local pe = Instance.new("ParticleEmitter")
+			if spec.name then pe.Name = spec.name end
+			_applyParticleSpec(pe, spec)
+			pe.Parent = att
+			table.insert(state.createdInst, pe)
+		end
 	end
 end
 
@@ -589,6 +722,24 @@ local function _applyHeldScale(state: _HandleState)
 			(inst :: ParticleEmitter).Rate *= particleScale
 		elseif inst:IsA("PointLight") then
 			(inst :: PointLight).Brightness *= lightScale
+		end
+	end
+end
+
+local function _applyViewportScale(state: _HandleState, opts: AttachOpts)
+	if MotionUtil.reducedMotionEnabled() then return end
+	local cfg = _mutationVisualCfg()
+	local emitCount: number = cfg.ViewportAttachmentEmitCount or 18
+	local intensity: number = opts.intensity or 1
+	for _, inst in ipairs(state.createdInst) do
+		if inst:IsA("ParticleEmitter") then
+			local pe = inst :: ParticleEmitter
+			pe.Enabled = true
+			task.defer(function()
+				if pe.Parent then
+					pe:Emit(math.ceil(emitCount * intensity))
+				end
+			end)
 		end
 	end
 end
@@ -676,6 +827,7 @@ local APPLIERS = {
 	highlight         = _applyHighlight,
 	pointLight        = _applyPointLight,
 	shell             = _applyShell,
+	orbitOrbs         = _applyOrbitOrbs,
 	decal             = _applyDecal,
 	attachedParticle    = _applyAttachedParticle,
 	attachmentParticles = _applyAttachmentParticles,
@@ -683,6 +835,7 @@ local APPLIERS = {
 	smoke             = _applySmoke,
 	sparkles          = _applySparkles,
 	beam              = _applyBeam,
+	modelScale        = _applyModelScale,
 }
 
 -- ====================================================================
@@ -747,11 +900,18 @@ local function _attachImpl(part: BasePart, mods: {string}, opts: AttachOpts?): M
 	for _, pe in ipairs(pending) do
 		local kind = pe.effect.kind
 		if reduced and (kind == "colorCycle" or kind == "pulseTransparency"
-				or kind == "fire" or kind == "smoke" or kind == "sparkles") then
+				or kind == "fire" or kind == "smoke" or kind == "sparkles" or kind == "orbitOrbs") then
 			-- Skip animated effects under reduced motion.
 		elseif reduced and kind == "attachedParticle" then
 			local effCopy = table.clone(pe.effect)
 			effCopy.rate = 0
+			local fn = APPLIERS[kind]
+			if fn then fn(state, part, parts, effCopy, opts2) end
+		elseif reduced and kind == "attachmentParticles" then
+			local effCopy = table.clone(pe.effect)
+			for _, spec in ipairs(effCopy.emitters or {}) do
+				spec.rate = 0
+			end
 			local fn = APPLIERS[kind]
 			if fn then fn(state, part, parts, effCopy, opts2) end
 		elseif reduced and (kind == "highlight" or kind == "pointLight") and pe.effect.flickerHz then
@@ -765,7 +925,9 @@ local function _attachImpl(part: BasePart, mods: {string}, opts: AttachOpts?): M
 		end
 	end
 
-	if opts2.heldScale and not opts2.viewport then
+	if opts2.viewport then
+		_applyViewportScale(state, opts2)
+	elseif opts2.heldScale then
 		_applyHeldScale(state)
 	end
 
@@ -782,6 +944,9 @@ local function _attachImpl(part: BasePart, mods: {string}, opts: AttachOpts?): M
 				p.Color        = snap.Color
 				p.Material     = snap.Material
 				p.Transparency = snap.Transparency
+				if snap.Size then
+					p.Size = snap.Size
+				end
 				if p:IsA("MeshPart") then
 					local mp = p :: MeshPart
 					if snap.TextureID ~= nil then

@@ -981,6 +981,17 @@ GameConfig.FishMutationVisuals = {
 	-- so materialLock+tint show on all fish models (held, inventory viewport, preview).
 	ClearMeshTextureOnMutation = true,
 	DefaultMetalReflectance  = 0.4,
+	-- Body-only size modifiers (no aura / particles).
+	ModifierBodyScale = {
+		tiny     = 0.65,
+		colossal = 1.45,
+	},
+	-- Bag / catch-reveal ViewportFrame thumbnails (particles + stronger highlight read).
+	ViewportParticleRateScale     = 2.5,
+	ViewportAttachmentEmitCount   = 18,
+	ViewportParticleSizeMul       = 2.2,
+	ViewportHighlightFillMul      = 0.45,
+	ViewportHighlightOutlineMul   = 0.55,
 }
 
 -- ====================================================================

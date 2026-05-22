@@ -399,13 +399,37 @@ function InventoryUI.show(
 				local clone = (tmpl :: Model):Clone()
 				clone.Parent = wm
 				thumbClone = clone
-				-- Attach prefix particles at reduced rate so the thumbnail stays legible.
-				if #mods > 0 then
+				local thumbAnchor: BasePart? = clone.PrimaryPart
+					and clone.PrimaryPart:IsA("BasePart") and (clone.PrimaryPart :: BasePart)
+					or nil
+				if not thumbAnchor then
+					local named = clone:FindFirstChild("body_geom", true)
+					if named and named:IsA("BasePart") then
+						thumbAnchor = named :: BasePart
+					end
+				end
+				if not thumbAnchor then
 					for _, d in ipairs(clone:GetDescendants()) do
 						if d:IsA("BasePart") then
-							FishMutations.attach(d :: BasePart, mods, { viewport = true, intensity = 0.6 })
+							thumbAnchor = d :: BasePart
 							break
 						end
+					end
+				end
+				if thumbAnchor then
+					local okBB, _pivot, ext = pcall(function(): (CFrame, Vector3)
+						return clone:GetBoundingBox()
+					end)
+					if okBB and ext then
+						local maxDim = math.max(ext.X, ext.Y, ext.Z)
+						if maxDim > 0.01 then
+							pcall(function()
+								clone:ScaleTo(2.2 / maxDim)
+							end)
+						end
+					end
+					if #mods > 0 then
+						FishMutations.attach(thumbAnchor, mods, { viewport = true, intensity = 1 })
 					end
 				end
 				local tcam = Instance.new("Camera")
