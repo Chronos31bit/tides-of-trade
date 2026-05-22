@@ -137,14 +137,19 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		wm.Parent = vpf
 		local clone = _template:Clone()
 		clone.Parent = wm
-		-- Attach prefix particles at reduced rate for the reveal viewport.
-		if #mods > 0 then
+		local revealAnchor: BasePart? = clone.PrimaryPart
+			and clone.PrimaryPart:IsA("BasePart") and (clone.PrimaryPart :: BasePart)
+			or nil
+		if not revealAnchor then
 			for _, d in ipairs(clone:GetDescendants()) do
 				if d:IsA("BasePart") then
-					FishMutations.attach(d :: BasePart, mods, { viewport = true, intensity = 0.6 })
+					revealAnchor = d :: BasePart
 					break
 				end
 			end
+		end
+		if revealAnchor and #mods > 0 then
+			FishMutations.attach(revealAnchor, mods, { viewport = true, intensity = 1 })
 		end
 
 		local cam = Instance.new("Camera")

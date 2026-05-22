@@ -7,7 +7,11 @@
 -- No default ForceField shells. Particle fields: lockedToPart, velocityInheritance,
 -- drag — see FishMutations.lua. Stable IDs forever.
 
+local GameConfig = require(script.Parent.GameConfig)
+
 local M = {}
+
+local _bodyScale = ((GameConfig :: any).FishMutationVisuals :: any).ModifierBodyScale or {}
 
 local STAR_TEX    = "rbxasset://textures/particles/sparkles_main.dds"
 local SPARKLE_TEX = "rbxassetid://6282433556" -- rainbow motes only
@@ -16,6 +20,65 @@ local SPARKLE_TEX = "rbxassetid://6282433556" -- rainbow motes only
 local ELECTRIC_BURST_TEX      = "rbxassetid://138370769"
 local TRAIL_ELECTRIC_TEX      = "rbxassetid://243098098"
 local TRAIL_ELECTRIC_BLUR_TEX = "rbxassetid://243664672"
+
+-- Studio Preview_voidtouched Attachment children.
+local VOID_CLOUD_TEX  = "rbxassetid://243599653"
+local VOID_BUBBLE_TEX = "rbxassetid://241597670"
+
+local VOID_CLOUD_SIZE = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 0),
+	NumberSequenceKeypoint.new(0.3, 1),
+	NumberSequenceKeypoint.new(0.4, 1.25),
+	NumberSequenceKeypoint.new(0.5, 1),
+	NumberSequenceKeypoint.new(1, 0),
+})
+
+local VOID_BUBBLE_SIZE = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 0),
+	NumberSequenceKeypoint.new(0.3, 0.85),
+	NumberSequenceKeypoint.new(0.4, 1),
+	NumberSequenceKeypoint.new(0.5, 0.85),
+	NumberSequenceKeypoint.new(1, 0),
+})
+
+local function voidPreviewAttachment(): {[string]: any}
+	return {
+		kind = "attachmentParticles",
+		position = Vector3.zero,
+		emitters = {
+			{
+				name = "VoidCloudParticles",
+				texture = VOID_CLOUD_TEX,
+				rate = 5,
+				lifetime = NumberRange.new(2.5, 2.5),
+				speed = NumberRange.new(1, 1),
+				spreadAngle = Vector2.new(1000, 1000),
+				size = VOID_CLOUD_SIZE,
+				transparency = NumberSequence.new(0.4),
+				lockedToPart = false,
+				velocityInheritance = 0,
+				lightEmission = 0,
+				shape = Enum.ParticleEmitterShape.Box,
+				shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+			},
+			{
+				name = "VoidBubbleParticles",
+				texture = VOID_BUBBLE_TEX,
+				rate = 10,
+				lifetime = NumberRange.new(2.5, 2.5),
+				speed = NumberRange.new(0, 0),
+				spreadAngle = Vector2.new(0, 0),
+				size = VOID_BUBBLE_SIZE,
+				transparency = NumberSequence.new(0.95),
+				lockedToPart = false,
+				velocityInheritance = 0,
+				lightEmission = 0,
+				shape = Enum.ParticleEmitterShape.Box,
+				shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+			},
+		},
+	}
+end
 
 local SHOCKED_BURST_SIZE = NumberSequence.new({
 	NumberSequenceKeypoint.new(0, 1),
@@ -189,6 +252,73 @@ local function upwardColumn(
 	}
 end
 
+-- Preview_radioactive Attachment child (Studio tester) — Cylinder surface burst + green motes.
+local RADIOACTIVE_ATTACH_TEX = "rbxassetid://4984018468"
+local RADIOACTIVE_GREEN      = Color3.fromRGB(140, 255, 85)
+
+local function radioactivePreviewAttachment(): {[string]: any}
+	return {
+		kind = "attachmentParticles",
+		position = Vector3.zero,
+		emitters = {
+			{
+				name = "ParticleEmitter",
+				texture = RADIOACTIVE_ATTACH_TEX,
+				color = ColorSequence.new(RADIOACTIVE_GREEN),
+				rate = 3,
+				lifetime = NumberRange.new(1, 1),
+				speed = NumberRange.new(10, 10),
+				spreadAngle = Vector2.new(0, 0),
+				size = NumberSequence.new(0.5),
+				transparency = NumberSequence.new(0.7),
+				lockedToPart = false,
+				velocityInheritance = 0,
+				lightEmission = 0,
+				lightInfluence = 1,
+				drag = 0,
+				emissionDirection = Enum.NormalId.Front,
+				shape = Enum.ParticleEmitterShape.Cylinder,
+				shapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
+			},
+			{
+				name = "RadioactiveGreenMotes",
+				texture = STAR_TEX,
+				color = ColorSequence.new(RADIOACTIVE_GREEN),
+				rate = 10,
+				lifetime = NumberRange.new(0.6, 1),
+				speed = NumberRange.new(0.4, 1.2),
+				spreadAngle = Vector2.new(360, 360),
+				size = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0.06),
+					NumberSequenceKeypoint.new(0.25, 0.18),
+					NumberSequenceKeypoint.new(1, 0),
+				}),
+				transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0.5),
+					NumberSequenceKeypoint.new(0.2, 0.05),
+					NumberSequenceKeypoint.new(1, 1),
+				}),
+				lockedToPart = true,
+				velocityInheritance = 0.5,
+				lightEmission = 0.9,
+				lightInfluence = 0,
+			},
+		},
+	}
+end
+
+local function moonOrbitOrbs(): {[string]: any}
+	return {
+		kind = "orbitOrbs",
+		count = 4,
+		radius = 1.75,
+		size = 0.24,
+		color = Color3.fromRGB(255, 252, 220),
+		periodSec = 5.5,
+		heightOffset = 0.35,
+	}
+end
+
 local function radiateParticles(
 	color: ColorSequence,
 	rate: number?,
@@ -350,12 +480,11 @@ M.shocked = {
 
 M.radioactive = {
 	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(160, 255, 80) },
-	{ kind = "pulseTransparency", min = 0, max = 0.12, periodSec = 1.4 },
-	softGlow(Color3.fromRGB(150, 255, 90), Color3.fromRGB(150, 255, 90), 0.08, 0.8),
-	{ kind = "pointLight",   color = Color3.fromRGB(150, 255, 90), range = 8, brightness = 2.2 },
-	radiateParticles(ColorSequence.new(Color3.fromRGB(220, 255, 180), Color3.fromRGB(140, 255, 80)), 12),
-	downwardMotes(ColorSequence.new(Color3.fromRGB(200, 255, 160), Color3.fromRGB(100, 220, 60)), 7, -2.5),
+	{ kind = "tintLock",     color = RADIOACTIVE_GREEN },
+	{ kind = "pulseTransparency", min = 0, max = 0.14, periodSec = 1.4 },
+	softGlow(RADIOACTIVE_GREEN, RADIOACTIVE_GREEN, 0.1, 0.55),
+	{ kind = "pointLight", color = RADIOACTIVE_GREEN, range = 8, brightness = 2.2, flickerHz = 0.9 },
+	radioactivePreviewAttachment(),
 }
 
 M.crystal = {
@@ -368,19 +497,11 @@ M.crystal = {
 }
 
 M.colossal = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(80, 200, 100) },
-	softGlow(Color3.fromRGB(120, 255, 130), Color3.fromRGB(90, 220, 110), 0.1, 0.8),
-	{ kind = "pointLight",   color = Color3.fromRGB(120, 255, 110), range = 7, brightness = 1.8 },
-	downwardMotes(ColorSequence.new(Color3.fromRGB(180, 255, 180), Color3.fromRGB(90, 220, 110)), 8, -2.5),
+	{ kind = "modelScale", scale = _bodyScale.colossal or 1.45 },
 }
 
 M.tiny = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(255, 255, 255) },
-	softGlow(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255), 0.1, 0.82),
-	{ kind = "pointLight",   color = Color3.fromRGB(255, 255, 255), range = 5, brightness = 1.4 },
-	upwardColumn(ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(220, 230, 255)), 8, 2.5, 4),
+	{ kind = "modelScale", scale = _bodyScale.tiny or 0.65 },
 }
 
 M.bloodlust = {
@@ -402,19 +523,7 @@ M.voidtouched = {
 	{ kind = "tintLock",     color = Color3.fromRGB(30, 8, 60) },
 	softGlow(Color3.fromRGB(200, 120, 255), Color3.fromRGB(140, 60, 220), 0.1, 0.8),
 	{ kind = "pointLight",   color = Color3.fromRGB(180, 90, 255), range = 8, brightness = 2.2 },
-	{ kind = "beam",
-		offsetA = Vector3.new(-1.8, 0.5, 0.8), offsetB = Vector3.new(1.8, 0.5, -0.8),
-		width0 = 0.18, width1 = 0.18, segments = 14, curveSize = 2.0,
-		color = ColorSequence.new(Color3.fromRGB(220, 160, 255), Color3.fromRGB(100, 40, 200)) },
-	{ kind = "beam",
-		offsetA = Vector3.new(-1.8, -0.5, -0.8), offsetB = Vector3.new(1.8, -0.5, 0.8),
-		width0 = 0.16, width1 = 0.16, segments = 14, curveSize = -1.8,
-		color = ColorSequence.new(Color3.fromRGB(200, 140, 255), Color3.fromRGB(80, 30, 180)) },
-	{ kind = "beam",
-		offsetA = Vector3.new(0, 1.2, -1.6), offsetB = Vector3.new(0, 1.2, 1.6),
-		width0 = 0.14, width1 = 0.14, segments = 12, curveSize = 1.2,
-		color = ColorSequence.new(Color3.fromRGB(180, 120, 255), Color3.fromRGB(60, 20, 160)) },
-	upwardColumn(ColorSequence.new(Color3.fromRGB(220, 160, 255), Color3.fromRGB(100, 40, 200)), 7, 1, 2),
+	voidPreviewAttachment(),
 }
 
 M.ghostly = {
@@ -479,9 +588,10 @@ M.moon_touched = {
 	{ kind = "materialLock", material = Enum.Material.Neon },
 	{ kind = "tintLock",     color = Color3.fromRGB(210, 220, 255) },
 	glassShell(1.14, Color3.fromRGB(230, 235, 255), 0.46),
-	softGlow(Color3.fromRGB(230, 240, 255), Color3.fromRGB(210, 220, 255), 0.1, 0.8),
-	{ kind = "pointLight",   color = Color3.fromRGB(210, 225, 255), range = 7, brightness = 1.6 },
-	upwardColumn(ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 215, 255)), 7),
+	softGlow(Color3.fromRGB(255, 252, 240), Color3.fromRGB(220, 230, 255), 0.1, 0.5),
+	{ kind = "pointLight",   color = Color3.fromRGB(240, 245, 255), range = 7, brightness = 1.8 },
+	moonOrbitOrbs(),
+	starShimmer(ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(210, 225, 255)), 5),
 }
 
 M.dawn_blessed = {
