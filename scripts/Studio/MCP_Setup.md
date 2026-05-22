@@ -43,6 +43,8 @@ Once MCP works, follow [MCP_HarborBuildings.md](./MCP_HarborBuildings.md) to sca
 
 Rain placeholder: `ReplicatedStorage.Assets.Weather.Rain.RainEmitter` (ParticleEmitter; swap texture via `GameConfig.Weather.Rain.PlaceholderTextureId`).
 
+Emote stubs: run [`CommandBar_SetupEmoteAnimations.luau`](./CommandBar_SetupEmoteAnimations.luau) to create `ReplicatedStorage.Assets.Animations` (wave, dance, fish_pose, salute, bow).
+
 ## Troubleshooting
 
 ### Cursor shows two `Roblox_Studio` entries
