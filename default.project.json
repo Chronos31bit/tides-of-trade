@@ -45,6 +45,14 @@
       }
     },
 
+    "StarterGui": {
+      "$className": "StarterGui",
+      "StarterGuiAssets": {
+        "$className": "Folder",
+        "$path": "src/StarterGuiAssets"
+      }
+    },
+
     "Workspace": {
       "$className": "Workspace",
       "$properties": {
