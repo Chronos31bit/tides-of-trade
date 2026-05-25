@@ -142,6 +142,7 @@ function SmokehouseService:RefundAllSlots(player: Player, building: any)
 					speciesId = slot.speciesId,
 					weightKg = slot.weightKg,
 					caughtAt = os.time(),
+					modifiers = slot.modifiers,
 				})
 			end
 			slots[slotIndex] = nil
@@ -187,6 +188,7 @@ function SmokehouseService.Client:PlaceFishInSmokehouse(player: Player, building
 		speciesId = item.speciesId,
 		startedAt = os.time(),
 		weightKg = item.weightKg,
+		modifiers = item.modifiers,
 	}
 
 	fireChanged(self, player, buildingUid, building)
@@ -219,6 +221,7 @@ function SmokehouseService.Client:CancelFishInSmokehouse(player: Player, buildin
 		speciesId = slot.speciesId,
 		weightKg = slot.weightKg,
 		caughtAt = os.time(),
+		modifiers = slot.modifiers,
 	})
 	slots[slotIndex] = nil
 
