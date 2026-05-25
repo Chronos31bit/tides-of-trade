@@ -495,6 +495,7 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 			speciesId = boughtListing.speciesId,
 			weightKg = boughtListing.weightKg,
 			caughtAt = os.time(),
+			modifiers = boughtListing.modifiers,
 		}
 	else
 		item = {
@@ -598,6 +599,7 @@ function MarketService.Client:Cancel(player: Player, listingId: string): {ok: bo
 			speciesId = cancelledListing.speciesId,
 			weightKg = cancelledListing.weightKg,
 			caughtAt = os.time(),
+			modifiers = cancelledListing.modifiers,
 		}
 	else
 		item = {

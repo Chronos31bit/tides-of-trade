@@ -44,8 +44,9 @@ export type PreserveSlot = {
 	speciesId: string,
 	startedAt: number,
 	weightKg: number,
-	ready: boolean?,   -- set by SmokehouseService tick when PreserveTimeSec elapsed
-	goodId: string?,    -- "preserved_" .. speciesId when ready
+	ready: boolean?,        -- set by SmokehouseService tick when PreserveTimeSec elapsed
+	goodId: string?,        -- "preserved_" .. speciesId when ready
+	modifiers: {string}?,   -- carried from FishItem so Cancel/Refund can restore the full fish
 }
 
 export type PlacedBuilding = {
