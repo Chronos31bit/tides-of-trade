@@ -21,9 +21,15 @@ local ELECTRIC_BURST_TEX      = "rbxassetid://138370769"
 local TRAIL_ELECTRIC_TEX      = "rbxassetid://243098098"
 local TRAIL_ELECTRIC_BLUR_TEX = "rbxassetid://243664672"
 
--- Studio Preview_voidtouched Attachment children.
-local VOID_CLOUD_TEX  = "rbxassetid://243599653"
-local VOID_BUBBLE_TEX = "rbxassetid://241597670"
+-- Studio preview attachment textures.
+local VOID_CLOUD_TEX       = "rbxassetid://243599653"
+local VOID_BUBBLE_TEX      = "rbxassetid://241597670"
+local DAWN_BLESSED_TEX     = "rbxassetid://8890667599"
+local FOG_SHROUDED_TEX     = "rbxassetid://14221378803"
+local PRISMATIC_TEX        = "rbxassetid://14054628491"
+local SHINY_TEX            = "rbxassetid://7216849325"
+local INFERNO_FIRE_TEX     = "rbxassetid://11395089850"
+local INFERNO_EMBER_TEX    = "rbxassetid://4509687978"
 
 local VOID_CLOUD_SIZE = NumberSequence.new({
 	NumberSequenceKeypoint.new(0, 0),
@@ -41,11 +47,25 @@ local VOID_BUBBLE_SIZE = NumberSequence.new({
 	NumberSequenceKeypoint.new(1, 0),
 })
 
-local function voidPreviewAttachment(): {[string]: any}
+local function studioAttachment(emitters: {{[string]: any}}): {[string]: any}
 	return {
 		kind = "attachmentParticles",
 		position = Vector3.zero,
-		emitters = {
+		emitters = emitters,
+	}
+end
+
+local INFERNO_FIRE_TRANSPARENCY = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 0),
+	NumberSequenceKeypoint.new(0.328, 0.522),
+	NumberSequenceKeypoint.new(0.769, 0.538),
+	NumberSequenceKeypoint.new(0.862, 0.844),
+	NumberSequenceKeypoint.new(0.933, 0.95),
+	NumberSequenceKeypoint.new(1, 1),
+})
+
+local function voidPreviewAttachment(): {[string]: any}
+	return studioAttachment({
 			{
 				name = "VoidCloudParticles",
 				texture = VOID_CLOUD_TEX,
@@ -76,8 +96,206 @@ local function voidPreviewAttachment(): {[string]: any}
 				shape = Enum.ParticleEmitterShape.Box,
 				shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
 			},
+	})
+end
+
+local function dawnBlessedAttachment(): {[string]: any}
+	return studioAttachment({
+		{
+			name = "ParticleEmitter",
+			texture = DAWN_BLESSED_TEX,
+			color = ColorSequence.new(Color3.fromRGB(182, 131, 28)),
+			rate = 20,
+			lifetime = NumberRange.new(5, 5),
+			speed = NumberRange.new(0.01, 0.01),
+			spreadAngle = Vector2.new(360, 360),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(1, 5.39),
+			}),
+			transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.4),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 1,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
 		},
-	}
+	})
+end
+
+local function fogShroudedAttachment(): {[string]: any}
+	return studioAttachment({
+		{
+			name = "ParticleEmitter",
+			texture = FOG_SHROUDED_TEX,
+			color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
+			rate = 30,
+			lifetime = NumberRange.new(4, 4),
+			speed = NumberRange.new(0.01, 0.01),
+			spreadAngle = Vector2.new(360, 360),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(1, 4.52),
+			}),
+			transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.88),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 1,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+	})
+end
+
+local function prismaticAttachment(): {[string]: any}
+	return studioAttachment({
+		{
+			name = "ParticleEmitter",
+			texture = PRISMATIC_TEX,
+			color = ColorSequence.new(Color3.fromRGB(14, 255, 235)),
+			rate = 20,
+			lifetime = NumberRange.new(5, 5),
+			speed = NumberRange.new(0.01, 0.01),
+			spreadAngle = Vector2.new(360, 360),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(1, 16.2),
+			}),
+			transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.75),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 1,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+	})
+end
+
+local function shinyAttachment(): {[string]: any}
+	return studioAttachment({
+		{
+			name = "ParticleEmitter",
+			texture = SHINY_TEX,
+			color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
+			rate = 20,
+			lifetime = NumberRange.new(1, 1),
+			speed = NumberRange.new(0.01, 0.01),
+			spreadAngle = Vector2.new(0, 0),
+			rotSpeed = NumberRange.new(-360, 360),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 6.375),
+				NumberSequenceKeypoint.new(0.149, 2.56),
+				NumberSequenceKeypoint.new(0.401, 0.625),
+				NumberSequenceKeypoint.new(1, 0),
+			}),
+			transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.056, 0.512),
+				NumberSequenceKeypoint.new(0.098, 0),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 1,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+	})
+end
+
+local function infernoAttachment(): {[string]: any}
+	return studioAttachment({
+		{
+			name = "Fire-01",
+			texture = INFERNO_FIRE_TEX,
+			color = ColorSequence.new(Color3.fromRGB(255, 124, 91)),
+			rate = 10,
+			lifetime = NumberRange.new(0.5, 0.5),
+			speed = NumberRange.new(1.5, 1.5),
+			spreadAngle = Vector2.new(360, 360),
+			rotSpeed = NumberRange.new(-30, 30),
+			size = NumberSequence.new(2),
+			transparency = INFERNO_FIRE_TRANSPARENCY,
+			drag = 5,
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 0,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+		{
+			name = "Fire-02",
+			texture = INFERNO_FIRE_TEX,
+			color = ColorSequence.new(Color3.fromRGB(0, 0, 0)),
+			rate = 10,
+			lifetime = NumberRange.new(0.5, 0.5),
+			speed = NumberRange.new(1.5, 1.5),
+			spreadAngle = Vector2.new(360, 360),
+			rotSpeed = NumberRange.new(-30, 30),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1.94),
+				NumberSequenceKeypoint.new(1, 2.5),
+			}),
+			transparency = INFERNO_FIRE_TRANSPARENCY,
+			drag = 5,
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 0,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+		{
+			name = "Glow",
+			texture = INFERNO_EMBER_TEX,
+			color = ColorSequence.new(Color3.fromRGB(255, 90, 14)),
+			rate = 50,
+			lifetime = NumberRange.new(0.5, 1),
+			speed = NumberRange.new(0, 0),
+			spreadAngle = Vector2.new(0, 0),
+			acceleration = Vector3.new(0, 5, 0),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 2.125),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			transparency = INFERNO_FIRE_TRANSPARENCY,
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 0,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+		{
+			name = "Specks",
+			texture = INFERNO_EMBER_TEX,
+			color = ColorSequence.new(Color3.fromRGB(255, 129, 19)),
+			rate = 100,
+			lifetime = NumberRange.new(0.375, 0.625),
+			speed = NumberRange.new(11, 11),
+			spreadAngle = Vector2.new(100, 100),
+			rotSpeed = NumberRange.new(-45, 45),
+			acceleration = Vector3.new(0, -15, 0),
+			size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.125),
+				NumberSequenceKeypoint.new(1, 0),
+			}),
+			transparency = INFERNO_FIRE_TRANSPARENCY,
+			drag = 5,
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 0,
+			shape = Enum.ParticleEmitterShape.Box,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Volume,
+		},
+	})
 end
 
 local SHOCKED_BURST_SIZE = NumberSequence.new({
@@ -99,9 +317,7 @@ local SHOCKED_BURST_SIZE = NumberSequence.new({
 })
 
 local function shockedElectricBurst(): {[string]: any}
-	return {
-		kind = "attachmentParticles",
-		emitters = {
+	return studioAttachment({
 			{
 				texture = ELECTRIC_BURST_TEX,
 				rate = 5,
@@ -118,8 +334,7 @@ local function shockedElectricBurst(): {[string]: any}
 				velocityInheritance = 0,
 				lightEmission = 0,
 			},
-		},
-	}
+	})
 end
 
 local function electricityTrailPair(
@@ -128,9 +343,7 @@ local function electricityTrailPair(
 	blurA: Color3,
 	blurB: Color3
 ): {[string]: any}
-	return {
-		kind = "attachmentParticles",
-		emitters = {
+	return studioAttachment({
 			{
 				name = "TrailElectricity",
 				texture = TRAIL_ELECTRIC_TEX,
@@ -172,8 +385,7 @@ local function electricityTrailPair(
 				drag = 50,
 				lightEmission = 0.2,
 			},
-		},
-	}
+	})
 end
 
 local PARTICLE_SIZE = NumberSequence.new({
@@ -254,57 +466,29 @@ end
 
 -- Preview_radioactive Attachment child (Studio tester) — Cylinder surface burst + green motes.
 local RADIOACTIVE_ATTACH_TEX = "rbxassetid://4984018468"
-local RADIOACTIVE_GREEN      = Color3.fromRGB(140, 255, 85)
 
 local function radioactivePreviewAttachment(): {[string]: any}
-	return {
-		kind = "attachmentParticles",
-		position = Vector3.zero,
-		emitters = {
-			{
-				name = "ParticleEmitter",
-				texture = RADIOACTIVE_ATTACH_TEX,
-				color = ColorSequence.new(RADIOACTIVE_GREEN),
-				rate = 3,
-				lifetime = NumberRange.new(1, 1),
-				speed = NumberRange.new(10, 10),
-				spreadAngle = Vector2.new(0, 0),
-				size = NumberSequence.new(0.5),
-				transparency = NumberSequence.new(0.7),
-				lockedToPart = false,
-				velocityInheritance = 0,
-				lightEmission = 0,
-				lightInfluence = 1,
-				drag = 0,
-				emissionDirection = Enum.NormalId.Front,
-				shape = Enum.ParticleEmitterShape.Cylinder,
-				shapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
-			},
-			{
-				name = "RadioactiveGreenMotes",
-				texture = STAR_TEX,
-				color = ColorSequence.new(RADIOACTIVE_GREEN),
-				rate = 10,
-				lifetime = NumberRange.new(0.6, 1),
-				speed = NumberRange.new(0.4, 1.2),
-				spreadAngle = Vector2.new(360, 360),
-				size = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.06),
-					NumberSequenceKeypoint.new(0.25, 0.18),
-					NumberSequenceKeypoint.new(1, 0),
-				}),
-				transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.5),
-					NumberSequenceKeypoint.new(0.2, 0.05),
-					NumberSequenceKeypoint.new(1, 1),
-				}),
-				lockedToPart = true,
-				velocityInheritance = 0.5,
-				lightEmission = 0.9,
-				lightInfluence = 0,
-			},
+	return studioAttachment({
+		{
+			name = "ParticleEmitter",
+			texture = RADIOACTIVE_ATTACH_TEX,
+			color = ColorSequence.new(Color3.fromRGB(255, 255, 255)),
+			rate = 3,
+			lifetime = NumberRange.new(1, 1),
+			speed = NumberRange.new(10, 10),
+			spreadAngle = Vector2.new(0, 0),
+			size = NumberSequence.new(0.5),
+			transparency = NumberSequence.new(0.7),
+			lockedToPart = false,
+			velocityInheritance = 0,
+			lightEmission = 0,
+			lightInfluence = 1,
+			drag = 0,
+			emissionDirection = Enum.NormalId.Front,
+			shape = Enum.ParticleEmitterShape.Cylinder,
+			shapeStyle = Enum.ParticleEmitterShapeStyle.Surface,
 		},
-	}
+	})
 end
 
 local function moonOrbitOrbs(): {[string]: any}
@@ -442,10 +626,6 @@ M.silver = {
 }
 
 M.frozen = {
-	{ kind = "shell",        shape = "cube", padding = 1.2,
-		material = Enum.Material.Ice, color = Color3.fromRGB(195, 230, 255),
-		transparency = 0.35, reflectance = 0.45 },
-	{ kind = "pointLight",   color = Color3.fromRGB(170, 220, 255), range = 6, brightness = 1.8 },
 	electricityTrailPair(
 		Color3.fromRGB(42, 98, 255),
 		Color3.fromRGB(105, 255, 255),
@@ -455,35 +635,14 @@ M.frozen = {
 }
 
 M.inferno = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(255, 110, 30) },
-	softGlow(Color3.fromRGB(255, 170, 70), Color3.fromRGB(255, 120, 40), 0.1, 0.8),
-	{ kind = "pointLight",   color = Color3.fromRGB(255, 130, 50), range = 7, brightness = 2.0 },
-	{ kind = "fire",         size = 3.5, heat = 5,
-		color = Color3.fromRGB(255, 170, 50), secondaryColor = Color3.fromRGB(200, 50, 10) },
-	upwardColumn(ColorSequence.new(Color3.fromRGB(255, 200, 120), Color3.fromRGB(255, 100, 30)), 8),
+	infernoAttachment(),
 }
 
--- Tester look: (1) blue highlight wash (2) outward electric motes — no horizontal beam strips.
 M.shocked = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(130, 190, 255) },
-	softGlow(
-		Color3.fromRGB(60, 140, 255),
-		Color3.fromRGB(100, 175, 255),
-		0.1,
-		0.52
-	),
-	{ kind = "pointLight",   color = Color3.fromRGB(90, 170, 255), range = 7, brightness = 1.7 },
 	shockedElectricBurst(),
 }
 
 M.radioactive = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = RADIOACTIVE_GREEN },
-	{ kind = "pulseTransparency", min = 0, max = 0.14, periodSec = 1.4 },
-	softGlow(RADIOACTIVE_GREEN, RADIOACTIVE_GREEN, 0.1, 0.55),
-	{ kind = "pointLight", color = RADIOACTIVE_GREEN, range = 8, brightness = 2.2, flickerHz = 0.9 },
 	radioactivePreviewAttachment(),
 }
 
@@ -519,10 +678,6 @@ M.bloodlust = {
 }
 
 M.voidtouched = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(30, 8, 60) },
-	softGlow(Color3.fromRGB(200, 120, 255), Color3.fromRGB(140, 60, 220), 0.1, 0.8),
-	{ kind = "pointLight",   color = Color3.fromRGB(180, 90, 255), range = 8, brightness = 2.2 },
 	voidPreviewAttachment(),
 }
 
@@ -595,43 +750,20 @@ M.moon_touched = {
 }
 
 M.dawn_blessed = {
-	{ kind = "materialLock", material = Enum.Material.Neon },
-	{ kind = "tintLock",     color = Color3.fromRGB(255, 190, 110) },
-	softGlow(Color3.fromRGB(255, 200, 110), Color3.fromRGB(255, 200, 120), 0.1, 0.8),
-	{ kind = "pointLight",   color = Color3.fromRGB(255, 200, 120), range = 7, brightness = 2.0 },
-	{ kind = "fire",         size = 3, heat = 3,
-		color = Color3.fromRGB(255, 230, 150), secondaryColor = Color3.fromRGB(255, 140, 60) },
-	upwardColumn(ColorSequence.new(Color3.fromRGB(255, 240, 180), Color3.fromRGB(255, 170, 80)), 8),
+	dawnBlessedAttachment(),
 }
 
 M.fog_shrouded = {
-	{ kind = "transparency", value = 0.4 },
-	{ kind = "tintLock",     color = Color3.fromRGB(190, 200, 215) },
-	glassShell(1.12, Color3.fromRGB(210, 218, 228), 0.6),
-	softGlow(Color3.fromRGB(225, 232, 240), Color3.fromRGB(200, 210, 225), 0.18, 0.75),
-	{ kind = "pointLight",   color = Color3.fromRGB(210, 220, 235), range = 5, brightness = 1.2 },
-	{
-		kind = "attachedParticle",
-		texture = STAR_TEX,
-		color   = ColorSequence.new(Color3.fromRGB(220, 230, 240), Color3.fromRGB(170, 185, 200)),
-		rate     = 6,
-		lifetime = NumberRange.new(1.0, 1.4),
-		size     = PARTICLE_SIZE,
-		transparency = PARTICLE_TRANSPARENCY,
-		speed       = NumberRange.new(0.15, 0.4),
-		spreadAngle = Vector2.new(40, 40),
-		emissionDirection = Enum.NormalId.Top,
-		acceleration = Vector3.new(0, 0.4, 0),
-		lightEmission = 0.55,
-		lockedToPart = true,
-	},
+	fogShroudedAttachment(),
 }
 
 -- ====================================================================
 -- DEPRECATED
 -- ====================================================================
 
-M.shiny     = M.golden
+M.shiny = {
+	shinyAttachment(),
+}
 M.giant     = M.colossal
 M.glowing   = {
 	{ kind = "materialLock", material = Enum.Material.Neon },
@@ -648,7 +780,9 @@ M.lucky     = {
 	starShimmer(ColorSequence.new(Color3.fromRGB(200, 255, 200), Color3.fromRGB(120, 220, 120)), 8),
 }
 M.ancient   = M.ancientcore
-M.prismatic = M.rainbow
+M.prismatic = {
+	prismaticAttachment(),
+}
 M.elder     = M.voidtouched
 M.cursed    = M.bloodlust
 M.magnetic  = {

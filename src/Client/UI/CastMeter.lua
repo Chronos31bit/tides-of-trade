@@ -24,6 +24,7 @@
 local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local TemplateLoader = require(script.Parent.TemplateLoader)
 local UIUtil     = require(script.Parent.UIUtil)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
@@ -78,9 +79,16 @@ local function reelPeriod(weightKg: number, params: TierParams): number
 	return math.clamp(2.5 / speed / params.oscSpeedMul, 0.4, 4.0)
 end
 
+local function req(parent: Instance, name: string, class: string): Instance
+	local c = parent:FindFirstChild(name)
+	if not c or not c:IsA(class) then
+		error(`[CastMeter] Missing {class} "{name}" under {parent:GetFullName()}`, 2)
+	end
+	return c
+end
+
 function CastMeter.show(greenCenter: number, greenSize: number, period: number, opts: ShowOpts?): CastMeterHandle
-	local gui = UIUtil.makeScreenGui("CastMeter")
-	gui.DisplayOrder = UIUtil.DisplayOrder.CastMeter
+	local gui = TemplateLoader.spawn("CastMeter", { instanceName = "CastMeter" })
 
 	-- ----------------------------------------------------------------
 	-- CAST BUTTON — 80px circle, bottom-center, above the nav bar.
@@ -114,26 +122,18 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	castBtn.Parent = gui
 
 	-- ----------------------------------------------------------------
-	-- BAR — vertical 20×160px, centered directly above the cast button.
-	-- Slides in from below on show; slides out on stop().
+	-- TRACK — template chrome. Script drives zone + indicator.
 	-- ----------------------------------------------------------------
-	local barBottomPx = CM.CastButtonBottomPx + CM.CastButtonSizePx + CM.BarButtonGapPx
-	local restPos = UDim2.new(0.5, 0, 1, -barBottomPx)
-	local offPos  = UDim2.new(0.5, 0, 1,  CM.BarHeightPx)  -- positive = below screen edge
-
-	local bar = UIUtil.makePanel({
-		Name = "Bar",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = offPos,
-		Size = UDim2.fromOffset(CM.BarWidthPx, CM.BarHeightPx),
-		BackgroundColor3 = P.WoodDark,
-	})
-	bar.Parent = gui
-
-	-- Slide in (snap if reduced motion).
-	MotionUtil.tweenOrSnap(bar, TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = restPos,
-	})
+	local track = req(gui, "Track", "Frame") :: Frame
+	local zoneCommon = req(track, "ZoneCommon", "Frame") :: Frame
+	local zoneRare = req(track, "ZoneRare", "Frame") :: Frame
+	local zoneLegendary = req(track, "ZoneLegendary", "Frame") :: Frame
+	local indicator = req(track, "Indicator", "Frame") :: Frame
+	local releaseHint = req(track, "ReleaseHintLabel", "TextLabel") :: TextLabel
+	zoneCommon.Visible = true
+	zoneRare.Visible = false
+	zoneLegendary.Visible = false
+	releaseHint.Visible = true
 
 	-- "PERFECT!" flash — reused across both phases. Anchored above the bar.
 	local flash = Instance.new("TextLabel")
@@ -147,7 +147,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	flash.TextColor3 = P.Gold
 	flash.TextTransparency = 1
 	flash.Text = "PERFECT!"
-	flash.Parent = bar
+	flash.Parent = track
 
 	local lastFlashAt = -math.huge
 	local function flashPerfect()
@@ -166,43 +166,9 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	-- ================================================================
 	-- PHASE 1 — CAST. Static green zone + sine marker.
 	-- ================================================================
-	local castFolder = Instance.new("Folder"); castFolder.Name = "CastPhase"; castFolder.Parent = bar
-
-	-- Green zone — vertical strip (Y-axis). greenCenter/greenSize are 0..1 fractions
-	-- of the bar height, where 0 is top and 1 is bottom. The marker travels bottom→top
-	-- as p goes 0→1, so the zone Position uses (1 - center - size/2) on the Y axis.
-	local castGreen = Instance.new("Frame")
-	castGreen.Name = "Green"
-	castGreen.BackgroundColor3 = P.Uncommon
-	castGreen.BackgroundTransparency = 0.1
-	castGreen.BorderSizePixel = 0
-	castGreen.Position = UDim2.new(0, 0, 1 - greenCenter - greenSize / 2, 0)
-	castGreen.Size = UDim2.new(1, 0, greenSize, 0)
-	local cgc = Instance.new("UICorner"); cgc.CornerRadius = UDim.new(0, 4); cgc.Parent = castGreen
-	castGreen.Parent = castFolder
-
-	-- Inner gold perfect strip — sweet-spot within the green zone (Y-centered inside it).
-	local cpFrac = FT.PerfectZoneFraction
-	local castPerfect = Instance.new("Frame")
-	castPerfect.Name = "CastPerfect"
-	castPerfect.BackgroundColor3 = P.Gold
-	castPerfect.BackgroundTransparency = 0.15
-	castPerfect.BorderSizePixel = 0
-	castPerfect.Position = UDim2.new(0, 0, (1 - cpFrac) / 2, 0)
-	castPerfect.Size = UDim2.new(1, 0, cpFrac, 0)
-	local cpc = Instance.new("UICorner"); cpc.CornerRadius = UDim.new(0, 3); cpc.Parent = castPerfect
-	castPerfect.Parent = castGreen
-
-	-- Marker — horizontal tick that travels up and down the bar.
-	local marker = Instance.new("Frame")
-	marker.Name = "Marker"
-	marker.AnchorPoint = Vector2.new(0.5, 0.5)
-	marker.Position = UDim2.new(0.5, 0, 0.5, 0)
-	marker.Size = UDim2.new(1.5, 0, 0, 6)
-	marker.BackgroundColor3 = P.Cream
-	marker.BorderSizePixel = 0
-	local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 2); mc.Parent = marker
-	marker.Parent = castFolder
+	-- Zone geometry: greenCenter/greenSize are 0..1 fractions where 0 is top and 1 is bottom.
+	zoneCommon.Position = UDim2.new(0, 0, 1 - greenCenter - greenSize / 2, 0)
+	zoneCommon.Size = UDim2.new(1, 0, greenSize, 0)
 
 	local castStart = os.clock()
 	local lastMarker = 0.5
@@ -214,7 +180,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 		local p = (math.sin(t / period * math.pi * 2) + 1) / 2
 		lastMarker = p
 		-- p=0 → bottom of bar (Y=1), p=1 → top of bar (Y=0).
-		marker.Position = UDim2.new(0.5, 0, 1 - p, 0)
+		indicator.Position = UDim2.new(0.5, 0, 1 - p, 0)
 		-- Zone hit-tests (same math as before — p and zone fractions are all 0..1).
 		local gLow  = greenCenter - greenSize / 2
 		local gHigh = greenCenter + greenSize / 2
@@ -225,7 +191,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 		-- Marker turns green while inside the zone, snaps cream on exit.
 		if inCastGreen ~= wasInCastGreen then
 			wasInCastGreen = inCastGreen
-			MotionUtil.tweenOrSnap(marker, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			MotionUtil.tweenOrSnap(indicator, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				BackgroundColor3 = inCastGreen and P.Success or P.Cream,
 			})
 		end
@@ -264,8 +230,8 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 		MotionUtil.tweenOrSnap(castBtn, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			Position = UDim2.new(0.5, 0, 1, CM.CastButtonSizePx + 20),
 		})
-		local activeBar: Frame = if reelBar ~= nil then reelBar else bar
-		local activeOffPos     = if reelBar ~= nil then reelBarOffPos else offPos
+		local activeBar: Frame = if reelBar ~= nil then reelBar else track
+		local activeOffPos = if reelBar ~= nil then reelBarOffPos else (track.Position + UDim2.fromOffset(0, CM.BarHeightPx + 20))
 		local outTween = MotionUtil.tweenOrSnap(activeBar,
 			TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
 			{ Position = activeOffPos })
@@ -298,15 +264,11 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 
 		-- ---- transition: fade cast visuals, slide vertical bar out ----
 		local fadeInfo = TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		MotionUtil.tweenOrSnap(marker, fadeInfo, { BackgroundTransparency = 1 })
-		MotionUtil.tweenOrSnap(castGreen, fadeInfo, { BackgroundTransparency = 1 })
-		-- castPerfect is a child of castGreen but Roblox doesn't inherit tweens,
-		-- so we must fade it out explicitly or it stays visible as a stuck bar.
-		MotionUtil.tweenOrSnap(castPerfect, fadeInfo, { BackgroundTransparency = 1 })
-		-- Slide the vertical cast bar down — the horizontal reel bar replaces it.
-		MotionUtil.tweenOrSnap(bar,
+		MotionUtil.tweenOrSnap(indicator, fadeInfo, { BackgroundTransparency = 1 })
+		MotionUtil.tweenOrSnap(zoneCommon, fadeInfo, { BackgroundTransparency = 1 })
+		MotionUtil.tweenOrSnap(track,
 			TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-			{ Position = offPos })
+			{ Position = track.Position + UDim2.fromOffset(0, CM.BarHeightPx + 20) })
 
 		-- ---- create horizontal reel bar ----
 		local rb = UIUtil.makePanel({
@@ -580,7 +542,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	local function releaseCast(): (number, boolean)
 		if castConn then castConn:Disconnect(); castConn = nil end
 		-- Dim the frozen marker: signals "locked in, waiting for the bite".
-		MotionUtil.tweenOrSnap(marker, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		MotionUtil.tweenOrSnap(indicator, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			BackgroundTransparency = 0.5,
 		})
 		local pLow  = greenCenter - (greenSize * FT.PerfectZoneFraction) / 2

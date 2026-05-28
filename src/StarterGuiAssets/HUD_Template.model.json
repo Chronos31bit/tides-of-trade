@@ -32,6 +32,13 @@
           "Properties": {
             "Value": true
           }
+        },
+        {
+          "Name": "ThemeKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "hud"
+          }
         }
       ]
     },
@@ -316,7 +323,8 @@
                   52
                 ]
               ]
-            }
+            },
+            "Selectable": true
           },
           "Children": [
             {
@@ -421,7 +429,7 @@
                       0.12549,
                       0.109804
                     ],
-                    "Text": "⌇"
+                    "Text": "\u2307"
                   }
                 }
               ]
@@ -647,7 +655,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -712,7 +721,7 @@
                   0.901961,
                   0.784314
                 ],
-                "Text": "⌇"
+                "Text": "\u2307"
               }
             },
             {
@@ -824,7 +833,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -889,7 +899,7 @@
                   0.901961,
                   0.784314
                 ],
-                "Text": "▤"
+                "Text": "\u25a4"
               }
             },
             {
@@ -1001,7 +1011,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -1178,7 +1189,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -1243,7 +1255,7 @@
                   0.901961,
                   0.784314
                 ],
-                "Text": "◉"
+                "Text": "\u25c9"
               }
             },
             {
@@ -1355,7 +1367,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -1420,7 +1433,7 @@
                   0.901961,
                   0.784314
                 ],
-                "Text": "▣"
+                "Text": "\ud83d\udd28"
               }
             },
             {
@@ -1532,7 +1545,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -1597,7 +1611,7 @@
                   0.901961,
                   0.784314
                 ],
-                "Text": "♥"
+                "Text": "\u2665"
               }
             },
             {
@@ -1709,7 +1723,8 @@
                 ]
               ]
             },
-            "Text": ""
+            "Text": "",
+            "Selectable": true
           },
           "Children": [
             {
@@ -1774,7 +1789,7 @@
                   0.901961,
                   0.784314
                 ],
-                "Text": "⌂"
+                "Text": "\u2302"
               }
             },
             {
@@ -2148,7 +2163,7 @@
                   0.12549,
                   0.109804
                 ],
-                "Text": "★"
+                "Text": "\u2605"
               }
             }
           ]

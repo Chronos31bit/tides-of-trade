@@ -1,11 +1,16 @@
 --!strict
 -- AdminWeatherUI.lua
--- Admin-only panel to force every GameConfig.Weather.Transitions state.
+-- Admin-only weather panel. Layout from AdminWeatherUI_Template.
+-- Gated by AdminController + AdminService:IsAdmin() — do not spawn elsewhere.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local UIUtil     = require(script.Parent.UIUtil)
+local TemplateLoader = require(script.Parent.TemplateLoader)
+local UIKit = require(script.Parent.UIKit)
+local UIUtil = require(script.Parent.UIUtil)
+
+local P = UIUtil.Palette
 
 export type AdminWeatherUI = {
 	gui: ScreenGui,
@@ -20,87 +25,65 @@ local ATTR_NAME = GameConfig.Weather.WorkspaceAttribute
 
 local AdminWeatherUI = {}
 
+local function req(parent: Instance, name: string, className: string): Instance
+	local child = parent:FindFirstChild(name)
+	if not child or not child:IsA(className) then
+		error(`[AdminWeatherUI] Missing {className} "{name}" under {parent:GetFullName()}`, 2)
+	end
+	return child
+end
+
 function AdminWeatherUI.build(
 	onPickWeather: (string) -> (),
 	onAuto: () -> (),
 	onTogglePanel: () -> ()
 ): AdminWeatherUI
-	local gui, _scale = UIUtil.makeScreenGui("AdminWeather")
-	gui.DisplayOrder = 70
-	gui.Enabled = true
+	local gui = TemplateLoader.spawn("AdminWeather", { instanceName = "AdminWeather" })
 
-	local toggleBtn = UIUtil.makeSecondaryButton("Weather", onTogglePanel, {
-		Name = "Toggle",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 12),
-		Size = UDim2.fromOffset(88, 44),
-	})
-	toggleBtn.Parent = gui
+	local toggleBtn = req(gui, "ToggleButton", "TextButton") :: TextButton
+	local panel = req(gui, "Panel", "Frame") :: Frame
+	local title = req(panel, "TitleLabel", "TextLabel") :: TextLabel
+	local status = req(panel, "StatusLabel", "TextLabel") :: TextLabel
+	local weatherList = req(panel, "WeatherButtonList", "Frame") :: Frame
+	local devList = req(panel, "DevToggleList", "Frame") :: Frame
+	local hint = req(panel, "HintLabel", "TextLabel") :: TextLabel
+	local weatherTpl = req(gui, "WeatherButton_Template", "TextButton") :: TextButton
+	local devTpl = req(gui, "DevToggle_Template", "TextButton") :: TextButton
 
-	local panel = UIUtil.makePanel({
-		Name = "Panel",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 64),
-		Size = UDim2.fromOffset(200, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = UIUtil.Palette.TealDeeper,
-		Visible = false,
-	})
-	panel.Parent = gui
-
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 10)
-	pad.PaddingBottom = UDim.new(0, 10)
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.Parent = panel
-
-	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Vertical
-	layout.Padding = UDim.new(0, 6)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = panel
-
-	local title = UIUtil.makeLabel(("Weather (%d states)"):format(#WEATHER_STATES), "subtitle", {
-		Size = UDim2.new(1, 0, 0, 22),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		LayoutOrder = 1,
-	})
-	title.Parent = panel
-
-	local status = UIUtil.makeLabel("Current: …", "body", {
-		Name = "Status",
-		Size = UDim2.new(1, 0, 0, 56),
-		TextWrapped = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		LayoutOrder = 2,
-	})
-	status.Parent = panel
+	title.Text = ("Weather (%d states)"):format(#WEATHER_STATES)
+	title.TextColor3 = P.Cream
+	status.TextColor3 = P.Cream
+	hint.TextColor3 = P.CreamSoft
 
 	for i, weather in ipairs(WEATHER_STATES) do
-		local btn = UIUtil.makeSecondaryButton(weather, function()
+		local btn = weatherTpl:Clone()
+		btn.Name = "Weather_" .. weather
+		btn.Visible = true
+		btn.Text = weather
+		btn.LayoutOrder = i
+		btn.BackgroundColor3 = P.Teal
+		btn.TextColor3 = P.Cream
+		btn.Parent = weatherList
+		UIKit.prepareInteractive(btn)
+		btn.Activated:Connect(function()
 			onPickWeather(weather)
-		end, {
-			Size = UDim2.new(1, 0, 0, 44),
-			LayoutOrder = 10 + i,
-		})
-		btn.Parent = panel
+		end)
 	end
 
-	local autoBtn = UIUtil.makeGhostButton("Resume auto (Markov)", onAuto, {
-		Size = UDim2.new(1, 0, 0, 44),
-		LayoutOrder = 100,
-	})
-	autoBtn.Parent = panel
+	local autoBtn = devTpl:Clone()
+	autoBtn.Name = "AutoToggle"
+	autoBtn.Visible = true
+	autoBtn.Text = "Resume auto (Markov)"
+	autoBtn.LayoutOrder = 1
+	autoBtn.BackgroundTransparency = 0.35
+	autoBtn.BackgroundColor3 = P.TealDark
+	autoBtn.TextColor3 = P.CreamSoft
+	autoBtn.Parent = devList
+	UIKit.prepareInteractive(autoBtn)
+	autoBtn.Activated:Connect(onAuto)
 
-	local hint = UIUtil.makeLabel("Tap Weather to hide · /weather Rain", "caption", {
-		Size = UDim2.new(1, 0, 0, 18),
-		TextSize = 12,
-		TextTransparency = 0.2,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		LayoutOrder = 101,
-	})
-	hint.Parent = panel
+	UIKit.prepareInteractive(toggleBtn)
+	toggleBtn.Activated:Connect(onTogglePanel)
 
 	local panelVisible = false
 	local lastAttr = ""

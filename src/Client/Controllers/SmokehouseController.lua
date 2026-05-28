@@ -92,28 +92,35 @@ function SmokehouseController:Open(buildingUid: string, capacity: number)
 	SmokehouseService:GetSlots(buildingUid):andThen(function(slots)
 		slots = slots or {}
 		self._currentUid = buildingUid
+		local ok, handle = pcall(function()
+			return SmokehouseUI.show(slots, inv, capacity,
+				function(fishUid)
+					SmokehouseService:PlaceFishInSmokehouse(buildingUid, fishUid):andThen(function(res)
+						if not res.ok then warn("[Smokehouse] place:", res.reason) end
+					end)
+				end,
+				function(slotIndex)
+					SmokehouseService:CancelFishInSmokehouse(buildingUid, slotIndex):andThen(function(res)
+						if not res.ok then warn("[Smokehouse] cancel:", res.reason) end
+					end)
+				end,
+				function(slotIndex)
+					SmokehouseService:ClaimPreservedFish(buildingUid, slotIndex):andThen(function(res)
+						if not res.ok then warn("[Smokehouse] claim:", res.reason) end
+					end)
+				end,
+				function()
+					self:_dismiss()
+				end
+			)
+		end)
+		if not ok then
+			self._currentUid = nil
+			warn("[Smokehouse] UI failed:", handle)
+			return
+		end
+		self._handle = handle
 		HUDController:SetVisible(false)
-
-		self._handle = SmokehouseUI.show(slots, inv, capacity,
-			function(fishUid)
-				SmokehouseService:PlaceFishInSmokehouse(buildingUid, fishUid):andThen(function(res)
-					if not res.ok then warn("[Smokehouse] place:", res.reason) end
-				end)
-			end,
-			function(slotIndex)
-				SmokehouseService:CancelFishInSmokehouse(buildingUid, slotIndex):andThen(function(res)
-					if not res.ok then warn("[Smokehouse] cancel:", res.reason) end
-				end)
-			end,
-			function(slotIndex)
-				SmokehouseService:ClaimPreservedFish(buildingUid, slotIndex):andThen(function(res)
-					if not res.ok then warn("[Smokehouse] claim:", res.reason) end
-				end)
-			end,
-			function()
-				self:_dismiss()
-			end
-		)
 	end)
 end
 

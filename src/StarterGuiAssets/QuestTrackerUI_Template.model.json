@@ -1,0 +1,1255 @@
+{
+  "ClassName": "ScreenGui",
+  "Properties": {
+    "Enabled": false,
+    "ResetOnSpawn": false,
+    "IgnoreGuiInset": false,
+    "ZIndexBehavior": "Sibling"
+  },
+  "Children": [
+    {
+      "Name": "Meta",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "DisplayOrderKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "QuestTracker"
+          }
+        },
+        {
+          "Name": "ResetOnSpawn",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": false
+          }
+        },
+        {
+          "Name": "RespectTopbar",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": true
+          }
+        },
+        {
+          "Name": "ClaimTweenDuration",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 0.35
+          }
+        },
+        {
+          "Name": "ClaimTweenEasingStyle",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 29
+          }
+        },
+        {
+          "Name": "ClaimTweenEasingDirection",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 1
+          }
+        },
+        {
+          "Name": "PopupSlideOffsetPx",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 320
+          }
+        },
+        {
+          "Name": "PopupRestOffsetX",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": -12
+          }
+        },
+        {
+          "Name": "ThemeKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "quest-tracker"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Root",
+      "ClassName": "Frame",
+      "Properties": {
+        "BackgroundTransparency": 1,
+        "AnchorPoint": [
+          1,
+          0
+        ],
+        "Position": {
+          "UDim2": [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              140
+            ]
+          ]
+        },
+        "Size": {
+          "UDim2": [
+            [
+              0,
+              408
+            ],
+            [
+              0,
+              500
+            ]
+          ]
+        }
+      },
+      "Children": [
+        {
+          "Name": "Tab",
+          "ClassName": "TextButton",
+          "Properties": {
+            "AutoButtonColor": false,
+            "Text": "",
+            "BackgroundColor3": [
+              0.07058823529411765,
+              0.20392156862745098,
+              0.23529411764705882
+            ],
+            "BorderSizePixel": 0,
+            "AnchorPoint": [
+              1,
+              0
+            ],
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -2
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  56
+                ],
+                [
+                  0,
+                  110
+                ]
+              ]
+            },
+            "Selectable": true
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    10
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "TabStroke",
+              "ClassName": "UIStroke",
+              "Properties": {
+                "Color": [
+                  0.0392156862745098,
+                  0.12549019607843137,
+                  0.1568627450980392
+                ],
+                "Thickness": 1.5,
+                "Transparency": 0.3
+              }
+            },
+            {
+              "Name": "TabIcon",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "\ud83d\udcdc",
+                "Font": "GothamBold",
+                "TextSize": 24,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0,
+                      28
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "TabLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "0/3",
+                "Font": "GothamMedium",
+                "TextSize": 16,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0,
+                      22
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      40
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "TabHint",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "quests",
+                "Font": "Gotham",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.8156862745098039,
+                  0.7764705882352941,
+                  0.6980392156862745
+                ],
+                "TextXAlignment": "Center",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0,
+                      18
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      64
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "TabBadge",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundColor3": [
+                  0.8627450980392157,
+                  0.39215686274509803,
+                  0.39215686274509803
+                ],
+                "BorderSizePixel": 0,
+                "AnchorPoint": [
+                  1,
+                  0
+                ],
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -4
+                    ],
+                    [
+                      0,
+                      4
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      14
+                    ],
+                    [
+                      0,
+                      14
+                    ]
+                  ]
+                },
+                "Visible": false
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0.5,
+                        0
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Name": "Panel",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundColor3": [
+              0.07058823529411765,
+              0.20392156862745098,
+              0.23529411764705882
+            ],
+            "BorderSizePixel": 0,
+            "AnchorPoint": [
+              1,
+              0
+            ],
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -62
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  340
+                ],
+                [
+                  0,
+                  480
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    12
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "UIStroke",
+              "ClassName": "UIStroke",
+              "Properties": {
+                "Color": [
+                  0.0392156862745098,
+                  0.12549019607843137,
+                  0.1568627450980392
+                ],
+                "Thickness": 1.5,
+                "Transparency": 0.25
+              }
+            },
+            {
+              "Name": "TodayHeader",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "Today's quests",
+                "Font": "GothamBold",
+                "TextSize": 20,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      0,
+                      24
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "TodayList",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      36
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      0,
+                      224
+                    ]
+                  ]
+                }
+              },
+              "Children": [
+                {
+                  "Name": "UIListLayout",
+                  "ClassName": "UIListLayout",
+                  "Properties": {
+                    "SortOrder": "LayoutOrder",
+                    "Padding": {
+                      "UDim": [
+                        0,
+                        6
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "AllCompleteBanner",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundColor3": [
+                  0.47058823529411764,
+                  0.7843137254901961,
+                  0.5098039215686274
+                ],
+                "BackgroundTransparency": 0.85,
+                "BorderSizePixel": 0,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      36
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      0,
+                      40
+                    ]
+                  ]
+                },
+                "Visible": false
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        10
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "AllCompleteLabel",
+                  "ClassName": "TextLabel",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "Text": "All quests complete for today!",
+                    "Font": "GothamBold",
+                    "TextSize": 14,
+                    "TextColor3": [
+                      0.47058823529411764,
+                      0.7843137254901961,
+                      0.5098039215686274
+                    ],
+                    "TextXAlignment": "Center",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          0
+                        ],
+                        [
+                          1,
+                          0
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0
+                        ]
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "StreakHeader",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "Login streak",
+                "Font": "GothamBold",
+                "TextSize": 20,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      0,
+                      24
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      0,
+                      268
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "StreakBanner",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      296
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      0,
+                      60
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "YesterdayHeader",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "Yesterday (claim before midnight)",
+                "Font": "GothamBold",
+                "TextSize": 16,
+                "TextColor3": [
+                  0.8156862745098039,
+                  0.7764705882352941,
+                  0.6980392156862745
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      0,
+                      20
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      0,
+                      360
+                    ]
+                  ]
+                },
+                "Visible": false
+              }
+            },
+            {
+              "Name": "YesterdayList",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      8
+                    ],
+                    [
+                      0,
+                      382
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -16
+                    ],
+                    [
+                      0,
+                      60
+                    ]
+                  ]
+                },
+                "Visible": false
+              },
+              "Children": [
+                {
+                  "Name": "UIListLayout",
+                  "ClassName": "UIListLayout",
+                  "Properties": {
+                    "SortOrder": "LayoutOrder",
+                    "Padding": {
+                      "UDim": [
+                        0,
+                        4
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "RefreshLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "New quests in --:--:--",
+                "Font": "Gotham",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.8156862745098039,
+                  0.7764705882352941,
+                  0.6980392156862745
+                ],
+                "TextXAlignment": "Center",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      0,
+                      20
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      1,
+                      -28
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "QuestRow_Template",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundColor3": [
+              0.07058823529411765,
+              0.20392156862745098,
+              0.23529411764705882
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  -8
+                ],
+                [
+                  0,
+                  70
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    10
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "AccentBar",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundColor3": [
+                  0.6901960784313725,
+                  0.7137254901960784,
+                  0.7450980392156863
+                ],
+                "BorderSizePixel": 0,
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      4
+                    ],
+                    [
+                      1,
+                      -8
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      4
+                    ],
+                    [
+                      0,
+                      4
+                    ]
+                  ]
+                }
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        2
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "CategoryIcon",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "\ud83c\udfa3",
+                "Font": "Gotham",
+                "TextSize": 20,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      28
+                    ],
+                    [
+                      0,
+                      28
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      14
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "QuestText",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "Quest",
+                "Font": "GothamMedium",
+                "TextSize": 13,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -56
+                    ],
+                    [
+                      0,
+                      22
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      46
+                    ],
+                    [
+                      0,
+                      6
+                    ]
+                  ]
+                },
+                "TextWrapped": true
+              }
+            },
+            {
+              "Name": "ProgressBg",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundColor3": [
+                  0.0392156862745098,
+                  0.12549019607843137,
+                  0.1568627450980392
+                ],
+                "BorderSizePixel": 0,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      46
+                    ],
+                    [
+                      0,
+                      30
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -56
+                    ],
+                    [
+                      0,
+                      8
+                    ]
+                  ]
+                }
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        4
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "ProgressFill",
+                  "ClassName": "Frame",
+                  "Properties": {
+                    "BackgroundColor3": [
+                      0.6901960784313725,
+                      0.7137254901960784,
+                      0.7450980392156863
+                    ],
+                    "BorderSizePixel": 0,
+                    "Size": {
+                      "UDim2": [
+                        [
+                          0.5,
+                          0
+                        ],
+                        [
+                          1,
+                          0
+                        ]
+                      ]
+                    }
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            4
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "Name": "ProgressLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "0 / 1",
+                "Font": "Gotham",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.8156862745098039,
+                  0.7764705882352941,
+                  0.6980392156862745
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      0.5,
+                      -28
+                    ],
+                    [
+                      0,
+                      18
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      46
+                    ],
+                    [
+                      0,
+                      40
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "RewardLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "",
+                "Font": "Gotham",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.8627450980392157,
+                  0.7058823529411765,
+                  0.34509803921568627
+                ],
+                "TextXAlignment": "Right",
+                "Size": {
+                  "UDim2": [
+                    [
+                      0.5,
+                      -10
+                    ],
+                    [
+                      0,
+                      18
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      0.5,
+                      0
+                    ],
+                    [
+                      0,
+                      40
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "ClaimButton",
+              "ClassName": "TextButton",
+              "Properties": {
+                "AutoButtonColor": false,
+                "Text": "Claim",
+                "Font": "GothamBold",
+                "TextSize": 13,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "BackgroundColor3": [
+                  0.3058823529411765,
+                  0.611764705882353,
+                  0.6352941176470588
+                ],
+                "BorderSizePixel": 0,
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      70
+                    ],
+                    [
+                      0,
+                      44
+                    ]
+                  ]
+                },
+                "AnchorPoint": [
+                  1,
+                  0.5
+                ],
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -8
+                    ],
+                    [
+                      0.5,
+                      0
+                    ]
+                  ]
+                },
+                "Visible": false,
+                "Selectable": true
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        6
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "DoneLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "\u2713 Done",
+                "Font": "Gotham",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.47058823529411764,
+                  0.7843137254901961,
+                  0.5098039215686274
+                ],
+                "TextXAlignment": "Right",
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      60
+                    ],
+                    [
+                      0,
+                      22
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -10
+                    ],
+                    [
+                      0.5,
+                      0
+                    ]
+                  ]
+                },
+                "AnchorPoint": [
+                  1,
+                  0.5
+                ],
+                "Visible": false
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -32,6 +32,10 @@
       "$className": "ServerScriptService",
       "Server": {
         "$path": "src/Server"
+      },
+      "Tools": {
+        "$className": "Folder",
+        "$path": "src/Tools"
       }
     },
 

@@ -308,6 +308,25 @@ GameConfig.Harbor = {
 -- data (footprints, behavior flags, description text).
 -- tierCosts[1] = placement cost; [2]/[3] = upgrade costs into that tier.
 -- ====================================================================
+-- Per-rarity base aquarium income per fish per harbor income tick (see Harbor.IncomeTickSeconds).
+GameConfig.Aquarium = {
+	-- Aquarium modal slot grid (3 wide — fills column without a 4th empty gutter).
+	SlotGridColumns   = 3,
+	SlotCellWidthPx   = 152,
+	SlotCellHeightPx  = 180,
+	-- Coins / xp per fish per harbor income tick (see Harbor.IncomeTickSeconds).
+	-- sellPriceMul on modifiers compounds on coins (see AquariumIncome.lua).
+	RarityIncome = {
+		Common    = { coins = 1,  xp = 0 },
+		Uncommon  = { coins = 3,  xp = 1 },
+		Rare      = { coins = 10, xp = 2 },
+		Epic      = { coins = 16, xp = 3 },
+		Legendary = { coins = 22, xp = 4 },
+		Mythic    = { coins = 30, xp = 6 },
+		Divine    = { coins = 45, xp = 8 },
+	},
+}
+
 GameConfig.Buildings = {
 	Dock        = { tierCosts = { 0,     40,     9000  } },
 	MarketStall = { tierCosts = { 800,   3500,   12000 } },
@@ -520,6 +539,13 @@ GameConfig.UI = {
 		BodyPaddingPx  = 16,    -- inner padding from panel edge to body content
 	},
 
+	-- Catch reveal card — top edge aligns with HUD Wallet top (Wallet Position Y).
+	CatchReveal = {
+		RestTopOffsetPx        = 16,   -- fallback when HUD Wallet not mounted yet
+		-- Mirror of legacy bottom offscreen offset (was Position Y scale 1, offset 240).
+		OffscreenTopOffsetPx     = 240,
+	},
+
 	-- ScreenGui DisplayOrder map. Higher = drawn on top. Layering is the
 	-- single source of truth for "what sits above what". Each ScreenGui
 	-- in src/Client/UI/* sets `gui.DisplayOrder = DisplayOrder.<role>`
@@ -534,6 +560,7 @@ GameConfig.UI = {
 		Modal        = 40,  -- Inventory, Market, Harbor, Rod, Bait, Aquarium, Shop, Social
 		CatchReveal  = 50,  -- celebration overlay above all modals
 		Tutorial     = 60,  -- highlight overlay, sits above everything
+		Admin        = 70,  -- admin weather / dev tools (above tutorial)
 	},
 
 	-- HUD rod-tier chip + its tap/long-press tooltip.
