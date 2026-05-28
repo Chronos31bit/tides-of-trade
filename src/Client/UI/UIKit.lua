@@ -1157,7 +1157,7 @@ function UIKit.CollapsibleCard(opts: {[string]: any}?): CollapsibleCard
 		TextColor3 = P.Ink,
 	})
 
-	local chevron = UIKit.Label("▾", "subtitle", {
+	local chevron = UIKit.Label("▼", "subtitle", {
 		Parent = header,
 		Size = UDim2.fromOffset(24, UIKit.MinTouchPx),
 		AnchorPoint = Vector2.new(1, 0.5),
