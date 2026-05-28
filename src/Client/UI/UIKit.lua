@@ -47,6 +47,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService  = game:GetService("TweenService")
 local RunService    = game:GetService("RunService")
 local GuiService    = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
 local GameConfig         = require(ReplicatedStorage.Shared.Config.GameConfig)
 local FishMutations      = require(ReplicatedStorage.Shared.Util.FishMutations)
 local MotionUtil         = require(ReplicatedStorage.Shared.Util.MotionUtil)
@@ -796,6 +797,421 @@ function UIKit.Card(opts: {[string]: any}?): Frame
 	for k, v in pairs(o) do (card :: any)[k] = v end
 
 	return card
+end
+
+-- ====================================================================
+-- TOGGLE  (settings switches — mute, future on/off prefs)
+-- ====================================================================
+-- UIKit.Toggle(opts) -> { frame, set(value), get(), instance }
+--   opts.value    boolean        starting state (default false)
+--   opts.onChanged (boolean)->()  fired on user tap (not on programmatic set)
+--   opts.label    string?         optional left-aligned label inside the row
+--   [any other Frame property applied to the row]
+--
+-- 44px-tall row; the pill track is the 44px hit target. On = Mint, off =
+-- BorderMid (neutral — never red/green, per cozy rules). Knob slides via
+-- MotionUtil so ReducedMotion snaps it.
+
+export type Toggle = {
+	frame: Frame,
+	set: (value: boolean) -> (),
+	get: () -> boolean,
+	instance: TextButton,
+}
+
+function UIKit.Toggle(opts: {[string]: any}?): Toggle
+	opts = opts or {}
+	local o = opts :: {[string]: any}
+	local value    = o.value == true
+	local onChanged = o.onChanged
+	local labelText = o.label
+	o.value = nil
+	o.onChanged = nil
+	o.label = nil
+
+	local P = UIKit.Palette
+	local TRACK_W = 64
+	local KNOB = UIKit.MinTouchPx - 12
+	local KNOB_HALF = KNOB / 2
+	local INSET = (UIKit.MinTouchPx - KNOB) / 2
+
+	local row = Instance.new("Frame")
+	row.Name = "Toggle"
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, UIKit.MinTouchPx)
+
+	if labelText then
+		UIKit.Label(labelText, "body", {
+			Parent = row,
+			Size = UDim2.new(1, -(TRACK_W + UIKit.Spacing.md), 1, 0),
+			Position = UDim2.fromScale(0, 0),
+		})
+	end
+
+	local track = Instance.new("TextButton")
+	track.Name = "Track"
+	track.Text = ""
+	track.AutoButtonColor = false
+	track.BorderSizePixel = 0
+	track.AnchorPoint = Vector2.new(1, 0.5)
+	track.Position = UDim2.new(1, 0, 0.5, 0)
+	track.Size = UDim2.fromOffset(TRACK_W, UIKit.MinTouchPx)
+	track.BackgroundColor3 = if value then P.Mint else P.BorderMid
+	track.Parent = row
+	local tc = Instance.new("UICorner")
+	tc.CornerRadius = UDim.new(0, UIKit.Radii.pill)
+	tc.Parent = track
+
+	local knob = Instance.new("Frame")
+	knob.Name = "Knob"
+	knob.BorderSizePixel = 0
+	knob.BackgroundColor3 = P.Cream
+	knob.AnchorPoint = Vector2.new(0.5, 0.5)
+	knob.Size = UDim2.fromOffset(KNOB, KNOB)
+	knob.Parent = track
+	local kc = Instance.new("UICorner")
+	kc.CornerRadius = UDim.new(0, UIKit.Radii.pill)
+	kc.Parent = knob
+
+	local info = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local function knobPos(on: boolean): UDim2
+		return if on
+			then UDim2.new(1, -(INSET + KNOB_HALF), 0.5, 0)
+			else UDim2.new(0, INSET + KNOB_HALF, 0.5, 0)
+	end
+	knob.Position = knobPos(value)
+
+	local function render()
+		MotionUtil.tweenOrSnap(track, info, { BackgroundColor3 = if value then P.Mint else P.BorderMid })
+		MotionUtil.tweenOrSnap(knob, info, { Position = knobPos(value) })
+	end
+
+	track.Activated:Connect(function()
+		value = not value
+		render()
+		if onChanged then onChanged(value) end
+	end)
+
+	for k, v in pairs(o) do (row :: any)[k] = v end
+
+	return {
+		frame = row,
+		instance = track,
+		get = function() return value end,
+		set = function(v: boolean)
+			value = v == true
+			render()
+		end,
+	}
+end
+
+-- ====================================================================
+-- SLIDER  (continuous value — master volume, future ranges)
+-- ====================================================================
+-- UIKit.Slider(opts) -> { frame, set(value), get(), instance }
+--   opts.value    number   starting value (clamped to [min,max])
+--   opts.min      number?  default 0
+--   opts.max      number?  default 1
+--   opts.step     number?  snap granularity (e.g. 0.05); nil = continuous
+--   opts.onChanged (number)->()  fired during drag (not on programmatic set)
+--   [any other Frame property applied to the row]
+--
+-- 44px-tall row with a 44px thumb (thumb-only friendly). Track Mint fill on
+-- BorderMid rail, Amber thumb. Drag captured via UserInputService.
+
+export type Slider = {
+	frame: Frame,
+	set: (value: number) -> (),
+	get: () -> number,
+	instance: TextButton,
+}
+
+function UIKit.Slider(opts: {[string]: any}?): Slider
+	opts = opts or {}
+	local o = opts :: {[string]: any}
+	local minV = o.min or 0
+	local maxV = o.max or 1
+	local step = o.step
+	local value = math.clamp(o.value or minV, minV, maxV)
+	local onChanged = o.onChanged
+	o.min = nil
+	o.max = nil
+	o.step = nil
+	o.value = nil
+	o.onChanged = nil
+
+	local P = UIKit.Palette
+	local TH = UIKit.MinTouchPx
+
+	local row = Instance.new("Frame")
+	row.Name = "Slider"
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, TH)
+
+	-- Tap/drag anywhere on the row jumps + grabs.
+	local hit = Instance.new("TextButton")
+	hit.Name = "HitArea"
+	hit.Text = ""
+	hit.AutoButtonColor = false
+	hit.BackgroundTransparency = 1
+	hit.Size = UDim2.fromScale(1, 1)
+	hit.ZIndex = 1
+	hit.Parent = row
+
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.BorderSizePixel = 0
+	track.BackgroundColor3 = P.BorderMid
+	track.AnchorPoint = Vector2.new(0, 0.5)
+	track.Position = UDim2.new(0, TH / 2, 0.5, 0)
+	track.Size = UDim2.new(1, -TH, 0, 8)
+	track.ZIndex = 1
+	track.Parent = row
+	local trc = Instance.new("UICorner")
+	trc.CornerRadius = UDim.new(0, UIKit.Radii.pill)
+	trc.Parent = track
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.BorderSizePixel = 0
+	fill.BackgroundColor3 = P.Mint
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.ZIndex = 1
+	fill.Parent = track
+	local flc = Instance.new("UICorner")
+	flc.CornerRadius = UDim.new(0, UIKit.Radii.pill)
+	flc.Parent = fill
+
+	local thumb = Instance.new("TextButton")
+	thumb.Name = "Thumb"
+	thumb.Text = ""
+	thumb.AutoButtonColor = false
+	thumb.BorderSizePixel = 0
+	thumb.BackgroundColor3 = P.Amber
+	thumb.AnchorPoint = Vector2.new(0.5, 0.5)
+	thumb.Size = UDim2.fromOffset(TH, TH)
+	thumb.ZIndex = 2
+	thumb.Parent = row
+	local thc = Instance.new("UICorner")
+	thc.CornerRadius = UDim.new(0, UIKit.Radii.pill)
+	thc.Parent = thumb
+	local ths = Instance.new("UIStroke")
+	ths.Color = P.AmberDeep
+	ths.Thickness = 1.5
+	ths.Transparency = 0.2
+	ths.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ths.Parent = thumb
+
+	local info = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local function frac(): number
+		if maxV <= minV then return 0 end
+		return (value - minV) / (maxV - minV)
+	end
+	-- Thumb centre tracks the inset track: px = TH/2 + f*(rowW - TH).
+	local function thumbPos(f: number): UDim2
+		return UDim2.new(f, TH * (0.5 - f), 0.5, 0)
+	end
+
+	local function paint(animate: boolean)
+		local f = frac()
+		if animate then
+			MotionUtil.tweenOrSnap(thumb, info, { Position = thumbPos(f) })
+			MotionUtil.tweenOrSnap(fill, info, { Size = UDim2.fromScale(f, 1) })
+		else
+			thumb.Position = thumbPos(f)
+			fill.Size = UDim2.fromScale(f, 1)
+		end
+	end
+	paint(false)
+
+	local function applyFromX(px: number)
+		local tx = track.AbsolutePosition.X
+		local tw = track.AbsoluteSize.X
+		if tw <= 0 then return end
+		local f = math.clamp((px - tx) / tw, 0, 1)
+		local raw = minV + f * (maxV - minV)
+		if step and step > 0 then
+			raw = math.floor((raw / step) + 0.5) * step
+		end
+		raw = math.clamp(raw, minV, maxV)
+		if raw ~= value then
+			value = raw
+			paint(false)
+			if onChanged then onChanged(value) end
+		end
+	end
+
+	local dragging = false
+	local function isPointer(input: InputObject): boolean
+		return input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+	end
+
+	hit.InputBegan:Connect(function(input)
+		if isPointer(input) then
+			dragging = true
+			applyFromX(input.Position.X)
+		end
+	end)
+	thumb.InputBegan:Connect(function(input)
+		if isPointer(input) then dragging = true end
+	end)
+
+	local moveConn = UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			applyFromX(input.Position.X)
+		end
+	end)
+	local endConn = UserInputService.InputEnded:Connect(function(input)
+		if isPointer(input) then dragging = false end
+	end)
+
+	-- Disconnect the global UIS listeners when the slider leaves the tree.
+	row.AncestryChanged:Connect(function()
+		if not row:IsDescendantOf(game) then
+			moveConn:Disconnect()
+			endConn:Disconnect()
+		end
+	end)
+
+	for k, v in pairs(o) do (row :: any)[k] = v end
+
+	return {
+		frame = row,
+		instance = thumb,
+		get = function() return value end,
+		set = function(v: number)
+			value = math.clamp(v, minV, maxV)
+			paint(true)
+		end,
+	}
+end
+
+-- ====================================================================
+-- COLLAPSIBLE CARD  (settings sections)
+-- ====================================================================
+-- UIKit.CollapsibleCard(opts) -> { card, body, header, setOpen, toggle, isOpen }
+--   opts.title     string    header text
+--   opts.startOpen boolean?  default true
+--   [any other Frame property applied to the card]
+--
+-- A UIKit.Card with a 44px header button + chevron and a body the caller
+-- mounts children into. Card auto-sizes (UIListLayout + AutomaticSize.Y).
+-- Chevron rotates via MotionUtil (snaps under ReducedMotion); body toggles
+-- visibility (no opacity flashing).
+
+export type CollapsibleCard = {
+	card: Frame,
+	body: Frame,
+	header: TextButton,
+	setOpen: (open: boolean) -> (),
+	toggle: () -> (),
+	isOpen: () -> boolean,
+}
+
+function UIKit.CollapsibleCard(opts: {[string]: any}?): CollapsibleCard
+	opts = opts or {}
+	local o = opts :: {[string]: any}
+	local title = o.title or ""
+	local startOpen = o.startOpen ~= false
+	o.title = nil
+	o.startOpen = nil
+
+	local P = UIKit.Palette
+
+	local card = UIKit.Card({ style = "default" })
+	card.Name = "CollapsibleCard"
+	card.AutomaticSize = Enum.AutomaticSize.Y
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, UIKit.Spacing.sm)
+	pad.PaddingBottom = UDim.new(0, UIKit.Spacing.sm)
+	pad.PaddingLeft = UDim.new(0, UIKit.Spacing.md)
+	pad.PaddingRight = UDim.new(0, UIKit.Spacing.md)
+	pad.Parent = card
+
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, UIKit.Spacing.sm)
+	layout.Parent = card
+
+	local header = Instance.new("TextButton")
+	header.Name = "Header"
+	header.Text = ""
+	header.AutoButtonColor = false
+	header.BackgroundTransparency = 1
+	header.BorderSizePixel = 0
+	header.Size = UDim2.new(1, 0, 0, UIKit.MinTouchPx)
+	header.LayoutOrder = 0
+	header.Parent = card
+
+	UIKit.Label(title, "subtitle", {
+		Parent = header,
+		Size = UDim2.new(1, -28, 1, 0),
+		Position = UDim2.fromScale(0, 0),
+		TextColor3 = P.Ink,
+	})
+
+	local chevron = UIKit.Label("▾", "subtitle", {
+		Parent = header,
+		Size = UDim2.fromOffset(24, UIKit.MinTouchPx),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 0),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextColor3 = P.InkSoft,
+	})
+
+	local body = Instance.new("Frame")
+	body.Name = "Body"
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.Size = UDim2.new(1, 0, 0, 0)
+	body.AutomaticSize = Enum.AutomaticSize.Y
+	body.LayoutOrder = 1
+	body.Parent = card
+
+	local bodyLayout = Instance.new("UIListLayout")
+	bodyLayout.FillDirection = Enum.FillDirection.Vertical
+	bodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	bodyLayout.Padding = UDim.new(0, UIKit.Spacing.sm)
+	bodyLayout.Parent = body
+
+	local info = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local isOpen = startOpen
+
+	local function render()
+		body.Visible = isOpen
+		-- Chevron points down when open, rotates to point right when closed.
+		MotionUtil.tweenOrSnap(chevron, info, { Rotation = if isOpen then 0 else -90 })
+	end
+	render()
+
+	header.Activated:Connect(function()
+		isOpen = not isOpen
+		render()
+	end)
+
+	for k, v in pairs(o) do (card :: any)[k] = v end
+
+	return {
+		card = card,
+		body = body,
+		header = header,
+		isOpen = function() return isOpen end,
+		setOpen = function(open: boolean)
+			isOpen = open
+			render()
+		end,
+		toggle = function()
+			isOpen = not isOpen
+			render()
+		end,
+	}
 end
 
 -- ====================================================================

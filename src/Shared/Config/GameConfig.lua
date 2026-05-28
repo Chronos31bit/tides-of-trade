@@ -1004,6 +1004,32 @@ GameConfig.Audio = {
 }
 
 -- ====================================================================
+-- SETTINGS — player-facing Audio/Motion preferences (Settings hub UI).
+-- Persisted server-side in Profile.settings; mirrored to Player attributes
+-- (names below) for instant client reads by MotionUtil / SoundController.
+-- ====================================================================
+GameConfig.Settings = {
+	-- Player attribute names (the live, presentation-layer cache). Stable
+	-- strings — kept here so MotionUtil, SoundController, SettingsController
+	-- and PlayerDataService all agree without duplicating literals.
+	AttrAudioMuted   = "Setting_AudioMuted",   -- boolean
+	AttrMasterVolume = "Setting_MasterVolume", -- number 0..1
+	AttrMotionMode   = "Setting_MotionMode",   -- "auto" | "off" | "reduced"
+
+	-- Defaults seeded into new profiles (and read when an attribute is unset).
+	DefaultMuted        = GameConfig.UI.SoundMutedByDefault, -- reuse existing toggle
+	DefaultMasterVolume = 1.0,
+	DefaultMotionMode   = "auto",
+
+	-- Master-volume slider granularity.
+	VolumeStep = 0.05,
+
+	-- Valid motion modes. "auto" follows GuiService.ReducedMotionEnabled;
+	-- "off" forces full motion; "reduced" forces the reduced path.
+	MotionModes = { "auto", "off", "reduced" },
+}
+
+-- ====================================================================
 -- FISH BITE FEEDBACK — client-only (FishingController._onBite).
 -- Sound asset id: AssetIds.Sounds.FishBite
 -- ====================================================================
