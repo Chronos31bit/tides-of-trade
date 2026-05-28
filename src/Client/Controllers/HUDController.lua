@@ -184,6 +184,13 @@ function HUDController:_wireHUD(PlayerDataService: any)
 		end)
 	end)
 
+	-- Settings is a modal overlay, not an exclusive page panel, so it toggles
+	-- independently of openExclusive.
+	local SettingsController = Knit.GetController("SettingsController")
+	self._hud.settingsButton.Activated:Connect(function()
+		SettingsController:Toggle()
+	end)
+
 	-- Keyboard shortcuts. Number keys 1–7 map to the action bar left-to-right.
 	-- Letter shortcuts preserved for existing muscle memory; they share the same
 	-- exclusive-panel keys so I and 2 both track "inventory is open."

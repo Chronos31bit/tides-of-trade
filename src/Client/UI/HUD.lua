@@ -40,6 +40,9 @@ export type HUDController = {
 	rodChipStroke: UIStroke,
 	rodChipValue: TextLabel,
 
+	-- Settings gear (top-right, under the status column). Opens SettingsUI.
+	settingsButton: TextButton,
+
 	-- Action bar
 	actionBar: Frame,
 	rodButton: TextButton,
@@ -100,6 +103,40 @@ function HUD.create(): HUDController
 	UIKit.skinActionButton(socialButton, P.Lure)
 	UIKit.skinActionButton(homeButton, P.Uncommon)
 
+	-- Settings gear. Built in code (not in the template) so it's one self-
+	-- contained block. Anchored top-right, tucked just under StatusColumn —
+	-- position derived from the column's own size so template tweaks don't
+	-- strand it. 44px hit target; skinned like the action bar.
+	local settingsButton = Instance.new("TextButton")
+	settingsButton.Name = "SettingsButton"
+	settingsButton.AnchorPoint = Vector2.new(1, 0)
+	settingsButton.Position = UDim2.new(
+		1, statusCol.Position.X.Offset,
+		0, statusCol.Position.Y.Offset + statusCol.Size.Y.Offset + UIKit.Spacing.sm
+	)
+	settingsButton.Size = UDim2.fromOffset(UIKit.MinTouchPx, UIKit.MinTouchPx)
+	settingsButton.AutoButtonColor = false
+	settingsButton.BorderSizePixel = 0
+	settingsButton.BackgroundColor3 = UIKit.Palette.Amber
+	settingsButton.Text = "⚙"
+	settingsButton.Font = UIKit.Typography.title.font
+	settingsButton.TextSize = math.max(UIKit.Typography.title.size, UIKit.MinFontPx)
+	settingsButton.TextColor3 = UIKit.Palette.Cream
+	settingsButton.Parent = gui
+
+	local gearCorner = Instance.new("UICorner")
+	gearCorner.CornerRadius = UDim.new(0, UIKit.Radii.md)
+	gearCorner.Parent = settingsButton
+
+	local gearStroke = Instance.new("UIStroke")
+	gearStroke.Color = UIKit.Palette.AmberDeep
+	gearStroke.Thickness = 1.5
+	gearStroke.Transparency = 0.2
+	gearStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	gearStroke.Parent = settingsButton
+
+	UIKit.skinActionButton(settingsButton, UIKit.Palette.Amber)
+
 	return {
 		gui = gui,
 		coinsLabel = coinsLabel,
@@ -110,6 +147,7 @@ function HUD.create(): HUDController
 		rodChipIcon = rodChipIcon,
 		rodChipStroke = rodChipStroke,
 		rodChipValue = rodChipValue,
+		settingsButton = settingsButton,
 		actionBar = actionBar,
 		rodButton = rodButton,
 		inventoryButton = inventoryButton,
