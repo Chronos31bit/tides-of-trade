@@ -1,8 +1,13 @@
 --!strict
 -- ScreenGuiAutoScale.lua — viewport UIScale binding shared by UIKit.makeScreenGui and TemplateLoader.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+
 local DESIGN_HEIGHT = 720
-local MIN_PHONE_WIDTH = 380
+local MIN_PHONE_WIDTH = GameConfig.UI.MinPhoneWidth or 380
+local MIN_SCALE_PORTRAIT = GameConfig.UI.MinAutoScalePortrait or 1
 
 local ScreenGuiAutoScale = {}
 
@@ -33,6 +38,9 @@ function ScreenGuiAutoScale.apply(gui: ScreenGui): UIScale
 		local s = size.Y / DESIGN_HEIGHT
 		if size.X < MIN_PHONE_WIDTH * s then
 			s = s * (MIN_PHONE_WIDTH / math.max(size.X, 1))
+		end
+		if size.X <= MIN_PHONE_WIDTH then
+			s = math.max(s, MIN_SCALE_PORTRAIT)
 		end
 		scale.Scale = math.clamp(s, 0.35, 2)
 	end

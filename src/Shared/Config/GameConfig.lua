@@ -355,6 +355,10 @@ GameConfig.Fishing = {
 		-- Nav bar is 88px tall + 20px safe-area gap = 108px. 10px clearance → 118.
 		CastButtonBottomPx = 118,
 		BarButtonGapPx     = 8,     -- gap between top of button and bottom of bar
+		-- Reel bar Y anchor: distance from screen bottom to bar center (thumb zone).
+		ReelBarBottomPx    = 200,
+		-- Min seconds between loss-state indicator pulses (strobing guard).
+		LossFlashMinIntervalSec = 0.4,
 	},
 
 	-- Minimum cooldown between casts (anti-spam, anti-exploit).
@@ -495,6 +499,10 @@ GameConfig.UI = {
 	-- UIScale. UIUtil.makePrimaryButton etc. enforce these in Studio.
 	MinTouchPx = 44,
 	MinFontPx  = 12,
+	MinPhoneWidth = 380,
+	-- Portrait phones (viewport width <= MinPhoneWidth): UIScale never drops below this
+	-- so 44px design touch targets stay >= 44px on screen (e.g. 380×667).
+	MinAutoScalePortrait = 1,
 
 	-- 8px-multiple grid. Use names, not raw numbers, in feature UI.
 	Spacing = {

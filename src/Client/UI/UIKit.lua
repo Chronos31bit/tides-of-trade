@@ -317,12 +317,15 @@ function UIKit.applyRarityChip(chip: Frame, rarity: string, text: string?)
 end
 
 local function _enforceMinTouch(guiObj: GuiObject)
-	if guiObj.Size.Y.Scale ~= 0 then
+	if guiObj.Size.Y.Scale ~= 0 or guiObj.Size.X.Scale ~= 0 then
 		return
 	end
+	local w = guiObj.Size.X.Offset
 	local h = guiObj.Size.Y.Offset
-	if h > 0 and h < UIKit.MinTouchPx then
-		guiObj.Size = UDim2.new(guiObj.Size.X.Scale, guiObj.Size.X.Offset, 0, UIKit.MinTouchPx)
+	local newW = if w > 0 and w < UIKit.MinTouchPx then UIKit.MinTouchPx else w
+	local newH = if h > 0 and h < UIKit.MinTouchPx then UIKit.MinTouchPx else h
+	if newW ~= w or newH ~= h then
+		guiObj.Size = UDim2.new(0, newW, 0, newH)
 	end
 end
 

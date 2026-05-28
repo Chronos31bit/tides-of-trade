@@ -202,13 +202,20 @@ function InventoryUI.show(
 		end
 	end
 
+	local function sortDirSuffix(active: boolean, dir: number): string
+		if not active then
+			return ""
+		end
+		return if dir == -1 then " (high first)" else " (low first)"
+	end
+
 	local function updateSortBtns()
 		local rarityActive = sortState.key == "rarity"
 		raritySortBtn.BackgroundColor3 = rarityActive and P.TealLight or P.Teal
-		raritySortBtn.Text = "Rarity " .. (rarityActive and (sortState.dir == -1 and "▼" or "▲") or "▼")
+		raritySortBtn.Text = "Rarity" .. sortDirSuffix(rarityActive, sortState.dir)
 		local priceActive = sortState.key == "price"
 		priceSortBtn.BackgroundColor3 = priceActive and P.TealLight or P.Teal
-		priceSortBtn.Text = "Price " .. (priceActive and (sortState.dir == -1 and "▼" or "▲") or "▼")
+		priceSortBtn.Text = "Price" .. sortDirSuffix(priceActive, sortState.dir)
 	end
 
 	local function speciesForItem(item: any): string?
@@ -338,7 +345,7 @@ function InventoryUI.show(
 		for i = 1, maxVis do
 			local modId = mods[i]
 			local pill = UIKit.ModifierPill(modId, _modDisplayNames[modId] or modId, {
-				Size = UDim2.fromOffset(0, 22),
+				Size = UDim2.fromOffset(0, 20),
 				AutomaticSize = Enum.AutomaticSize.X,
 				LayoutOrder = i,
 				BackgroundTransparency = 0.2,
@@ -356,7 +363,7 @@ function InventoryUI.show(
 		if #mods > 3 then
 			local oLbl = UIUtil.makeLabel("+" .. (#mods - 3), "caption", {
 				Name = "OverflowLabel",
-				Size = UDim2.fromOffset(28, 22),
+				Size = UDim2.fromOffset(36, 20),
 				Font = Enum.Font.GothamBold,
 				TextXAlignment = Enum.TextXAlignment.Center,
 				LayoutOrder = 4,

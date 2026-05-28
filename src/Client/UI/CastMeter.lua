@@ -125,6 +125,13 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	-- TRACK — template chrome. Script drives zone + indicator.
 	-- ----------------------------------------------------------------
 	local track = req(gui, "Track", "Frame") :: Frame
+	track.AnchorPoint = Vector2.new(0.5, 1)
+	track.Position = UDim2.new(
+		0.5,
+		0,
+		1,
+		-(CM.CastButtonBottomPx + CM.CastButtonSizePx + CM.BarButtonGapPx)
+	)
 	local zoneCommon = req(track, "ZoneCommon", "Frame") :: Frame
 	local zoneRare = req(track, "ZoneRare", "Frame") :: Frame
 	local zoneLegendary = req(track, "ZoneLegendary", "Frame") :: Frame
@@ -188,11 +195,11 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 		local pHigh = greenCenter + (greenSize * FT.PerfectZoneFraction) / 2
 		local inCastGreen   = p >= gLow  and p <= gHigh
 		local inCastPerfect = p >= pLow  and p <= pHigh
-		-- Marker turns green while inside the zone, snaps cream on exit.
+		-- Marker warms while inside the zone; cream when outside (no red/green binary).
 		if inCastGreen ~= wasInCastGreen then
 			wasInCastGreen = inCastGreen
 			MotionUtil.tweenOrSnap(indicator, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				BackgroundColor3 = inCastGreen and P.Success or P.Cream,
+				BackgroundColor3 = inCastGreen and P.Sunset or P.Cream,
 			})
 		end
 		-- Flash "PERFECT!" each time the marker sweeps into the gold inner strip.
@@ -213,8 +220,8 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 
 	-- Reel-phase horizontal bar; nil until enterReel() runs.
 	local reelBar: Frame? = nil
-	local reelBarRestPos = UDim2.new(0.5, 0, 0.66, 0)
-	local reelBarOffPos  = UDim2.new(0.5, 0, 0.66, 80)
+	local reelBarRestPos = UDim2.new(0.5, 0, 1, -CM.ReelBarBottomPx)
+	local reelBarOffPos  = UDim2.new(0.5, 0, 1, -(CM.ReelBarBottomPx - 80))
 
 	-- Forward-declare so closures can reference them.
 	local enterReel: (weightKg: number, tier: string, params: TierParams, rarity: string) -> ()
@@ -291,7 +298,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 		rarityLabel.BackgroundTransparency = 1
 		rarityLabel.AnchorPoint = Vector2.new(0.5, 1)
 		rarityLabel.Position = UDim2.new(0.5, 0, 0, -6)
-		rarityLabel.Size = UDim2.fromOffset(220, 18)
+		rarityLabel.Size = UDim2.fromOffset(220, 20)
 		rarityLabel.Font = Enum.Font.GothamBold
 		rarityLabel.TextSize = 14
 		rarityLabel.TextColor3 = rarityColor(rarity)
@@ -396,18 +403,18 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 			lastState = newState
 			local glowInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 			if newState == "tracking" then
-				-- Bright soft green glow on the zone; cream indicator.
+				-- Soft teal glow on the zone; warm indicator.
 				MotionUtil.tweenOrSnap(zone, glowInfo, {
-					BackgroundColor3 = P.Success,
+					BackgroundColor3 = P.TealLight,
 					BackgroundTransparency = math.clamp(1 - params.glowAlpha, 0, 1),
 				})
-				MotionUtil.tweenOrSnap(indicator, glowInfo, { BackgroundColor3 = P.Cream })
+				MotionUtil.tweenOrSnap(indicator, glowInfo, { BackgroundColor3 = P.Sunset })
 			elseif newState == "losing" then
-				-- Red flash on the indicator; small UI shake on heavier fish.
-				MotionUtil.tweenOrSnap(indicator, glowInfo, { BackgroundColor3 = P.Danger })
+				-- Warm amber cue on drift (no red flash); small UI shake on heavier fish.
+				MotionUtil.tweenOrSnap(indicator, glowInfo, { BackgroundColor3 = P.SunsetSoft })
 				if not MotionUtil.reducedMotionEnabled() and params.shakeOnLoss > 0 then
 					local now = os.clock()
-					if now - losingFlashAt > 0.25 then
+					if now - losingFlashAt > CM.LossFlashMinIntervalSec then
 						losingFlashAt = now
 						local origin = rb.Position
 						local mag = math.floor(params.shakeOnLoss * 10 + 0.5)  -- studs → px

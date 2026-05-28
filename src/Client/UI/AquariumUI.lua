@@ -103,7 +103,7 @@ local function ensureIncomeLabel(slot: Frame): TextLabel
 	lbl.Name = "IncomeRateLabel"
 	lbl.BackgroundTransparency = 1
 	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 11
+	lbl.TextSize = UIUtil.MinFontPx
 	lbl.TextColor3 = P.Gold
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl.TextTruncate = Enum.TextTruncate.AtEnd
@@ -121,7 +121,7 @@ local function layoutSlotText(slot: Frame)
 
 	-- Header text at top (keeps income off the action button).
 	nameLbl.Position = UDim2.new(0, pad, 0, pad)
-	nameLbl.Size = UDim2.new(1, -pad * 2, 0, 16)
+	nameLbl.Size = UDim2.new(1, -pad * 2, 0, 18)
 	nameLbl.ZIndex = 6
 	incomeLbl.Position = UDim2.new(0, pad, 0, pad + 17)
 	incomeLbl.Size = UDim2.new(1, -pad * 2, 0, 28)
@@ -129,7 +129,7 @@ local function layoutSlotText(slot: Frame)
 	incomeLbl.ZIndex = 6
 
 	pills.Position = UDim2.new(0, pad, 1, -(btnH + 18))
-	pills.Size = UDim2.new(1, -pad * 2, 0, 16)
+	pills.Size = UDim2.new(1, -pad * 2, 0, 20)
 	pills.ZIndex = 5
 
 	btn.AnchorPoint = Vector2.new(0.5, 1)
@@ -179,9 +179,9 @@ end
 
 local function sortLabel(mode: InvSortMode): string
 	if mode == "desc" then
-		return "Best ▼"
+		return "Best first"
 	elseif mode == "asc" then
-		return "Worst ▲"
+		return "Worst first"
 	end
 	return "Sort"
 end
@@ -283,7 +283,7 @@ local function bindSlot(
 		pills.Visible = true
 		for i = 1, math.min(#mods, 3) do
 			UIKit.ModifierPill(mods[i], _modNames[mods[i]] or mods[i], {
-				Size = UDim2.fromOffset(0, 14),
+				Size = UDim2.fromOffset(0, 20),
 				AutomaticSize = Enum.AutomaticSize.X,
 				LayoutOrder = i,
 				Parent = pills,
