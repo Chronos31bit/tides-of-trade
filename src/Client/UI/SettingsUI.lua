@@ -20,6 +20,9 @@ export type Callbacks = {
 	onMuteChanged: ((muted: boolean) -> ())?,
 	onMasterVolume: ((volume: number) -> ())?,
 	onMotionMode: ((mode: string) -> ())?,
+	-- Fired whenever the modal closes (backdrop tap, X button, or hide()),
+	-- so the owner can keep its open/closed state in sync.
+	onClosed: (() -> ())?,
 }
 
 export type Handle = {
@@ -52,6 +55,7 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 		-- controller can re-open the same instance with state preserved.
 		onClose = function()
 			if shell then shell.gui.Enabled = false end
+			if cb.onClosed then cb.onClosed() end
 		end,
 	})
 
