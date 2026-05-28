@@ -80,6 +80,14 @@ local PROFILE_TEMPLATE: Profile = {
 			seenGlobalMarketHint = false,
 		},
 	},
+	-- Audio/Motion preferences. Reconcile adds this table (with these defaults)
+	-- to existing profiles on load, so no migration / version bump is needed.
+	settings = {
+		audioMuted = GameConfig.Settings.DefaultMuted,
+		masterVolume = GameConfig.Settings.DefaultMasterVolume,
+		motionMode = GameConfig.Settings.DefaultMotionMode,
+	},
+
 	schemaVersion = 1,
 }
 
@@ -388,6 +396,42 @@ end
 -- Client requests a fresh snapshot — used on UI re-init (e.g. after teleport).
 function PlayerDataService.Client:GetSnapshot(player: Player): Profile?
 	return self.Server:GetProfile(player)
+end
+
+-- Client persists a partial Settings change (mute / master volume / motion mode).
+-- Server validates every field — the client requests, the server decides. These
+-- are pure presentation prefs, so there's no anti-exploit surface beyond keeping
+-- the stored values well-formed. Returns the merged settings for reconciliation.
+function PlayerDataService.Client:UpdateSettings(player: Player, partial: any): any?
+	local data = self.Server:GetProfile(player)
+	if not data or type(partial) ~= "table" then return nil end
+
+	local settings = data.settings
+	if type(settings) ~= "table" then
+		settings = {
+			audioMuted = GameConfig.Settings.DefaultMuted,
+			masterVolume = GameConfig.Settings.DefaultMasterVolume,
+			motionMode = GameConfig.Settings.DefaultMotionMode,
+		}
+		data.settings = settings
+	end
+
+	if type(partial.audioMuted) == "boolean" then
+		settings.audioMuted = partial.audioMuted
+	end
+	if type(partial.masterVolume) == "number" then
+		settings.masterVolume = math.clamp(partial.masterVolume, 0, 1)
+	end
+	if type(partial.motionMode) == "string" then
+		for _, mode in ipairs(GameConfig.Settings.MotionModes) do
+			if partial.motionMode == mode then
+				settings.motionMode = partial.motionMode
+				break
+			end
+		end
+	end
+
+	return settings
 end
 
 return PlayerDataService

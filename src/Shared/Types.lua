@@ -190,6 +190,15 @@ export type Profile = {
 		caughtSpecies: {[string]: number},
 	},
 
+	-- Player-facing Audio/Motion preferences (Settings hub). Added via
+	-- ProfileService:Reconcile() for existing profiles — no version bump.
+	-- The client also mirrors these to Player attributes for instant reads.
+	settings: {
+		audioMuted: boolean,
+		masterVolume: number,    -- [0,1]
+		motionMode: string,      -- "auto" | "off" | "reduced"
+	},
+
 	-- Schema version for future migrations
 	schemaVersion: number,
 }
