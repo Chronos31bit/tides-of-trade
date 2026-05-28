@@ -65,6 +65,10 @@ local SoundController = Knit.CreateController({
 	_userMuted = false,
 	_platformMuted = false,
 	_masterMuted = false,
+	-- Player-set master volume [0,1] from the Settings hub. A multiplier on
+	-- every sound's volume; distinct from _masterMuted (the OS MasterVolume==0
+	-- detection). Defaults to 1 until SettingsController applies the profile.
+	_masterVolume = 1,
 	_ambientTargetVolume = 0.4,
 	_musicTargetVolume = 0.16,
 	_duckTrove = nil :: any,
@@ -81,6 +85,17 @@ function SoundController:SetMuted(muted: boolean)
 	self:_applyMuteState()
 end
 
+-- Master volume [0,1] from the Settings hub. Scales every loop + one-shot.
+-- Re-applies live via _applyMuteState (sets each loop to its scaled target).
+function SoundController:SetMasterVolume(volume: number)
+	self._masterVolume = math.clamp(volume, 0, 1)
+	self:_applyMuteState()
+end
+
+function SoundController:GetMasterVolume(): number
+	return self._masterVolume
+end
+
 function SoundController:ToggleMuted(): boolean
 	self._userMuted = not self._userMuted
 	self:_applyMuteState()
@@ -91,7 +106,7 @@ function SoundController:SetAmbientVolume(volume: number)
 	self._ambientTargetVolume = math.clamp(volume, 0, 1)
 	local ambient = self._managed[AMBIENT_NAME]
 	if ambient and ambient.IsPlaying and not self:IsMuted() then
-		ambient.Volume = self._ambientTargetVolume
+		ambient.Volume = self:_getLoopTargetVolume(AMBIENT_NAME)
 	end
 end
 
@@ -99,15 +114,15 @@ function SoundController:SetMusicVolume(volume: number)
 	self._musicTargetVolume = math.clamp(volume, 0, 1)
 	local music = self._managed[MUSIC_NAME]
 	if music and music.IsPlaying and not self:IsMuted() then
-		music.Volume = self._musicTargetVolume
+		music.Volume = self:_getLoopTargetVolume(MUSIC_NAME)
 	end
 end
 
+-- Effective loop volume = per-loop base target × player master volume.
+-- All live volume sets route through here so SetMasterVolume reapplies cleanly.
 function SoundController:_getLoopTargetVolume(name: string): number
-	if name == MUSIC_NAME then
-		return self._musicTargetVolume
-	end
-	return self._ambientTargetVolume
+	local base = if name == MUSIC_NAME then self._musicTargetVolume else self._ambientTargetVolume
+	return base * self._masterVolume
 end
 
 function SoundController:Stop(name: string)
@@ -394,13 +409,14 @@ function SoundController:_playManagedLoop(name: string, opts: PlayOpts?)
 
 	local volume = if opts and opts.volume then opts.volume else 0.6
 	sound.Looped = true
-	sound.Volume = volume
 
+	-- Store the unscaled base target; apply master volume only to the live set.
 	if name == AMBIENT_NAME then
 		self._ambientTargetVolume = volume
 	elseif name == MUSIC_NAME then
 		self._musicTargetVolume = volume
 	end
+	sound.Volume = volume * self._masterVolume
 
 	if not sound.IsPlaying then
 		sound:Play()
@@ -411,7 +427,7 @@ function SoundController:_playOneShot(name: string, opts: PlayOpts?)
 	local rawId = self:_getSoundId(name)
 	if not isValidSoundId(rawId) then return end
 
-	local volume = if opts and opts.volume then opts.volume else 0.6
+	local volume = (if opts and opts.volume then opts.volume else 0.6) * self._masterVolume
 	local soundId = normalizeSoundId(rawId :: string)
 
 	if not isLoopName(name) then
@@ -467,6 +483,7 @@ end
 function SoundController:KnitInit()
 	self._trove = Trove.new()
 	self._userMuted = GameConfig.UI.SoundMutedByDefault
+	self._masterVolume = GameConfig.Settings.DefaultMasterVolume
 	self._ambientTargetVolume = GameConfig.Audio.AmbientBaseVolume
 	-- MusicBaseVolume is optional in GameConfig.Audio for backward compat
 	-- with older config snapshots; fall back to the field default if missing.

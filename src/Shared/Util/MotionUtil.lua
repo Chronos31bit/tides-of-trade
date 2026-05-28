@@ -12,15 +12,64 @@
 
 local TweenService = game:GetService("TweenService")
 local GuiService   = game:GetService("GuiService")
+local RunService   = game:GetService("RunService")
+local Players      = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
 local MotionUtil = {}
 
+local MOTION_ATTR = GameConfig.Settings.AttrMotionMode
+
 -- Single source of truth for "is reduced motion on". Cached so we don't pay
--- a property read every frame; refreshed via GuiService:GetPropertyChangedSignal.
+-- a property read every frame; refreshed via GuiService:GetPropertyChangedSignal
+-- and the player's motion-override attribute (set by the Settings hub).
 local _reduced = GuiService.ReducedMotionEnabled
-GuiService:GetPropertyChangedSignal("ReducedMotionEnabled"):Connect(function()
-	_reduced = GuiService.ReducedMotionEnabled
-end)
+
+-- Recompute the cached flag from the OS setting + the player's override:
+--   "off"     -> always animate (reduced = false)
+--   "reduced" -> always reduced (reduced = true)
+--   "auto"/nil -> follow GuiService.ReducedMotionEnabled
+-- On the server there is no LocalPlayer, so we fall back to the OS value.
+local function recompute()
+	local mode: string? = nil
+	if RunService:IsClient() then
+		local player = Players.LocalPlayer
+		if player then
+			local attr = player:GetAttribute(MOTION_ATTR)
+			if type(attr) == "string" then
+				mode = attr
+			end
+		end
+	end
+
+	if mode == "off" then
+		_reduced = false
+	elseif mode == "reduced" then
+		_reduced = true
+	else
+		_reduced = GuiService.ReducedMotionEnabled
+	end
+end
+
+GuiService:GetPropertyChangedSignal("ReducedMotionEnabled"):Connect(recompute)
+
+-- Bind the override attribute on the client. LocalPlayer can be nil for a few
+-- frames during client boot, so wait for it without blocking module load.
+if RunService:IsClient() then
+	task.spawn(function()
+		local player = Players.LocalPlayer
+		while not player do
+			task.wait()
+			player = Players.LocalPlayer
+		end
+		player:GetAttributeChangedSignal(MOTION_ATTR):Connect(recompute)
+		recompute()
+	end)
+end
+
+recompute()
 
 function MotionUtil.reducedMotionEnabled(): boolean
 	return _reduced
