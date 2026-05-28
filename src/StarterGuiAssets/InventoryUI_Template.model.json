@@ -744,7 +744,7 @@
                       "UDim2": [
                         [
                           0,
-                          72
+                          80
                         ],
                         [
                           0,
@@ -800,7 +800,7 @@
                       "UDim2": [
                         [
                           0,
-                          72
+                          80
                         ],
                         [
                           0,
@@ -856,7 +856,7 @@
                       "UDim2": [
                         [
                           0,
-                          72
+                          80
                         ],
                         [
                           0,
@@ -912,7 +912,7 @@
                       "UDim2": [
                         [
                           0,
-                          72
+                          80
                         ],
                         [
                           0,
@@ -996,7 +996,7 @@
                   "ClassName": "TextButton",
                   "Properties": {
                     "Name": "RaritySortBtn",
-                    "Text": "Rarity \u25bc",
+                    "Text": "Rarity",
                     "AutoButtonColor": false,
                     "Font": "GothamBold",
                     "TextSize": 13,
@@ -1015,7 +1015,7 @@
                       "UDim2": [
                         [
                           0,
-                          104
+                          148
                         ],
                         [
                           0,
@@ -1045,7 +1045,7 @@
                   "ClassName": "TextButton",
                   "Properties": {
                     "Name": "PriceSortBtn",
-                    "Text": "Price \u25bc",
+                    "Text": "Price",
                     "AutoButtonColor": false,
                     "Font": "GothamBold",
                     "TextSize": 13,
@@ -1064,7 +1064,7 @@
                       "UDim2": [
                         [
                           0,
-                          94
+                          132
                         ],
                         [
                           0,

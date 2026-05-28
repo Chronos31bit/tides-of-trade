@@ -423,11 +423,22 @@ local function _ensureTouchSize(props: {[string]: any})
 		props.Size = UDim2.fromOffset(180, MIN_TOUCH_PX)
 		return
 	end
-	if size.Y.Scale == 0 and size.Y.Offset < MIN_TOUCH_PX then
-		props.Size = UDim2.new(size.X.Scale, size.X.Offset, size.Y.Scale, MIN_TOUCH_PX)
+	local newW = size.X.Offset
+	local newH = size.Y.Offset
+	if size.X.Scale == 0 and newW > 0 and newW < MIN_TOUCH_PX then
+		newW = MIN_TOUCH_PX
+	end
+	if size.Y.Scale == 0 and newH > 0 and newH < MIN_TOUCH_PX then
+		newH = MIN_TOUCH_PX
+	end
+	if newW ~= size.X.Offset or newH ~= size.Y.Offset then
+		props.Size = UDim2.new(size.X.Scale, newW, size.Y.Scale, newH)
 	end
 	if RunService:IsStudio() and size.Y.Scale == 0 and size.Y.Offset > 0 and size.Y.Offset < MIN_TOUCH_PX then
 		warn(("[UIUtil] Button height %d below MinTouchPx %d"):format(size.Y.Offset, MIN_TOUCH_PX))
+	end
+	if RunService:IsStudio() and size.X.Scale == 0 and size.X.Offset > 0 and size.X.Offset < MIN_TOUCH_PX then
+		warn(("[UIUtil] Button width %d below MinTouchPx %d"):format(size.X.Offset, MIN_TOUCH_PX))
 	end
 end
 
