@@ -424,51 +424,7 @@
             "Visible": false,
             "ZIndex": 6
           },
-          "Children": [
-            {
-              "Name": "UIGradient",
-              "ClassName": "UIGradient",
-              "Properties": {
-                "Rotation": 25,
-                "Color": {
-                  "ColorSequence": [
-                    [
-                      0,
-                      [
-                        0.6901960784313725,
-                        0.7137254901960784,
-                        0.7450980392156863
-                      ]
-                    ],
-                    [
-                      1,
-                      [
-                        0.6901960784313725,
-                        0.7137254901960784,
-                        0.7450980392156863
-                      ]
-                    ]
-                  ]
-                },
-                "Transparency": {
-                  "NumberSequence": [
-                    [
-                      0,
-                      1
-                    ],
-                    [
-                      0.5,
-                      0.85
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              }
-            }
-          ]
+          "Children": []
         },
         {
           "Name": "SparkleRare",
@@ -490,51 +446,7 @@
             "Visible": false,
             "ZIndex": 6
           },
-          "Children": [
-            {
-              "Name": "UIGradient",
-              "ClassName": "UIGradient",
-              "Properties": {
-                "Rotation": 25,
-                "Color": {
-                  "ColorSequence": [
-                    [
-                      0,
-                      [
-                        0.37254901960784315,
-                        0.6470588235294118,
-                        0.9411764705882353
-                      ]
-                    ],
-                    [
-                      1,
-                      [
-                        0.37254901960784315,
-                        0.6470588235294118,
-                        0.9411764705882353
-                      ]
-                    ]
-                  ]
-                },
-                "Transparency": {
-                  "NumberSequence": [
-                    [
-                      0,
-                      1
-                    ],
-                    [
-                      0.5,
-                      0.85
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              }
-            }
-          ]
+          "Children": []
         },
         {
           "Name": "SparkleLegendary",
@@ -556,51 +468,7 @@
             "Visible": false,
             "ZIndex": 6
           },
-          "Children": [
-            {
-              "Name": "UIGradient",
-              "ClassName": "UIGradient",
-              "Properties": {
-                "Rotation": 25,
-                "Color": {
-                  "ColorSequence": [
-                    [
-                      0,
-                      [
-                        0.9607843137254902,
-                        0.7058823529411765,
-                        0.29411764705882354
-                      ]
-                    ],
-                    [
-                      1,
-                      [
-                        0.9607843137254902,
-                        0.7058823529411765,
-                        0.29411764705882354
-                      ]
-                    ]
-                  ]
-                },
-                "Transparency": {
-                  "NumberSequence": [
-                    [
-                      0,
-                      1
-                    ],
-                    [
-                      0.5,
-                      0.85
-                    ],
-                    [
-                      1,
-                      1
-                    ]
-                  ]
-                }
-              }
-            }
-          ]
+          "Children": []
         }
       ]
     }

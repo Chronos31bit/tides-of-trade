@@ -72,6 +72,35 @@ local function sparkleFrameForRarity(rarity: string): string
 	return "SparkleLegendary"
 end
 
+local function sparkleColorForFrame(frameName: string): Color3
+	if frameName == "SparkleRare" then
+		return UIKit.rarityColor("Rare")
+	elseif frameName == "SparkleLegendary" then
+		return UIKit.rarityColor("Legendary")
+	end
+	return UIKit.rarityColor("Common")
+end
+
+-- UIGradient omitted from .model.json (Rojo ColorSequence format); created at runtime.
+local function ensureSparkleGradient(sparkle: Frame): UIGradient
+	local grad = sparkle:FindFirstChildOfClass("UIGradient")
+	if not grad then
+		grad = Instance.new("UIGradient")
+		grad.Name = "UIGradient"
+		grad.Rotation = 25
+		grad.Parent = sparkle
+	end
+	local c = sparkleColorForFrame(sparkle.Name)
+	grad.Color = ColorSequence.new(c)
+	grad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.5, 0.85),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	grad.Offset = Vector2.new(-0.5, 0)
+	return grad
+end
+
 export type CatchPayload = {
 	fish: { displayName: string, rarity: string, basePrice: number, id: string? },
 	weightKg: number,
@@ -294,9 +323,8 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 		local sparkle = card:FindFirstChild(sparkleName)
 		if sparkle and sparkle:IsA("Frame") then
 			sparkle.Visible = true
-			local grad = sparkle:FindFirstChildOfClass("UIGradient")
-			if grad then
-				task.spawn(function()
+			local grad = ensureSparkleGradient(sparkle)
+			task.spawn(function()
 					for _ = 1, 3 do
 						if not sparkle.Parent then return end
 						MotionUtil.tween(grad, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -310,7 +338,6 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 						sparkle.Visible = false
 					end
 				end)
-			end
 		end
 	end
 
