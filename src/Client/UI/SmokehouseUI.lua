@@ -1,18 +1,19 @@
 --!strict
--- SmokehouseUI.lua
--- Two-column manager: left = preserve slots (empty / smoking / ready),
--- right = inventory fish to place. Cozy: cancel while smoking, claim when ready.
+-- SmokehouseUI.lua — Layout from StarterGuiAssets.SmokehouseUI_Template; behavior only.
+-- SmokehouseService (SmokehouseController): SmokehouseChanged
+-- Place / Cancel / Claim preserved fish; quest progress via server claim flow.
 
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local TemplateLoader = require(script.Parent.TemplateLoader)
+local UIKit = require(script.Parent.UIKit)
 local UIUtil = require(script.Parent.UIUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
-local P   = UIUtil.Palette
-local SP  = UIUtil.Spacing
-local RAD = UIUtil.Radii
-
+local P, M = UIUtil.Palette, UIUtil.Modal
 local PRESERVE_TIME = GameConfig.Buildings.Smokehouse.PreserveTimeSec
 
 local SmokehouseUI = {}
@@ -24,11 +25,69 @@ export type SmokehouseHandle = {
 	destroy: () -> (),
 }
 
+local _layoutSkip = { UIListLayout = true, UIPadding = true, UICorner = true, UIStroke = true, UISizeConstraint = true }
+
+local function req(parent: Instance, name: string, class: string): Instance
+	local c = parent:FindFirstChild(name)
+	if not c or not c:IsA(class) then
+		error(`[SmokehouseUI] Missing {class} "{name}" under {parent:GetFullName()}`, 2)
+	end
+	return c
+end
+
+local function reqAny(parent: Instance, names: {string}, class: string): Instance
+	for _, name in names do
+		local c = parent:FindFirstChild(name)
+		if c and c:IsA(class) then
+			return c
+		end
+	end
+	error(`[SmokehouseUI] Missing {class} ({table.concat(names, " | ")}) under {parent:GetFullName()}`, 2)
+end
+
+local function columnScroll(body: Frame, columnNames: {string}, scrollNames: {string}): ScrollingFrame
+	local col = reqAny(body, columnNames, "Frame") :: Frame
+	return reqAny(col, scrollNames, "ScrollingFrame") :: ScrollingFrame
+end
+
+local function metaNum(meta: Folder?, key: string, def: number): number
+	local v = meta and meta:FindFirstChild(key)
+	return (v and v:IsA("NumberValue")) and v.Value or def
+end
+
+local function catalogMaxSmokeSlots(): number
+	local maxSlots = 10
+	local sh = BuildingCatalog.Smokehouse
+	if sh and sh.tiers then
+		for _, t in ipairs(sh.tiers) do
+			maxSlots = math.max(maxSlots, t.smokehouseSlots or 0)
+		end
+	end
+	return math.max(1, maxSlots)
+end
+
+local function resolveSlotPoolCap(meta: Folder?, smokeColumnName: string): number
+	local fromMeta = metaNum(meta, "MaxSmokehouseSlots", 0)
+	if fromMeta >= 1 then
+		return fromMeta
+	end
+	if smokeColumnName == "AquariumColumn" or metaNum(meta, "MaxAquariumCapacity", 0) >= 1 then
+		return catalogMaxSmokeSlots()
+	end
+	return catalogMaxSmokeSlots()
+end
+
+local function patchColumnHeader(col: Frame, text: string)
+	local hdr = col:FindFirstChild("ColumnHeader")
+	if hdr and hdr:IsA("TextLabel") then
+		hdr.Text = text
+	end
+end
+
 local function titleCase(s: string): string
 	return (s:gsub("_", " "):gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b end))
 end
 
--- Remote tables may arrive with string keys ("1", "10"); coerce to 1..capacity.
 local function normalizeSlots(slots: {[any]: any}, capacity: number): {[number]: any}
 	local out: {[number]: any} = {}
 	for i = 1, capacity do
@@ -46,15 +105,85 @@ local function isSlotClaimable(slot: any): boolean
 end
 
 local function formatCountdown(secondsLeft: number): string
-	if secondsLeft <= 0 then
-		return "Ready"
-	end
+	if secondsLeft <= 0 then return "Ready" end
 	local m = math.floor(secondsLeft / 60)
 	local s = secondsLeft % 60
-	if m > 0 then
-		return ("%dm %ds"):format(m, s)
-	end
+	if m > 0 then return ("%dm %ds"):format(m, s) end
 	return ("%ds"):format(s)
+end
+
+local function progress01(slot: any): number
+	if isSlotClaimable(slot) then return 1 end
+	if slot.startedAt then
+		return math.clamp((os.time() - slot.startedAt) / PRESERVE_TIME, 0, 1)
+	end
+	return 0
+end
+
+local function findThumb(slot: Frame): ViewportFrame?
+	local direct = slot:FindFirstChild("ThumbViewport")
+	if direct and direct:IsA("ViewportFrame") then return direct end
+	return nil
+end
+
+local function bindSmokeSlot(
+	slot: Frame,
+	index: number,
+	data: any?,
+	onCancel: (number) -> (),
+	onClaim: (number) -> (),
+	conns: {[TextButton]: RBXScriptConnection}
+)
+	local empty = req(slot, "EmptyHint", "TextLabel") :: TextLabel
+	local nameLbl = reqAny(slot, { "FishNameLabel", "NameLabel" }, "TextLabel") :: TextLabel
+	local btn = reqAny(slot, { "CollectButton", "ActionButton" }, "TextButton") :: TextButton
+	local ring = req(slot, "ProgressRing", "Frame") :: Frame
+	local fill = req(ring, "ProgressFill", "Frame") :: Frame
+	local timeLbl = req(slot, "TimeLabel", "TextLabel") :: TextLabel
+	local thumb = findThumb(slot)
+
+	if not data then
+		empty.Visible = true
+		empty.Text = ("Slot %d — empty"):format(index)
+		if thumb then thumb.Visible = false end
+		ring.Visible = false
+		timeLbl.Visible = false
+		nameLbl.Visible = false
+		btn.Visible = false
+		return
+	end
+
+	empty.Visible = false
+	nameLbl.Visible = true
+	nameLbl.Text = titleCase(data.speciesId or "fish")
+	if thumb then
+		thumb.Visible = true
+		UIKit.attachFishThumb(thumb, data.speciesId or "", { modifiers = data.modifiers or {}, scaleTarget = 1.4 })
+	end
+
+	if isSlotClaimable(data) then
+		ring.Visible = true
+		fill.Size = UDim2.fromScale(1, 1)
+		timeLbl.Visible = true
+		timeLbl.Text = "Preserved — ready to claim"
+		btn.Visible = true
+		btn.Text = "Claim"
+		btn.BackgroundColor3 = P.TealLight
+		if conns[btn] then conns[btn]:Disconnect() end
+		conns[btn] = btn.Activated:Connect(function() onClaim(index) end)
+	else
+		ring.Visible = true
+		local p = progress01(data)
+		fill.Size = UDim2.fromScale(p, 1)
+		timeLbl.Visible = true
+		local left = PRESERVE_TIME - (os.time() - (data.startedAt or os.time()))
+		timeLbl.Text = formatCountdown(left)
+		btn.Visible = true
+		btn.Text = "Cancel"
+		btn.BackgroundColor3 = P.Wood
+		if conns[btn] then conns[btn]:Disconnect() end
+		conns[btn] = btn.Activated:Connect(function() onCancel(index) end)
+	end
 end
 
 function SmokehouseUI.show(
@@ -66,234 +195,170 @@ function SmokehouseUI.show(
 	onClaim: (number) -> (),
 	onDismiss: (() -> ())?
 ): SmokehouseHandle
-	local shell
-	shell = UIUtil.makeModalShell({
-		name = "SmokehouseUI",
-		title = "Smokehouse",
-		-- onDismiss must tear down the handle (shell.destroy + heartbeat).
-		onClose = function()
-			if onDismiss then onDismiss() end
-		end,
-		width = 720,
-		heightScale = 0.88,
-	})
-	local gui  = shell.gui
-	local body = shell.body
-	shell.open()
+	local rm = MotionUtil.reducedMotionEnabled()
+	local gui = TemplateLoader.spawn("Smokehouse", { instanceName = "SmokehouseUI" })
+	local backdrop = req(gui, "Backdrop", "TextButton") :: TextButton
+	local panel = req(gui, "Panel", "Frame") :: Frame
+	local header = req(panel, "Header", "Frame")
+	local capLbl = req(header, "CapacityLabel", "TextLabel") :: TextLabel
+	local collectAllBtn = header:FindFirstChild("CollectAllButton") :: TextButton?
+	local closeBtn = req(header, "Close", "TextButton") :: TextButton
+	local body = req(panel, "Body", "Frame") :: Frame
+	local smokeScroll = columnScroll(body, { "SmokeColumn", "AquariumColumn" }, { "SmokeSlotGrid", "AquariumSlotGrid" })
+	local invScroll = columnScroll(body, { "InventoryColumn" }, { "InventorySlotGrid" })
+	local smokeCol = smokeScroll.Parent :: Frame
+	patchColumnHeader(smokeCol, "SLOTS")
+	patchColumnHeader(invScroll.Parent :: Frame, "INVENTORY (TAP TO SMOKE)")
+	local slotTpl = reqAny(body, { "SmokeSlot_Template", "Slot_Template" }, "Frame") :: Frame
+	local invTpl = body:FindFirstChild("InvFishRow_Template")
+	local meta = if gui:FindFirstChild("Meta") and gui.Meta:IsA("Folder") then gui.Meta else nil
+	local fadeDur = metaNum(meta, "FadeDuration", M.FadeDuration)
+	local slidePx = metaNum(meta, "SlideOffsetPx", M.SlideOffsetPx)
+	local maxCap = resolveSlotPoolCap(meta, smokeCol.Name)
 
-	slots = normalizeSlots(slots, capacity)
-
-	local usedCount = 0
-	for i = 1, capacity do
-		if slots[i] then usedCount += 1 end
+	local closed = false
+	local conns: {[TextButton]: RBXScriptConnection} = {}
+	local smokeSlots: {Frame} = {}
+	for i = 1, maxCap do
+		local slot = slotTpl:Clone()
+		slot.Name = ("SmokeSlot_%02d"):format(i)
+		slot.LayoutOrder = i
+		slot.Parent = smokeScroll
+		smokeSlots[i] = slot
 	end
 
-	local capLbl = UIUtil.makeLabel(("%d / %d"):format(usedCount, capacity), "subtitle", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -(UIUtil.Modal.CloseButtonPx + UIUtil.Spacing.xl), 0.5, 0),
-		Size = UDim2.fromOffset(120, 26),
-		Font = Enum.Font.GothamBold,
-		TextColor3 = P.Gold,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Parent = shell.header,
-	})
-
-	local function makeColumn(headerText: string, xAnchor: number)
-		local col = Instance.new("Frame")
-		col.BackgroundTransparency = 1
-		col.Position = UDim2.new(xAnchor, xAnchor == 0 and 0 or SP.sm, 0, 0)
-		col.Size = UDim2.new(0.5, xAnchor == 0 and -SP.sm or -SP.sm, 1, 0)
-		col.Parent = body
-
-		UIUtil.makeLabel(headerText:upper(), "subtitle", {
-			Size = UDim2.new(1, 0, 0, 22),
-			Font = Enum.Font.GothamBold,
-			TextColor3 = P.CreamSoft,
-			Parent = col,
-		})
-
-		local scroll = Instance.new("ScrollingFrame")
-		scroll.Name = "Scroll"
-		scroll.BackgroundColor3 = P.Teal
-		scroll.BackgroundTransparency = 0
-		scroll.BorderSizePixel = 0
-		scroll.Position = UDim2.new(0, 0, 0, 30)
-		scroll.Size = UDim2.new(1, 0, 1, -30)
-		scroll.ScrollBarThickness = 6
-		scroll.ScrollBarImageColor3 = P.TealDeeper
-		scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-		local sc = Instance.new("UICorner"); sc.CornerRadius = UDim.new(0, RAD.md); sc.Parent = scroll
-		scroll.Parent = col
-
-		local pad = Instance.new("UIPadding")
-		pad.PaddingTop = UDim.new(0, SP.sm); pad.PaddingBottom = UDim.new(0, SP.sm)
-		pad.PaddingLeft = UDim.new(0, SP.sm); pad.PaddingRight = UDim.new(0, SP.sm)
-		pad.Parent = scroll
-
-		local layout = Instance.new("UIListLayout")
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Padding = UDim.new(0, 6)
-		layout.Parent = scroll
-		return scroll
-	end
-
-	local leftScroll  = makeColumn("Slots", 0)
-	local rightScroll = makeColumn("Inventory  (tap to smoke)", 0.5)
-
-	local slotRows: {Frame} = {}
-	local countdownLabels: {TextLabel} = {}
-	local lastSlots: {[number]: any} = slots
+	local lastSlots: {[number]: any} = normalizeSlots(slots, capacity)
 	local lastInv: {any} = inventory
-	local lastCap: number = capacity
+	local lastCap = capacity
+	local claimUiRebuilt = false
+	local heartbeatConn: RBXScriptConnection? = nil
 
-	local function buildSlotCard(slotIndex: number, slot: any?)
-		local row = Instance.new("Frame")
-		-- LayoutOrder forces numeric order; Name alone sorts Slot_10 before Slot_2.
-		row.Name = ("Slot_%02d"):format(slotIndex)
-		row.LayoutOrder = slotIndex
-		row.Size = UDim2.new(1, 0, 0, 64)
-		row.BackgroundColor3 = P.TealDark
-		row.BorderSizePixel = 0
-		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, RAD.sm); rc.Parent = row
-		row.Parent = leftScroll
-		table.insert(slotRows, row)
+	local restPos = panel.Position
+	local fromPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + slidePx)
+	local fadeInfo = TweenInfo.new(fadeDur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
-		if not slot then
-			UIUtil.makeLabel(("Slot %d — empty"):format(slotIndex), "body", {
-				Position = UDim2.new(0, SP.md, 0, 0),
-				Size = UDim2.new(1, -SP.md, 1, 0),
-				TextColor3 = P.CreamSoft,
-				Parent = row,
-			})
-			return
-		end
-
-		UIUtil.makeLabel(titleCase(slot.speciesId), "body", {
-			Position = UDim2.new(0, SP.md, 0, SP.xs),
-			Size = UDim2.new(1, -100, 0, 22),
-			Font = Enum.Font.GothamBold,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Parent = row,
-		})
-
-		local subLbl = UIUtil.makeLabel(("%.1f kg"):format(slot.weightKg or 0), "caption", {
-			Position = UDim2.new(0, SP.md, 0, 26),
-			Size = UDim2.new(1, -100, 0, 18),
-			Parent = row,
-		})
-
-		if isSlotClaimable(slot) then
-			subLbl.Text = "Preserved — ready to claim"
-			local btn = UIUtil.makePrimaryButton("Claim", function() onClaim(slotIndex) end, {
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -SP.sm, 0.5, 0),
-				Size = UDim2.fromOffset(80, UIUtil.MinTouchPx),
-			})
-			btn.Parent = row
-		else
-			local cdLbl = UIUtil.makeLabel("", "caption", {
-				Position = UDim2.new(0, SP.md, 0, 44),
-				Size = UDim2.new(1, -180, 0, 16),
-				TextColor3 = P.SunsetSoft,
-				Parent = row,
-			})
-			table.insert(countdownLabels, cdLbl)
-			cdLbl:SetAttribute("slotIndex", slotIndex)
-			cdLbl:SetAttribute("startedAt", slot.startedAt)
-
-			local cancelBtn = UIUtil.makeSecondaryButton("Cancel", function() onCancel(slotIndex) end, {
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -SP.sm, 0.5, 0),
-				Size = UDim2.fromOffset(80, UIUtil.MinTouchPx),
-			})
-			cancelBtn.Parent = row
-		end
-	end
-
-	local function buildFishCard(parent: ScrollingFrame, item: any, onClick: () -> ())
-		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 52)
-		row.BackgroundColor3 = P.TealDark
-		row.BorderSizePixel = 0
-		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, RAD.sm); rc.Parent = row
-		row.Parent = parent
-
-		UIUtil.makeLabel(titleCase(item.speciesId or "fish"), "body", {
-			Position = UDim2.new(0, SP.md, 0, SP.xs),
-			Size = UDim2.new(1, -110, 0, 22),
-			Font = Enum.Font.GothamBold,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Parent = row,
-		})
-
-		UIUtil.makeLabel(("%.1f kg"):format(item.weightKg or 0), "caption", {
-			Position = UDim2.new(0, SP.md, 0, 26),
-			Size = UDim2.new(1, -110, 0, 18),
-			Parent = row,
-		})
-
-		local btn = UIUtil.makePrimaryButton("Smoke", function() onClick() end, {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -SP.sm, 0.5, 0),
-			Size = UDim2.fromOffset(80, UIUtil.MinTouchPx),
-		})
-		btn.Parent = row
+	local function destroy()
+		if closed then return end
+		closed = true
+		if heartbeatConn then heartbeatConn:Disconnect() end
+		for _, c in conns do c:Disconnect() end
+		table.clear(conns)
+		if gui.Parent then gui:Destroy() end
 	end
 
 	local function refresh(slots_: {[number]: any}, inv: {any}, cap_: number)
 		slots_ = normalizeSlots(slots_, cap_)
-		lastSlots = slots_
-		lastInv = inv
-		lastCap = cap_
+		lastSlots, lastInv, lastCap = slots_, inv, cap_
 		local used = 0
-		for i = 1, cap_ do
-			if slots_[i] then used += 1 end
-		end
+		for i = 1, cap_ do if slots_[i] then used += 1 end end
 		capLbl.Text = ("%d / %d"):format(used, cap_)
 
-		table.clear(slotRows)
-		table.clear(countdownLabels)
-		for _, c in ipairs(leftScroll:GetChildren()) do
-			if c:IsA("Frame") then c:Destroy() end
-		end
-		for i = 1, cap_ do
-			buildSlotCard(i, slots_[i])
+		for i = 1, maxCap do
+			local slot = smokeSlots[i]
+			slot.Visible = i <= cap_
+			if i <= cap_ then
+				bindSmokeSlot(slot, i, slots_[i], onCancel, onClaim, conns)
+			end
 		end
 
-		for _, c in ipairs(rightScroll:GetChildren()) do
-			if c:IsA("Frame") then c:Destroy() end
+		local anyReady = false
+		for i = 1, cap_ do
+			if slots_[i] and isSlotClaimable(slots_[i]) then anyReady = true break end
 		end
-		local fish = {}
-		for _, item in ipairs(inv) do
-			if item.kind == "Fish" then table.insert(fish, item) end
+		if collectAllBtn then
+			collectAllBtn.Visible = anyReady
 		end
+
+		for _, c in invScroll:GetChildren() do
+			if c:IsA("GuiObject") and not _layoutSkip[c.ClassName] then c:Destroy() end
+		end
+		local fish: {any} = {}
+		for _, it in inv do if it.kind == "Fish" then table.insert(fish, it) end end
 		if #fish == 0 then
 			UIUtil.makeLabel("No fish in inventory.", "subtitle", {
-				Size = UDim2.new(1, 0, 0, 36),
-				TextXAlignment = Enum.TextXAlignment.Center,
-				Parent = rightScroll,
+				Size = UDim2.new(1, 0, 0, 36), TextXAlignment = Enum.TextXAlignment.Center,
+				TextColor3 = P.CreamSoft, LayoutOrder = 1, Parent = invScroll,
 			})
 		else
-			for _, item in ipairs(fish) do
-				buildFishCard(rightScroll, item, function() onPlace(item.uid) end)
+			for i, it in fish do
+				if invTpl and invTpl:IsA("Frame") then
+					local row = invTpl:Clone()
+					row.Name = "Inv_" .. (it.uid or i)
+					row.Visible = true
+					row.LayoutOrder = i
+					row.Parent = invScroll
+					local nm = titleCase(it.speciesId or "fish")
+					reqAny(row, { "FishNameLabel", "NameLabel" }, "TextLabel").Text = nm .. "\n" .. ("%.1f kg"):format(it.weightKg or 0)
+					local vpf = row:FindFirstChild("ThumbViewport")
+					if vpf and vpf:IsA("ViewportFrame") then
+						UIKit.attachFishThumb(vpf, it.speciesId or "", { modifiers = it.modifiers or {}, scaleTarget = 1.2 })
+					end
+					local smokeBtn = req(row, "SmokeButton", "TextButton") :: TextButton
+					if conns[smokeBtn] then conns[smokeBtn]:Disconnect() end
+					conns[smokeBtn] = smokeBtn.Activated:Connect(function() onPlace(it.uid) end)
+				else
+					local row = Instance.new("Frame")
+					row.Size = UDim2.new(1, 0, 0, 56)
+					row.BackgroundColor3 = P.TealDark
+					row.LayoutOrder = i
+					row.Parent = invScroll
+					local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 6); c.Parent = row
+					UIUtil.makeLabel(titleCase(it.speciesId or "fish"), "body", {
+						Position = UDim2.new(0, 12, 0, 6), Size = UDim2.new(1, -110, 0, 40),
+						Font = Enum.Font.GothamBold, Parent = row,
+					})
+					local smokeBtn = UIUtil.makePrimaryButton("Smoke", function() onPlace(it.uid) end, {
+						AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+						Size = UDim2.fromOffset(80, UIUtil.MinTouchPx), Parent = row,
+					})
+					if conns[smokeBtn] then conns[smokeBtn]:Disconnect() end
+					conns[smokeBtn] = smokeBtn.Activated:Connect(function() onPlace(it.uid) end)
+				end
 			end
 		end
 	end
+
+	if collectAllBtn then
+		collectAllBtn.Activated:Connect(function()
+			for i = 1, lastCap do
+				local slot = lastSlots[i]
+				if slot and isSlotClaimable(slot) then onClaim(i) end
+			end
+		end)
+	end
+
+	backdrop.Activated:Connect(function()
+		if onDismiss then onDismiss() end
+		destroy()
+	end)
+	closeBtn.Activated:Connect(function()
+		if onDismiss then onDismiss() end
+		destroy()
+	end)
+
+	panel.BackgroundTransparency = 1
+	backdrop.BackgroundTransparency = 1
+	if rm then
+		panel.Position = restPos
+		panel.BackgroundTransparency = 0
+		backdrop.BackgroundTransparency = M.BackdropAlpha
+	else
+		panel.Position = fromPos
+		MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = M.BackdropAlpha })
+		MotionUtil.tweenOrSnap(panel, fadeInfo, { BackgroundTransparency = 0, Position = restPos })
+	end
+
 	refresh(slots, inventory, capacity)
 
-	local claimUiRebuilt = false
-	local heartbeatConn: RBXScriptConnection? = RunService.Heartbeat:Connect(function()
+	heartbeatConn = RunService.Heartbeat:Connect(function()
+		if closed then return end
 		local now = os.time()
 		local needRebuild = false
-		for _, lbl in ipairs(countdownLabels) do
-			local startedAt = lbl:GetAttribute("startedAt")
-			if typeof(startedAt) == "number" then
-				local left = PRESERVE_TIME - (now - startedAt)
-				lbl.Text = formatCountdown(left)
-				if left <= 0 then
-					needRebuild = true
-				end
+		for i = 1, lastCap do
+			local slot = lastSlots[i]
+			if slot and slot.startedAt and not isSlotClaimable(slot) then
+				local left = PRESERVE_TIME - (now - slot.startedAt)
+				if left <= 0 then needRebuild = true end
 			end
 		end
 		if needRebuild and not claimUiRebuilt then
@@ -301,20 +366,27 @@ function SmokehouseUI.show(
 			refresh(lastSlots, lastInv, lastCap)
 		elseif not needRebuild then
 			claimUiRebuilt = false
+			for i = 1, lastCap do
+				local data = lastSlots[i]
+				if data and smokeSlots[i] and smokeSlots[i].Visible and not isSlotClaimable(data) then
+					local frame = smokeSlots[i]
+					local fill = frame:FindFirstChild("ProgressRing")
+						and (frame.ProgressRing :: Frame):FindFirstChild("ProgressFill")
+					if fill and fill:IsA("Frame") then
+						fill.Size = UDim2.fromScale(progress01(data), 1)
+					end
+					local tl = frame:FindFirstChild("TimeLabel")
+					if tl and tl:IsA("TextLabel") and data.startedAt then
+						tl.Text = formatCountdown(PRESERVE_TIME - (now - data.startedAt))
+					end
+				end
+			end
 		end
 	end)
 
-	local function destroy()
-		if heartbeatConn then
-			heartbeatConn:Disconnect()
-			heartbeatConn = nil
-		end
-		shell.destroy()
-	end
-
 	return {
 		gui = gui,
-		close = function() destroy() end,
+		close = destroy,
 		destroy = destroy,
 		refresh = refresh,
 	}

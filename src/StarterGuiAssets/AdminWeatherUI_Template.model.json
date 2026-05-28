@@ -1,0 +1,496 @@
+{
+  "ClassName": "ScreenGui",
+  "Properties": {
+    "Enabled": false,
+    "ResetOnSpawn": false,
+    "IgnoreGuiInset": true,
+    "ZIndexBehavior": "Sibling"
+  },
+  "Children": [
+    {
+      "Name": "Meta",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "DisplayOrderKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "Admin"
+          }
+        },
+        {
+          "Name": "ResetOnSpawn",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": false
+          }
+        },
+        {
+          "Name": "IgnoreGuiInset",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": true
+          }
+        },
+        {
+          "Name": "ThemeKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "admin"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "ToggleButton",
+      "ClassName": "TextButton",
+      "Properties": {
+        "AutoButtonColor": false,
+        "BackgroundColor3": [
+          1,
+          1,
+          1
+        ],
+        "BorderSizePixel": 0,
+        "Font": "GothamBold",
+        "Text": "Weather",
+        "TextSize": 14,
+        "TextScaled": false,
+        "Selectable": true,
+        "SelectionOrder": 1,
+        "TextColor3": [
+          1,
+          1,
+          1
+        ],
+        "AnchorPoint": [
+          1,
+          0
+        ],
+        "Position": {
+          "UDim2": [
+            [
+              1,
+              -12
+            ],
+            [
+              0,
+              12
+            ]
+          ]
+        },
+        "Size": {
+          "UDim2": [
+            [
+              0,
+              88
+            ],
+            [
+              0,
+              44
+            ]
+          ]
+        },
+        "ZIndex": 10
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                10
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Panel",
+      "ClassName": "Frame",
+      "Properties": {
+        "BackgroundColor3": [
+          1,
+          1,
+          1
+        ],
+        "BorderSizePixel": 0,
+        "AnchorPoint": [
+          1,
+          0
+        ],
+        "Position": {
+          "UDim2": [
+            [
+              1,
+              -12
+            ],
+            [
+              0,
+              64
+            ]
+          ]
+        },
+        "AutomaticSize": "Y",
+        "Size": {
+          "UDim2": [
+            [
+              0,
+              200
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        },
+        "Visible": false,
+        "ZIndex": 10
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                10
+              ]
+            }
+          }
+        },
+        {
+          "Name": "UIStroke",
+          "ClassName": "UIStroke",
+          "Properties": {
+            "Color": [
+              1,
+              1,
+              1
+            ],
+            "Thickness": 1.5,
+            "Transparency": 0.25,
+            "ApplyStrokeMode": "Border"
+          }
+        },
+        {
+          "Name": "UIPadding",
+          "ClassName": "UIPadding",
+          "Properties": {
+            "PaddingLeft": {
+              "UDim": [
+                0,
+                10
+              ]
+            },
+            "PaddingRight": {
+              "UDim": [
+                0,
+                10
+              ]
+            },
+            "PaddingTop": {
+              "UDim": [
+                0,
+                10
+              ]
+            },
+            "PaddingBottom": {
+              "UDim": [
+                0,
+                10
+              ]
+            }
+          }
+        },
+        {
+          "Name": "UIListLayout",
+          "ClassName": "UIListLayout",
+          "Properties": {
+            "Padding": {
+              "UDim": [
+                0,
+                6
+              ]
+            },
+            "SortOrder": "LayoutOrder"
+          }
+        },
+        {
+          "Name": "TitleLabel",
+          "ClassName": "TextLabel",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Font": "GothamBold",
+            "Text": "Weather",
+            "TextSize": 16,
+            "TextScaled": false,
+            "TextColor3": [
+              1,
+              1,
+              1
+            ],
+            "TextXAlignment": "Left",
+            "LayoutOrder": 1,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  22
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "Name": "StatusLabel",
+          "ClassName": "TextLabel",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Font": "Gotham",
+            "Text": "Current: \u2026",
+            "TextSize": 14,
+            "TextScaled": false,
+            "TextWrapped": true,
+            "TextXAlignment": "Left",
+            "TextYAlignment": "Top",
+            "TextColor3": [
+              1,
+              1,
+              1
+            ],
+            "LayoutOrder": 2,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  56
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "Name": "WeatherButtonList",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "BorderSizePixel": 0,
+            "AutomaticSize": "Y",
+            "LayoutOrder": 3,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          },
+          "Children": [
+            {
+              "Name": "UIListLayout",
+              "ClassName": "UIListLayout",
+              "Properties": {
+                "Padding": {
+                  "UDim": [
+                    0,
+                    6
+                  ]
+                },
+                "SortOrder": "LayoutOrder"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "DevToggleList",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "BorderSizePixel": 0,
+            "AutomaticSize": "Y",
+            "LayoutOrder": 100,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  0
+                ]
+              ]
+            }
+          },
+          "Children": [
+            {
+              "Name": "UIListLayout",
+              "ClassName": "UIListLayout",
+              "Properties": {
+                "Padding": {
+                  "UDim": [
+                    0,
+                    6
+                  ]
+                },
+                "SortOrder": "LayoutOrder"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "HintLabel",
+          "ClassName": "TextLabel",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Font": "Gotham",
+            "Text": "Tap Weather to hide \u00b7 /weather Rain",
+            "TextSize": 12,
+            "TextScaled": false,
+            "TextTransparency": 0.2,
+            "TextColor3": [
+              1,
+              1,
+              1
+            ],
+            "TextXAlignment": "Left",
+            "LayoutOrder": 101,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  18
+                ]
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "WeatherButton_Template",
+      "ClassName": "TextButton",
+      "Properties": {
+        "AutoButtonColor": false,
+        "BackgroundColor3": [
+          1,
+          1,
+          1
+        ],
+        "BorderSizePixel": 0,
+        "Font": "GothamBold",
+        "Text": "Clear",
+        "TextSize": 14,
+        "TextScaled": false,
+        "Selectable": true,
+        "TextColor3": [
+          1,
+          1,
+          1
+        ],
+        "Visible": false,
+        "Size": {
+          "UDim2": [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              44
+            ]
+          ]
+        },
+        "ZIndex": 11
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                8
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "DevToggle_Template",
+      "ClassName": "TextButton",
+      "Properties": {
+        "AutoButtonColor": false,
+        "BackgroundColor3": [
+          1,
+          1,
+          1
+        ],
+        "BackgroundTransparency": 0.15,
+        "BorderSizePixel": 0,
+        "Font": "Gotham",
+        "Text": "Toggle",
+        "TextSize": 14,
+        "TextScaled": false,
+        "Selectable": true,
+        "TextColor3": [
+          1,
+          1,
+          1
+        ],
+        "Visible": false,
+        "Size": {
+          "UDim2": [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              44
+            ]
+          ]
+        },
+        "ZIndex": 11
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                8
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -15,8 +15,8 @@
 --   2. game.StarterGui.<name>_Template (fallback)
 --
 -- Before clone: destroys any existing ScreenGui named instanceName (or `name`) in parent.
--- After clone: renames to instanceName (or `name`), applies Meta values, attaches AutoScale
--- binding (same math as UIKit.makeScreenGui), sets Enabled = true.
+-- After clone: renames to instanceName (or `name`), applies Meta values, attaches AutoScale,
+-- UIKit.integrateSpawnedGui (chrome + accessibility + button feedback), sets Enabled = true.
 --
 -- Meta folder (child of template ScreenGui):
 --   DisplayOrderKey  StringValue  -> GameConfig.UI.DisplayOrder[key]
@@ -33,6 +33,7 @@ local StarterGui = game:GetService("StarterGui")
 local GameConfig = require(game:GetService("ReplicatedStorage").Shared.Config.GameConfig)
 local ScreenGuiAutoScale = require(script.Parent.ScreenGuiAutoScale)
 
+-- UIKit is required lazily inside spawn() — UIKit also requires TemplateLoader (ModalShell).
 local ASSETS_FOLDER_NAME = "StarterGuiAssets"
 
 export type SpawnOptions = {
@@ -55,6 +56,20 @@ local function findTemplate(templateName: string): ScreenGui?
 		return direct
 	end
 	return nil
+end
+
+-- Rojo files use *UI_Template (e.g. HarborEditUI_Template); spawn id may omit UI (HarborEdit).
+local function findTemplateForBaseName(name: string): (ScreenGui?, string)
+	local tried: {string} = {}
+	for _, suffix in ipairs({ "_Template", "UI_Template" }) do
+		local templateId = name .. suffix
+		table.insert(tried, templateId)
+		local template = findTemplate(templateId)
+		if template then
+			return template, templateId
+		end
+	end
+	return nil, table.concat(tried, ", ")
 end
 
 local function readBool(meta: Folder, childName: string): boolean?
@@ -106,10 +121,9 @@ local function resolveParent(opts: SpawnOptions?): PlayerGui | Instance
 end
 
 function TemplateLoader.spawn(name: string, opts: SpawnOptions?): ScreenGui
-	local templateId = name .. "_Template"
-	local template = findTemplate(templateId)
+	local template, resolvedId = findTemplateForBaseName(name)
 	if not template then
-		error(`[TemplateLoader] Missing template "{templateId}" under StarterGui.StarterGuiAssets or StarterGui`, 2)
+		error(`[TemplateLoader] Missing template (tried {resolvedId}) under StarterGui.StarterGuiAssets or StarterGui`, 2)
 	end
 
 	local parent = resolveParent(opts)
@@ -129,6 +143,7 @@ function TemplateLoader.spawn(name: string, opts: SpawnOptions?): ScreenGui
 
 	gui.Parent = parent
 	ScreenGuiAutoScale.apply(gui)
+	require(script.Parent.UIKit).integrateSpawnedGui(gui)
 	gui.Enabled = true
 
 	return gui

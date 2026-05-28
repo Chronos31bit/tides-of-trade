@@ -1,0 +1,353 @@
+{
+  "ClassName": "ScreenGui",
+  "Properties": {
+    "Enabled": false,
+    "ResetOnSpawn": false,
+    "IgnoreGuiInset": true,
+    "ZIndexBehavior": "Sibling"
+  },
+  "Children": [
+    {
+      "Name": "Meta",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "DisplayOrderKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "CastMeter"
+          }
+        },
+        {
+          "Name": "ResetOnSpawn",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": false
+          }
+        },
+        {
+          "Name": "IgnoreGuiInset",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": true
+          }
+        },
+        {
+          "Name": "ThemeKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "cast-meter"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Track",
+      "ClassName": "Frame",
+      "Properties": {
+        "AnchorPoint": [
+          0.5,
+          1
+        ],
+        "Position": {
+          "UDim2": [
+            [
+              0.5,
+              0
+            ],
+            [
+              1,
+              -268
+            ]
+          ]
+        },
+        "Size": {
+          "UDim2": [
+            [
+              0,
+              20
+            ],
+            [
+              0,
+              160
+            ]
+          ]
+        },
+        "BackgroundColor3": [
+          0.3058823529411765,
+          0.22745098039215686,
+          0.1568627450980392
+        ],
+        "BorderSizePixel": 0
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                10
+              ]
+            }
+          }
+        },
+        {
+          "Name": "ZoneCommon",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundColor3": [
+              0.6901960784313725,
+              0.7137254901960784,
+              0.7450980392156863
+            ],
+            "BackgroundTransparency": 0.12,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.35,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0.3,
+                  0
+                ]
+              ]
+            },
+            "Visible": true
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    4
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "ZoneRare",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundColor3": [
+              0.37254901960784315,
+              0.6470588235294118,
+              0.9411764705882353
+            ],
+            "BackgroundTransparency": 0.12,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.35,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0.3,
+                  0
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    4
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "ZoneLegendary",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundColor3": [
+              0.9607843137254902,
+              0.7058823529411765,
+              0.29411764705882354
+            ],
+            "BackgroundTransparency": 0.12,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0.35,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0.3,
+                  0
+                ]
+              ]
+            },
+            "Visible": false
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    4
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "Indicator",
+          "ClassName": "Frame",
+          "Properties": {
+            "AnchorPoint": [
+              0.5,
+              0.5
+            ],
+            "Position": {
+              "UDim2": [
+                [
+                  0.5,
+                  0
+                ],
+                [
+                  0.5,
+                  0
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1.5,
+                  0
+                ],
+                [
+                  0,
+                  6
+                ]
+              ]
+            },
+            "BackgroundColor3": [
+              0.9568627450980393,
+              0.9019607843137255,
+              0.7843137254901961
+            ],
+            "BorderSizePixel": 0
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    2
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "ReleaseHintLabel",
+          "ClassName": "TextLabel",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "AnchorPoint": [
+              0.5,
+              1
+            ],
+            "Position": {
+              "UDim2": [
+                [
+                  0.5,
+                  0
+                ],
+                [
+                  0,
+                  -8
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  220
+                ],
+                [
+                  0,
+                  18
+                ]
+              ]
+            },
+            "Font": "GothamBold",
+            "TextSize": 14,
+            "TextColor3": [
+              0.9568627450980393,
+              0.9019607843137255,
+              0.7843137254901961
+            ],
+            "TextXAlignment": "Center",
+            "Text": "Release to cast"
+          }
+        }
+      ]
+    }
+  ]
+}

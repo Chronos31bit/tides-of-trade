@@ -64,21 +64,9 @@ end
 -- -------------------------------------------------------------------
 function HUD.create(): HUDController
 	local gui = TemplateLoader.spawn("HUD")
-	gui.IgnoreGuiInset = false
-	gui.ClipToDeviceSafeArea = false
 
 	local wallet = requireChild(gui, "Wallet", "Frame") :: Frame
-	-- Belt-and-suspenders: template should own layout, but guarantee the pill
-	-- stays opaque and above siblings (safe-area / stale Studio overrides).
-	wallet.ZIndex = 10
-	wallet.BackgroundTransparency = 0
-	wallet.BackgroundColor3 = P.TealDark
-	wallet.Visible = true
-	wallet.Size = UDim2.fromOffset(300, 44)
-	wallet.Position = UDim2.fromOffset(16, 16)
-
 	local coinsLabel = requireChild(wallet, "CoinsLabel", "TextLabel") :: TextLabel
-	coinsLabel.Size = UDim2.new(0, 110, 1, 0)
 	local lureLabel = requireChild(wallet, "LureLabel", "TextLabel") :: TextLabel
 
 	local statusCol = requireChild(gui, "StatusColumn", "Frame") :: Frame

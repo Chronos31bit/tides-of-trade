@@ -34,15 +34,21 @@
 --    `MotionUtil.tween` or `MotionUtil.tweenOrSnap`. Never invoke
 --    `TweenService:Create` directly from a feature UI module.
 --
--- 6. **How to add a new modal.** From your `MyModalUI.lua`:
---      local shell = UIUtil.makeModalShell({
---          name = "MyModal", title = "My Modal", onClose = onClose,
---      })
---      -- mount your content into `shell.body`; size: UDim2.fromScale(1,1)
---      shell.open()
---      return { gui = shell.gui, close = shell.close, refresh = refresh }
---    The shell handles backdrop, panel, header, close button, fade/slide,
---    ReducedMotion, and tap-outside dismissal.
+-- 6. **How to add a new modal.** Prefer template-driven modals:
+--      local gui = TemplateLoader.spawn("MyFeature", { instanceName = "MyFeatureUI" })
+--      -- layout in StarterGuiAssets; UIKit.integrateSpawnedGui runs on spawn.
+--    Legacy programmatic shell:
+--      local shell = UIUtil.makeModalShell({ name = "MyModal", title = "My Modal", onClose = onClose })
+--      -- forwards to UIKit.ModalShell → ModalShell_Template via TemplateLoader.
+--
+-- ====================================================================
+-- TEMPLATE INTEGRATION
+-- ====================================================================
+-- • Feature ScreenGuis live in src/StarterGuiAssets/*_Template.model.json.
+-- • TemplateLoader.spawn() applies Meta (DisplayOrder, ResetOnSpawn) + UIKit.integrateSpawnedGui.
+-- • Tokens: UIUtil.Palette / UIKit.Palette — never Color3.fromRGB in feature UI files.
+-- • Motion: MotionUtil.tween / tweenOrSnap only; decoration respects ReducedMotion.
+-- • Kept for gradual migration: makeScreenGui, makeLabel, make*Button, tierPalette, etc.
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -567,146 +573,18 @@ function UIUtil.makeModalShell(opts: {
 	width: number?,
 	heightScale: number?,
 }): ModalShell
-	local P = UIUtil.Palette
-	local M = UIUtil.Modal
-
-	local gui, scale = UIUtil.makeScreenGui(opts.name, opts.parent)
-	gui.DisplayOrder = opts.displayOrder or UIUtil.DisplayOrder.Modal
-
-	-- Full-screen backdrop — tap outside to dismiss, fades to BackdropAlpha.
-	local backdrop = Instance.new("TextButton")
-	backdrop.Name = "Backdrop"
-	backdrop.Text = ""
-	backdrop.AutoButtonColor = false
-	backdrop.BackgroundColor3 = P.Shadow
-	backdrop.BackgroundTransparency = 1
-	backdrop.BorderSizePixel = 0
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.ZIndex = 1
-	backdrop.Parent = gui
-
-	local panel = Instance.new("Frame")
-	panel.Name = "Panel"
-	panel.BackgroundColor3 = P.TealDark
-	panel.BorderSizePixel = 0
-	panel.AnchorPoint = Vector2.new(0.5, 0.5)
-	panel.Position = UDim2.fromScale(0.5, 0.5)
-	panel.Size = UDim2.new(0.92, 0, opts.heightScale or 0.78, 0)
-	panel.ZIndex = 2
-	panel.Parent = gui
-
-	local sizeCap = Instance.new("UISizeConstraint")
-	sizeCap.MaxSize = Vector2.new(opts.width or M.MaxWidthPx, math.huge)
-	sizeCap.Parent = panel
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, UIUtil.Radii.lg)
-	corner.Parent = panel
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = P.TealDeeper
-	stroke.Thickness = 1.5
-	stroke.Transparency = 0.25
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = panel
-
-	-- Header row: title left, close button right.
-	local header = Instance.new("Frame")
-	header.Name = "Header"
-	header.BackgroundColor3 = P.TealDeeper
-	header.BorderSizePixel = 0
-	header.Size = UDim2.new(1, 0, 0, M.HeaderHeightPx)
-	header.ZIndex = 3
-	header.Parent = panel
-	local hCorner = Instance.new("UICorner"); hCorner.CornerRadius = UDim.new(0, UIUtil.Radii.lg); hCorner.Parent = header
-	-- Hide bottom-rounded corners by masking with a thin sibling.
-	local hMask = Instance.new("Frame")
-	hMask.BackgroundColor3 = P.TealDeeper
-	hMask.BorderSizePixel = 0
-	hMask.AnchorPoint = Vector2.new(0, 1)
-	hMask.Position = UDim2.new(0, 0, 1, 0)
-	hMask.Size = UDim2.new(1, 0, 0, UIUtil.Radii.lg)
-	hMask.ZIndex = 3
-	hMask.Parent = header
-
-	local title = UIUtil.makeLabel(opts.title or "", "title", {
-		Parent = header,
-		Position = UDim2.fromOffset(UIUtil.Spacing.lg, 0),
-		Size = UDim2.new(1, -(UIUtil.Spacing.lg * 2 + M.CloseButtonPx), 1, 0),
-		ZIndex = 4,
+	local UIKit = require(script.Parent.UIKit)
+	local shell = UIKit.ModalShell({
+		name = opts.name,
+		title = opts.title,
+		onClose = opts.onClose,
+		parent = opts.parent,
+		displayOrder = opts.displayOrder,
+		bodyPadding = opts.bodyPadding,
+		width = opts.width,
+		heightScale = opts.heightScale,
 	})
-
-	-- Body: where the caller mounts content. Padded inside the panel.
-	local body = Instance.new("Frame")
-	body.Name = "Body"
-	body.BackgroundTransparency = 1
-	body.BorderSizePixel = 0
-	body.Position = UDim2.new(0, 0, 0, M.HeaderHeightPx)
-	body.Size = UDim2.new(1, 0, 1, -M.HeaderHeightPx)
-	body.ZIndex = 2
-	body.Parent = panel
-
-	local pad = Instance.new("UIPadding")
-	local p = opts.bodyPadding or M.BodyPaddingPx
-	pad.PaddingLeft   = UDim.new(0, p)
-	pad.PaddingRight  = UDim.new(0, p)
-	pad.PaddingTop    = UDim.new(0, p)
-	pad.PaddingBottom = UDim.new(0, p)
-	pad.Parent = body
-
-	-- State + open/close animation.
-	local isOpen = false
-	local restPos = panel.Position
-	local fromPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + M.SlideOffsetPx)
-	local fadeInfo = TweenInfo.new(M.FadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-	local function open()
-		if isOpen then return end
-		isOpen = true
-		panel.Position = fromPos
-		panel.BackgroundTransparency = 1
-		backdrop.BackgroundTransparency = 1
-		gui.Enabled = true
-		MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = M.BackdropAlpha })
-		MotionUtil.tweenOrSnap(panel,    fadeInfo, { BackgroundTransparency = 0, Position = restPos })
-	end
-
-	local closed = false
-	local close
-	close = function()
-		if not isOpen or closed then return end
-		isOpen = false
-		if opts.onClose then opts.onClose() end
-	end
-
-	local closeButton = UIUtil.makeCloseButton(close, {
-		Parent = header,
-		ZIndex = 4,
-	})
-
-	local function destroy()
-		closed = true
-		if gui and gui.Parent then gui:Destroy() end
-	end
-
-	backdrop.Activated:Connect(close)
-
-	-- Open by default — modals always animate in immediately on construction.
-	open()
-
-	return {
-		gui = gui,
-		scale = scale,
-		backdrop = backdrop,
-		panel = panel,
-		header = header,
-		title = title,
-		closeButton = closeButton,
-		body = body,
-		open = open,
-		close = close,
-		destroy = destroy,
-	}
+	return shell
 end
 
 -- makeChip helper removed; the new HUD builds its own purpose-fit currency

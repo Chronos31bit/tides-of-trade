@@ -29,13 +29,27 @@
 -- Modal chrome: UIKit.ModalShell clones StarterGui.StarterGuiAssets.ModalShell_Template
 -- via TemplateLoader (see src/StarterGuiAssets/). Layout/tween defaults live in the
 -- template Meta folder; tokens and motion behavior stay in this module.
+--
+-- ====================================================================
+-- TEMPLATE INTEGRATION
+-- ====================================================================
+-- • TemplateLoader.spawn() clones StarterGuiAssets; call UIKit.integrateSpawnedGui(gui)
+--   after spawn (TemplateLoader does this automatically) for accessibility + button feedback.
+-- • Layout lives in .model.json / Studio templates — avoid Color3.fromRGB in templates;
+--   apply chrome via UIKit.applySpawnedChrome(gui) and row/tile via applyCardStyle /
+--   applyRarityChip at bind time.
+-- • ModalShell(opts) is a thin TemplateLoader.spawn("ModalShell") wrapper; mount feature
+--   content in shell.body. UIUtil.makeModalShell forwards here for legacy callers.
+-- • Decoration (hover tweens, rarity border cycle) must respect UIKit.reducedMotion().
 -- ====================================================================
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService  = game:GetService("TweenService")
 local RunService    = game:GetService("RunService")
 local GuiService    = game:GetService("GuiService")
-local GameConfig         = require(game:GetService("ReplicatedStorage").Shared.Config.GameConfig)
-local MotionUtil         = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
+local GameConfig         = require(ReplicatedStorage.Shared.Config.GameConfig)
+local FishMutations      = require(ReplicatedStorage.Shared.Util.FishMutations)
+local MotionUtil         = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local ScreenGuiAutoScale = require(script.Parent.ScreenGuiAutoScale)
 local TemplateLoader     = require(script.Parent.TemplateLoader)
 
@@ -201,6 +215,227 @@ _initRM()
 
 function UIKit.reducedMotion(): boolean
 	return _rmCache == true
+end
+
+-- ====================================================================
+-- TEMPLATE INTEGRATION — spawn-time styling + accessibility
+-- ====================================================================
+
+local _FEEDBACK_ATTR = "TotButtonFeedback"
+
+function UIKit.attachButtonFeedback(btn: GuiButton, restColor: Color3?)
+	local rest = restColor or btn.BackgroundColor3
+	local pressed = rest:Lerp(Color3.new(0, 0, 0), 0.14)
+	local hover = rest:Lerp(Color3.new(1, 1, 1), 0.08)
+	local info = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	btn:SetAttribute(_FEEDBACK_ATTR, true)
+
+	btn.MouseEnter:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = hover })
+	end)
+	btn.MouseLeave:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = rest })
+	end)
+	btn.MouseButton1Down:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = pressed })
+	end)
+	btn.MouseButton1Up:Connect(function()
+		MotionUtil.tweenOrSnap(btn, info, { BackgroundColor3 = hover })
+	end)
+end
+
+export type CardStyleName = "default" | "inset" | "dark" | "teal" | "teal-inset" | "teal-dark"
+
+-- Applies card surface colors to an existing template Frame (UICorner/UIStroke optional).
+function UIKit.applyCardStyle(card: Frame, style: CardStyleName?)
+	local UIUtil = require(script.Parent.UIUtil)
+	local P = UIUtil.Palette
+	local styleName = style or "teal"
+
+	local bg: Color3
+	local strokeColor: Color3
+	if styleName == "inset" then
+		bg = UIKit.Palette.ParchmentWash
+		strokeColor = UIKit.Palette.BorderLight
+	elseif styleName == "dark" then
+		bg = UIKit.Palette.MintDeep
+		strokeColor = UIKit.Palette.MintDark
+	elseif styleName == "teal-inset" then
+		bg = P.Teal
+		strokeColor = P.TealDeeper
+	elseif styleName == "teal-dark" then
+		bg = P.TealDeeper
+		strokeColor = P.TealDeeper
+	elseif styleName == "default" then
+		bg = UIKit.Palette.ParchmentDeep
+		strokeColor = UIKit.Palette.BorderMid
+	else
+		bg = P.Teal
+		strokeColor = P.TealDeeper
+	end
+
+	card.BackgroundColor3 = bg
+	local corner = card:FindFirstChildOfClass("UICorner")
+	if not corner then
+		corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, UIKit.Radii.md)
+		corner.Parent = card
+	end
+	local stroke = card:FindFirstChildOfClass("UIStroke")
+	if not stroke then
+		stroke = Instance.new("UIStroke")
+		stroke.Thickness = 1.2
+		stroke.Transparency = 0.25
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = card
+	end
+	stroke.Color = strokeColor
+end
+
+-- Tints an existing template rarity chip (Frame + TextLabel child).
+function UIKit.applyRarityChip(chip: Frame, rarity: string, text: string?)
+	chip.BackgroundColor3 = UIKit.rarityColor(rarity)
+	chip.BackgroundTransparency = 0.08
+
+	local stroke = chip:FindFirstChildOfClass("UIStroke")
+	if not stroke then
+		stroke = Instance.new("UIStroke")
+		stroke.Thickness = 1
+		stroke.Transparency = 0.55
+		stroke.Parent = chip
+	end
+	stroke.Color = UIKit.Palette.Ink
+
+	local lbl = chip:FindFirstChildWhichIsA("TextLabel", true)
+	if lbl then
+		lbl.Text = text or rarity
+		lbl.TextScaled = false
+		lbl.TextSize = math.max(UIKit.Typography.caption.size, UIKit.MinFontPx)
+		lbl.TextColor3 = UIKit.Palette.Ink
+	end
+end
+
+local function _enforceMinTouch(guiObj: GuiObject)
+	if guiObj.Size.Y.Scale ~= 0 then
+		return
+	end
+	local h = guiObj.Size.Y.Offset
+	if h > 0 and h < UIKit.MinTouchPx then
+		guiObj.Size = UDim2.new(guiObj.Size.X.Scale, guiObj.Size.X.Offset, 0, UIKit.MinTouchPx)
+	end
+end
+
+-- Applies modal/admin chrome from Meta.ThemeKey (modal-teal | modal-parchment | admin).
+function UIKit.applySpawnedChrome(gui: ScreenGui)
+	local UIUtil = require(script.Parent.UIUtil)
+	local P = UIUtil.Palette
+
+	local theme = "modal-teal"
+	local meta = gui:FindFirstChild("Meta")
+	if meta and meta:IsA("Folder") then
+		local themeVal = meta:FindFirstChild("ThemeKey")
+		if themeVal and themeVal:IsA("StringValue") and themeVal.Value ~= "" then
+			theme = themeVal.Value
+		end
+	end
+
+	local backdrop = gui:FindFirstChild("Backdrop")
+	if backdrop and backdrop:IsA("TextButton") then
+		backdrop.BackgroundColor3 = P.Shadow
+	end
+
+	local panel = gui:FindFirstChild("Panel")
+	if not panel or not panel:IsA("Frame") then
+		return
+	end
+
+	if theme == "modal-parchment" then
+		panel.BackgroundColor3 = UIKit.Palette.Parchment
+		local header = panel:FindFirstChild("Header")
+		if header and header:IsA("Frame") then
+			header.BackgroundColor3 = UIKit.Palette.ParchmentDeep
+		end
+		local stroke = panel:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Color = UIKit.Palette.BorderMid
+		end
+	elseif theme == "admin" then
+		panel.BackgroundColor3 = P.TealDeeper
+		local toggle = gui:FindFirstChild("ToggleButton")
+		if toggle and toggle:IsA("TextButton") then
+			toggle.BackgroundColor3 = P.Teal
+			toggle.TextColor3 = P.Cream
+		end
+	else
+		panel.BackgroundColor3 = P.TealDark
+		local header = panel:FindFirstChild("Header")
+		if header and header:IsA("Frame") then
+			header.BackgroundColor3 = P.TealDeeper
+			local title = header:FindFirstChild("Title")
+			if title and title:IsA("TextLabel") then
+				title.TextColor3 = P.Cream
+			end
+			local closeBtn = header:FindFirstChild("Close")
+			if closeBtn and closeBtn:IsA("TextButton") then
+				closeBtn.BackgroundColor3 = P.Wood
+				closeBtn.TextColor3 = P.Cream
+			end
+		end
+		local stroke = panel:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Color = P.TealDeeper
+		end
+	end
+end
+
+-- Apply accessibility + feedback to a single cloned interactive (template rows).
+function UIKit.prepareInteractive(obj: GuiObject, selectionOrder: number?)
+	if obj:IsA("TextLabel") then
+		if obj.TextScaled then
+			obj.TextScaled = false
+		end
+		if obj.TextSize > 0 and obj.TextSize < UIKit.MinFontPx then
+			obj.TextSize = UIKit.MinFontPx
+		end
+		return
+	end
+	if not obj:IsA("TextButton") and not obj:IsA("ImageButton") then
+		return
+	end
+	obj.Selectable = true
+	if selectionOrder then
+		obj.SelectionOrder = selectionOrder
+	end
+	_enforceMinTouch(obj)
+	if obj:IsA("TextButton") and not obj:GetAttribute(_FEEDBACK_ATTR) then
+		UIKit.attachButtonFeedback(obj)
+	end
+end
+
+-- Post-spawn pass: chrome, 44px touch floor, 12px fonts, Selectable + SelectionOrder, button feedback.
+function UIKit.integrateSpawnedGui(gui: ScreenGui)
+	UIKit.applySpawnedChrome(gui)
+
+	local selectionOrder = 1
+	for _, desc in ipairs(gui:GetDescendants()) do
+		if desc:IsA("TextLabel") then
+			if desc.TextScaled then
+				desc.TextScaled = false
+			end
+			if desc.TextSize > 0 and desc.TextSize < UIKit.MinFontPx then
+				desc.TextSize = UIKit.MinFontPx
+			end
+		elseif desc:IsA("TextButton") or desc:IsA("ImageButton") then
+			desc.Selectable = true
+			desc.SelectionOrder = selectionOrder
+			selectionOrder += 1
+			_enforceMinTouch(desc)
+			if desc:IsA("TextButton") and not desc:GetAttribute(_FEEDBACK_ATTR) then
+				UIKit.attachButtonFeedback(desc)
+			end
+		end
+	end
 end
 
 -- ====================================================================
@@ -422,6 +657,72 @@ function UIKit.skinActionButton(btn: GuiButton, restColor: Color3?)
 	end)
 end
 
+-- Gold upgrade CTA — visible-transformation pillar (HarborEdit global Upgrade mode).
+function UIKit.skinUpgradeButton(btn: GuiButton, restColor: Color3?)
+	local P = UIKit.Palette
+	local rest = restColor or P.Gold
+	UIKit.skinActionButton(btn, rest)
+	local stroke = btn:FindFirstChildOfClass("UIStroke")
+	if not stroke then
+		stroke = Instance.new("UIStroke")
+		stroke.Parent = btn
+	end
+	stroke.Color = P.Gold
+	stroke.Thickness = 2
+	stroke.Transparency = 0.15
+end
+
+export type BuildingThumbResult = { clone: Model? }
+
+function UIKit.attachBuildingThumb(viewport: ViewportFrame, kind: string, tier: number, footprint: {number}?): BuildingThumbResult
+	for _, child in ipairs(viewport:GetChildren()) do
+		if child:IsA("WorldModel") or child:IsA("Camera") then
+			child:Destroy()
+		end
+	end
+	local BuildingAssetUtil = require(game:GetService("ReplicatedStorage").Shared.Util.BuildingAssetUtil)
+	local BuildingModelFactory = require(game:GetService("ReplicatedStorage").Shared.Util.BuildingModelFactory)
+	local tmpl = BuildingAssetUtil.getVisualTemplate(kind, tier)
+	local clone: Model?
+	if tmpl then
+		clone = tmpl:Clone()
+	else
+		clone = BuildingModelFactory.build(kind, tier, footprint or { 2, 2 })
+	end
+	local wm = Instance.new("WorldModel")
+	wm.Parent = viewport
+	clone.Parent = wm
+	for _, d in clone:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+		end
+	end
+	local scaleTarget = 1.4
+	local ok, pivot, ext = pcall(function(): (CFrame, Vector3)
+		return clone:GetBoundingBox()
+	end)
+	if ok and ext then
+		local maxDim = math.max(ext.X, ext.Y, ext.Z)
+		if maxDim > 0.01 then
+			pcall(function() clone:ScaleTo(scaleTarget / maxDim) end)
+		end
+	end
+	local tcam = Instance.new("Camera")
+	tcam.FieldOfView = 40
+	viewport.CurrentCamera = tcam
+	tcam.Parent = viewport
+	if ok and pivot then
+		local md = math.max(ext.X, ext.Y, ext.Z)
+		local dist = math.max(md * 1.5, 4)
+		tcam.CFrame = CFrame.lookAt(
+			pivot.Position + Vector3.new(dist * 0.65, dist * 0.35, dist * 0.65),
+			pivot.Position
+		)
+	end
+	return { clone = clone }
+end
+
 -- ====================================================================
 -- CARD FACTORY
 -- ====================================================================
@@ -566,6 +867,107 @@ function UIKit.ModifierPill(id: string, displayName: string?, props: {[string]: 
 
 	for k, v in pairs(props :: {[string]: any}) do (pill :: any)[k] = v end
 	return pill
+end
+
+-- ====================================================================
+-- FISH THUMBNAIL (ViewportFrame)
+-- ====================================================================
+-- Clones ReplicatedStorage.Assets.Fish[speciesId] into a ViewportFrame,
+-- scales to fit, applies modifier VFX, and frames a Camera. Used by
+-- InventoryUI, CatchRevealUI, MarketUI.
+
+export type FishThumbResult = {
+	clone: Model?,
+	initPivot: CFrame?,
+}
+
+function UIKit.attachFishThumb(
+	viewport: ViewportFrame,
+	speciesId: string,
+	opts: {
+		modifiers: {string}?,
+		scaleTarget: number?,
+		fieldOfView: number?,
+	}?
+): FishThumbResult
+	opts = opts or {}
+	local mods = opts.modifiers or {}
+	local scaleTarget = opts.scaleTarget or 2.2
+	local fieldOfView = opts.fieldOfView or 40
+
+	for _, child in ipairs(viewport:GetChildren()) do
+		if child:IsA("WorldModel") or child:IsA("Camera") then
+			child:Destroy()
+		end
+	end
+
+	local fishAssets = ReplicatedStorage:FindFirstChild("Assets")
+		and (ReplicatedStorage.Assets :: Instance):FindFirstChild("Fish")
+	local tmpl = fishAssets and fishAssets:FindFirstChild(speciesId)
+	if not tmpl or not tmpl:IsA("Model") then
+		return { clone = nil, initPivot = nil }
+	end
+
+	local wm = Instance.new("WorldModel")
+	wm.Parent = viewport
+	local clone = tmpl:Clone()
+	clone.Parent = wm
+
+	local thumbAnchor: BasePart? = clone.PrimaryPart
+		and clone.PrimaryPart:IsA("BasePart") and (clone.PrimaryPart :: BasePart)
+		or nil
+	if not thumbAnchor then
+		local named = clone:FindFirstChild("body_geom", true)
+		if named and named:IsA("BasePart") then
+			thumbAnchor = named :: BasePart
+		end
+	end
+	if not thumbAnchor then
+		for _, d in ipairs(clone:GetDescendants()) do
+			if d:IsA("BasePart") then
+				thumbAnchor = d :: BasePart
+				break
+			end
+		end
+	end
+
+	if thumbAnchor then
+		local okBB, _pivotBB, ext = pcall(function(): (CFrame, Vector3)
+			return clone:GetBoundingBox()
+		end)
+		if okBB and ext then
+			local maxDim = math.max(ext.X, ext.Y, ext.Z)
+			if maxDim > 0.01 then
+				pcall(function()
+					clone:ScaleTo(scaleTarget / maxDim)
+				end)
+			end
+		end
+		if #mods > 0 then
+			FishMutations.attach(thumbAnchor, mods, { viewport = true, intensity = 1 })
+		end
+	end
+
+	local tcam = Instance.new("Camera")
+	tcam.FieldOfView = fieldOfView
+	viewport.CurrentCamera = tcam
+	tcam.Parent = viewport
+
+	local initPivot: CFrame? = nil
+	local ok, pivot, ext = pcall(function(): (CFrame, Vector3)
+		return clone:GetBoundingBox()
+	end)
+	if ok and pivot then
+		local md = math.max(ext.X, ext.Y, ext.Z)
+		local dist = math.max(md * 1.5, 4)
+		tcam.CFrame = CFrame.lookAt(
+			pivot.Position + Vector3.new(dist * 0.7, dist * 0.4, dist * 0.7),
+			pivot.Position
+		)
+		initPivot = clone:GetPivot()
+	end
+
+	return { clone = clone, initPivot = initPivot }
 end
 
 -- ====================================================================

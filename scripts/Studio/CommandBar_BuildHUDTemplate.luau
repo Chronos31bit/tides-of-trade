@@ -344,7 +344,7 @@ actionTile("RodButton", "⌇", "ROD", P.Sunset, "1", 1).Parent = actionBar
 actionTile("InventoryButton", "▤", "BAG", P.Wood, "2", 2).Parent = actionBar
 actionTile("MarketButton", "$", "MARKET", P.TealLight, "3", 3).Parent = actionBar
 actionTile("AquariumButton", "◉", "AQUARIUM", P.Rare, "4", 4).Parent = actionBar
-actionTile("HarborButton", "▣", "BUILD", P.SunsetDeep, "5", 5).Parent = actionBar
+actionTile("HarborButton", "🔨", "BUILD", P.SunsetDeep, "5", 5).Parent = actionBar
 actionTile("SocialButton", "♥", "CREW", P.Lure, "6", 6).Parent = actionBar
 actionTile("HomeButton", "⌂", "HOME", P.Uncommon, "7", 7).Parent = actionBar
 

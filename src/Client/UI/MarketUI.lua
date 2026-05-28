@@ -1,16 +1,23 @@
 --!strict
 -- MarketUI.lua
--- Browse global listings; buy with one tap. Demand spike banner shows
--- which species pays a premium today. Uses the shared modal shell so
--- the chrome (backdrop / panel / header / close) matches every other
--- modal in the game.
+-- Browse global listings; buy with confirm tap. Demand spike banner at top.
+-- Layout from StarterGuiAssets.MarketUI_Template; behavior wiring only.
+--
+-- MarketService.Client signals (wired in MarketController):
+--   ListingsUpdated(listings) — periodic + post-trade broadcast
+--   DemandRotated(speciesId, multiplier) — daily demand spike rotation
+-- onBuy(listingId) -> MarketService:Buy(listingId)
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local TemplateLoader = require(script.Parent.TemplateLoader)
+local UIKit = require(script.Parent.UIKit)
 local UIUtil = require(script.Parent.UIUtil)
+local FishCatalogRaw = require(ReplicatedStorage.Shared.Config.FishCatalog)
+local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
-local P    = UIUtil.Palette
-local SP   = UIUtil.Spacing
-local RAD  = UIUtil.Radii
-local TYPE = UIUtil.Typography
+local P = UIUtil.Palette
+local M = UIUtil.Modal
 
 local MarketUI = {}
 
@@ -20,162 +27,281 @@ export type MarketHandle = {
 	refresh: (listings: {any}, demand: any) -> (),
 }
 
+local _fishById: {[string]: any} = {}
+for _, f in ipairs(FishCatalogRaw.fish) do
+	_fishById[f.id] = f
+end
+
+local BUY_CONFIRM_W = 168
+local BUY_CONFIRM_TWEEN = TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+local function requireChild(parent: Instance, name: string, className: string): Instance
+	local child = parent:FindFirstChild(name)
+	if not child or not child:IsA(className) then
+		error(`[MarketUI] Missing {className} "{name}" under {parent:GetFullName()}`, 2)
+	end
+	return child
+end
+
 local function titleCase(s: string): string
-	return (s:gsub("_", " "):gsub("(%a)([%w]*)", function(a, b) return a:upper() .. b end))
+	return (s:gsub("_", " "):gsub("(%a)([%w]*)", function(a: string, b: string)
+		return a:upper() .. b
+	end))
+end
+
+local function listingSearchText(listing: any): string
+	local parts: {string} = { listing.sellerName or "" }
+	if listing.itemKind == "Fish" then
+		table.insert(parts, listing.speciesId or "")
+	elseif listing.goodId then
+		table.insert(parts, listing.goodId)
+	end
+	return table.concat(parts, " "):lower()
 end
 
 function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (string) -> ()): MarketHandle
-	local shell
-	shell = UIUtil.makeModalShell({
-		name = "MarketUI",
-		title = "Global Market",
-		onClose = function() if shell then shell.destroy() end end,
-		width = 700,
-		heightScale = 0.88,
-	})
-	local gui  = shell.gui
-	local body = shell.body
+	local reducedMotion = MotionUtil.reducedMotionEnabled()
+	local searchQuery = ""
+	local allListings: {any} = initialListings
+	local lastDemand: any = initialDemand
 
-	-- Demand banner at the top of the body.
-	local demand = Instance.new("Frame")
-	demand.Size = UDim2.new(1, 0, 0, 44)
-	demand.BackgroundColor3 = P.SunsetDeep
-	demand.BorderSizePixel = 0
-	local dc = Instance.new("UICorner"); dc.CornerRadius = UDim.new(0, RAD.md); dc.Parent = demand
-	demand.Parent = body
+	local gui = TemplateLoader.spawn("Market", { instanceName = "MarketUI" })
+	local backdrop = requireChild(gui, "Backdrop", "TextButton") :: TextButton
+	local panel = requireChild(gui, "Panel", "Frame") :: Frame
+	local closeBtn = requireChild(requireChild(panel, "Header", "Frame"), "Close", "TextButton") :: TextButton
+	local body = requireChild(panel, "Body", "Frame") :: Frame
 
-	local dDot = Instance.new("Frame")
-	dDot.BackgroundColor3 = P.Sunset
-	dDot.BorderSizePixel = 0
-	dDot.AnchorPoint = Vector2.new(0, 0.5)
-	dDot.Position = UDim2.new(0, SP.md, 0.5, 0)
-	dDot.Size = UDim2.fromOffset(10, 10)
-	local ddcr = Instance.new("UICorner"); ddcr.CornerRadius = UDim.new(1, 0); ddcr.Parent = dDot
-	dDot.Parent = demand
+	local demandLbl = requireChild(requireChild(body, "DemandBanner", "Frame"), "DemandLabel", "TextLabel") :: TextLabel
+	local searchBox = requireChild(requireChild(body, "SearchRow", "Frame"), "SearchBox", "TextBox") :: TextBox
+	local listingScroll = requireChild(body, "ListingScroll", "ScrollingFrame") :: ScrollingFrame
+	local rowTpl = requireChild(body, "ListingRow_Template", "Frame")
 
-	local demandLbl = UIUtil.makeLabel("Loading demand…", "body", {
-		Position = UDim2.new(0, SP.xl + 6, 0, 0),
-		Size = UDim2.new(1, -(SP.xl + 6 + SP.md), 1, 0),
-		Font = Enum.Font.GothamBold,
-		Parent = demand,
-	})
+	local fadeDuration = M.FadeDuration
+	local slideOffsetPx = M.SlideOffsetPx
+	local meta = gui:FindFirstChild("Meta")
+	if meta and meta:IsA("Folder") then
+		local fadeVal = meta:FindFirstChild("FadeDuration")
+		if fadeVal and fadeVal:IsA("NumberValue") then
+			fadeDuration = fadeVal.Value
+		end
+		local slideVal = meta:FindFirstChild("SlideOffsetPx")
+		if slideVal and slideVal:IsA("NumberValue") then
+			slideOffsetPx = slideVal.Value
+		end
+	end
 
-	-- Listings scroll fills the remainder of the body.
-	local listTop = 44 + SP.md
-	local list = Instance.new("ScrollingFrame")
-	list.BackgroundTransparency = 1
-	list.BorderSizePixel = 0
-	list.Position = UDim2.new(0, 0, 0, listTop)
-	list.Size = UDim2.new(1, 0, 1, -listTop)
-	list.ScrollBarThickness = 6
-	list.ScrollBarImageColor3 = P.TealDeeper
-	list.CanvasSize = UDim2.new(0, 0, 0, 0)
-	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	list.Parent = body
+	local closed = false
+	local restPos = panel.Position
+	local fromPos = UDim2.new(
+		restPos.X.Scale, restPos.X.Offset,
+		restPos.Y.Scale, restPos.Y.Offset + slideOffsetPx
+	)
+	local fadeInfo = TweenInfo.new(fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
-	local layout = Instance.new("UIListLayout")
-	layout.Padding = UDim.new(0, SP.sm)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = list
+	local function destroy()
+		if closed then
+			return
+		end
+		closed = true
+		if gui.Parent then
+			gui:Destroy()
+		end
+	end
+
+	local function clearRows()
+		for _, c in ipairs(listingScroll:GetChildren()) do
+			if c:IsA("Frame") and c ~= rowTpl then
+				c:Destroy()
+			end
+		end
+	end
 
 	local function buildRow(listing: any, i: number)
-		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 64)
-		row.BackgroundColor3 = P.Teal
-		row.BorderSizePixel = 0
+		local row = rowTpl:Clone()
+		row.Name = "Row_" .. (listing.listingId or i)
+		row.Visible = true
 		row.LayoutOrder = i
-		local rc = Instance.new("UICorner"); rc.CornerRadius = UDim.new(0, RAD.md); rc.Parent = row
-		row.Parent = list
+		row.Parent = listingScroll
 
-		local nameText: string
+		local speciesId = listing.speciesId
+		local fishData = speciesId and _fishById[speciesId] or nil
+		local rarity = (fishData and fishData.rarity) or "Common"
+		local rCol = UIUtil.rarityColor(rarity)
+
+		local fishNameLbl = requireChild(row, "FishName", "TextLabel") :: TextLabel
+		local sellerLbl = requireChild(row, "SellerLabel", "TextLabel") :: TextLabel
+		local priceLbl = requireChild(row, "PriceLabel", "TextLabel") :: TextLabel
+		local rarityChip = requireChild(row, "RarityChip", "Frame") :: Frame
+		local rarityLbl = requireChild(rarityChip, "RarityLabel", "TextLabel") :: TextLabel
+		local thumb = requireChild(row, "FishThumb", "ViewportFrame") :: ViewportFrame
+
 		if listing.itemKind == "Fish" then
-			nameText = ("%s · %.1f kg"):format(titleCase(listing.speciesId or "fish"), listing.weightKg or 0)
+			fishNameLbl.Text = ("%s · %.1f kg"):format(titleCase(listing.speciesId or "fish"), listing.weightKg or 0)
+			rarityChip.Visible = true
+			rarityChip.BackgroundColor3 = rCol
+			rarityLbl.Text = rarity:upper()
+			thumb.Visible = true
+			UIKit.attachFishThumb(thumb, listing.speciesId or "", {
+				modifiers = listing.modifiers or {},
+				scaleTarget = 1.8,
+			})
 		else
-			nameText = ("%s · × %d"):format(titleCase(listing.goodId or "Item"), listing.count or 1)
+			fishNameLbl.Text = ("%s · × %d"):format(titleCase(listing.goodId or "Item"), listing.count or 1)
+			rarityChip.Visible = false
+			thumb.Visible = false
 		end
 
-		UIUtil.makeLabel(nameText, "subtitle", {
-			Position = UDim2.new(0, SP.md, 0, SP.sm),
-			Size = UDim2.new(0.55, 0, 0, 22),
-			Font = Enum.Font.GothamBold,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Parent = row,
-		})
+		sellerLbl.Text = "by " .. (listing.sellerName or "Unknown")
+		priceLbl.Text = ("%d coins"):format(listing.price or 0)
 
-		UIUtil.makeLabel("by " .. listing.sellerName, "caption", {
-			Position = UDim2.new(0, SP.md, 0, 30),
-			Size = UDim2.new(0.55, 0, 0, 18),
-			Parent = row,
-		})
+		local buyBtn = requireChild(row, "BuyButton", "TextButton") :: TextButton
+		local buyConfirm = requireChild(row, "BuyConfirm", "Frame")
+		local confirmBtn = requireChild(buyConfirm, "ConfirmBtn", "TextButton") :: TextButton
+		local cancelBtn = requireChild(buyConfirm, "CancelBtn", "TextButton") :: TextButton
+		local confirming = false
 
-		UIUtil.makeLabel(("%d coins"):format(listing.price), "body", {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -120, 0.5, 0),
-			Size = UDim2.fromOffset(120, 26),
-			Font = Enum.Font.GothamBold,
-			TextSize = 18,
-			TextColor3 = P.Gold,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			Parent = row,
-		})
+		local function hideBuyConfirm()
+			confirming = false
+			if MotionUtil.reducedMotionEnabled() then
+				buyConfirm.Visible = false
+				buyConfirm.Size = UDim2.fromOffset(0, UIUtil.MinTouchPx)
+				buyBtn.Visible = true
+			else
+				MotionUtil.tween(buyConfirm, BUY_CONFIRM_TWEEN, { Size = UDim2.fromOffset(0, UIUtil.MinTouchPx) })
+				task.delay(BUY_CONFIRM_TWEEN.Time, function()
+					if buyConfirm.Parent then
+						buyConfirm.Visible = false
+						buyBtn.Visible = true
+					end
+				end)
+			end
+		end
 
-		-- Reserved slot for the future price-history sparkline. Empty for
-		-- now (zero-height); MarketController v2 can mount a graph here
-		-- without restructuring the row.
-		local sparkline = Instance.new("Frame")
-		sparkline.Name = "SparklineSlot"
-		sparkline.BackgroundTransparency = 1
-		sparkline.AnchorPoint = Vector2.new(1, 1)
-		sparkline.Position = UDim2.new(1, -110, 1, -4)
-		sparkline.Size = UDim2.fromOffset(96, 0)
-		sparkline.Parent = row
+		local function showBuyConfirmBar()
+			if confirming then
+				return
+			end
+			confirming = true
+			buyBtn.Visible = false
+			buyConfirm.Visible = true
+			if MotionUtil.reducedMotionEnabled() then
+				buyConfirm.Size = UDim2.fromOffset(BUY_CONFIRM_W, UIUtil.MinTouchPx)
+			else
+				buyConfirm.Size = UDim2.fromOffset(0, UIUtil.MinTouchPx)
+				MotionUtil.tween(buyConfirm, BUY_CONFIRM_TWEEN, {
+					Size = UDim2.fromOffset(BUY_CONFIRM_W, UIUtil.MinTouchPx),
+				})
+			end
+		end
 
-		local buyBtn = UIUtil.makePrimaryButton("Buy", function() onBuy(listing.listingId) end, {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -SP.sm, 0.5, 0),
-			Size = UDim2.fromOffset(96, UIUtil.MinTouchPx),
-		})
-		buyBtn.Parent = row
+		buyBtn.Activated:Connect(showBuyConfirmBar)
+		confirmBtn.Activated:Connect(function()
+			if not confirming then
+				return
+			end
+			hideBuyConfirm()
+			onBuy(listing.listingId)
+		end)
+		cancelBtn.Activated:Connect(function()
+			if not confirming then
+				return
+			end
+			hideBuyConfirm()
+		end)
+	end
+
+	local function filterListings(listings_: {any}): {any}
+		if searchQuery == "" then
+			return listings_
+		end
+		local q = searchQuery:lower()
+		local out: {any} = {}
+		for _, listing in ipairs(listings_) do
+			if string.find(listingSearchText(listing), q, 1, true) then
+				table.insert(out, listing)
+			end
+		end
+		return out
 	end
 
 	local function refresh(listings_: {any}, demand_: any)
-		if demand_ and demand_.speciesId then
-			demandLbl.Text = ("Demand spike: %s pays × %.1f today"):format(titleCase(demand_.speciesId), demand_.multiplier)
+		allListings = listings_
+		if demand_ ~= nil then
+			lastDemand = demand_
+		end
+
+		if lastDemand and lastDemand.speciesId then
+			demandLbl.Text = ("Demand spike: %s pays × %.1f today"):format(
+				titleCase(lastDemand.speciesId),
+				lastDemand.multiplier or 1
+			)
 		else
 			demandLbl.Text = "No demand spike right now."
 		end
 
-		for _, c in ipairs(list:GetChildren()) do
-			if c:IsA("Frame") then c:Destroy() end
-		end
-		if #listings_ == 0 then
-			UIUtil.makeLabel("Market is empty — be the first to list a catch.", "subtitle", {
+		clearRows()
+		local visible = filterListings(listings_)
+		if #visible == 0 then
+			local msg = if #listings_ == 0
+				then "Market is empty — be the first to list a catch."
+				else "No listings match your search."
+			UIUtil.makeLabel(msg, "subtitle", {
 				Size = UDim2.new(1, 0, 0, 60),
 				TextXAlignment = Enum.TextXAlignment.Center,
-				Parent = list,
+				TextColor3 = P.CreamSoft,
+				LayoutOrder = 1,
+				Parent = listingScroll,
 			})
 			return
 		end
-		for i, l in ipairs(listings_) do buildRow(l, i) end
+		for i, listing in ipairs(visible) do
+			buildRow(listing, i)
+		end
 	end
+
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		searchQuery = searchBox.Text
+		refresh(allListings, lastDemand)
+	end)
+
+	local function requestClose()
+		destroy()
+	end
+
+	backdrop.Activated:Connect(requestClose)
+	closeBtn.Activated:Connect(requestClose)
+
+	panel.BackgroundTransparency = 1
+	backdrop.BackgroundTransparency = 1
+	if reducedMotion then
+		panel.Position = restPos
+		panel.BackgroundTransparency = 0
+		backdrop.BackgroundTransparency = M.BackdropAlpha
+	else
+		panel.Position = fromPos
+		MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = M.BackdropAlpha })
+		MotionUtil.tweenOrSnap(panel, fadeInfo, { BackgroundTransparency = 0, Position = restPos })
+	end
+
 	refresh(initialListings, initialDemand)
 
 	return {
 		gui = gui,
-		close = function() shell.destroy() end,
+		close = requestClose,
 		refresh = refresh,
 	}
 end
 
--- Small modal to choose a listing price. Reuses the shared shell so it
--- matches the rest of the chrome.
+-- Small modal to choose a listing price. Still uses runtime modal shell (sell flow).
 function MarketUI.showSellPrompt(suggestedPrice: number, onConfirm: (number) -> (), onCancel: () -> ())
 	local shell
 	shell = UIUtil.makeModalShell({
 		name = "MarketSellPrompt",
 		title = "List on the global market",
 		onClose = function()
-			if shell then shell.destroy() end
+			if shell then
+				shell.destroy()
+			end
 			onCancel()
 		end,
 		width = 440,
@@ -183,6 +309,7 @@ function MarketUI.showSellPrompt(suggestedPrice: number, onConfirm: (number) -> 
 	})
 
 	local body = shell.body
+	local TYPE = UIUtil.Typography
 
 	local input = Instance.new("TextBox")
 	input.PlaceholderText = "Price in coins"
@@ -196,7 +323,9 @@ function MarketUI.showSellPrompt(suggestedPrice: number, onConfirm: (number) -> 
 	input.ClearTextOnFocus = false
 	input.Position = UDim2.new(0, 0, 0, 0)
 	input.Size = UDim2.new(1, 0, 0, 48)
-	local ic = Instance.new("UICorner"); ic.CornerRadius = UDim.new(0, RAD.md); ic.Parent = input
+	local ic = Instance.new("UICorner")
+	ic.CornerRadius = UDim.new(0, UIUtil.Radii.md)
+	ic.Parent = input
 	input.Parent = body
 
 	local btnRow = Instance.new("Frame")

@@ -1,0 +1,1311 @@
+{
+  "ClassName": "ScreenGui",
+  "Properties": {
+    "Enabled": false,
+    "ResetOnSpawn": false,
+    "IgnoreGuiInset": true,
+    "ZIndexBehavior": "Sibling"
+  },
+  "Children": [
+    {
+      "Name": "Meta",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "DisplayOrderKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "Modal"
+          }
+        },
+        {
+          "Name": "ResetOnSpawn",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": false
+          }
+        },
+        {
+          "Name": "IgnoreGuiInset",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": true
+          }
+        },
+        {
+          "Name": "FadeDuration",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 0.18
+          }
+        },
+        {
+          "Name": "SlideOffsetPx",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 16
+          }
+        },
+        {
+          "Name": "MaxSmokehouseSlots",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 10
+          }
+        },
+        {
+          "Name": "SlotGridColumns",
+          "ClassName": "NumberValue",
+          "Properties": {
+            "Value": 4
+          }
+        },
+        {
+          "Name": "ThemeKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "modal-teal"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Backdrop",
+      "ClassName": "TextButton",
+      "Properties": {
+        "Text": "",
+        "AutoButtonColor": false,
+        "BackgroundColor3": [
+          0,
+          0,
+          0
+        ],
+        "BackgroundTransparency": 1,
+        "BorderSizePixel": 0,
+        "Size": {
+          "UDim2": [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "ZIndex": 1,
+        "Selectable": true
+      }
+    },
+    {
+      "Name": "Panel",
+      "ClassName": "Frame",
+      "Properties": {
+        "BackgroundColor3": [
+          0.07058823529411765,
+          0.20392156862745098,
+          0.23529411764705882
+        ],
+        "BorderSizePixel": 0,
+        "AnchorPoint": [
+          0.5,
+          0.5
+        ],
+        "Position": {
+          "UDim2": [
+            [
+              0.5,
+              0
+            ],
+            [
+              0.5,
+              0
+            ]
+          ]
+        },
+        "Size": {
+          "UDim2": [
+            [
+              0.92,
+              0
+            ],
+            [
+              0.88,
+              0
+            ]
+          ]
+        },
+        "ZIndex": 2
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                12
+              ]
+            }
+          }
+        },
+        {
+          "Name": "UIStroke",
+          "ClassName": "UIStroke",
+          "Properties": {
+            "Color": [
+              0.0392156862745098,
+              0.12549019607843137,
+              0.1568627450980392
+            ],
+            "Thickness": 1.5,
+            "Transparency": 0.25,
+            "ApplyStrokeMode": "Border"
+          }
+        },
+        {
+          "Name": "UISizeConstraint",
+          "ClassName": "UISizeConstraint",
+          "Properties": {
+            "MaxSize": [
+              720,
+              100000
+            ]
+          }
+        },
+        {
+          "Name": "Header",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundColor3": [
+              0.0392156862745098,
+              0.12549019607843137,
+              0.1568627450980392
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  56
+                ]
+              ]
+            },
+            "ZIndex": 3
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    12
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "Title",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "Smokehouse",
+                "Font": "GothamBold",
+                "TextSize": 20,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "TextXAlignment": "Left",
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -206
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      16,
+                      0
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "CollectAllButton",
+              "ClassName": "TextButton",
+              "Properties": {
+                "Text": "Collect All",
+                "AutoButtonColor": false,
+                "Font": "GothamBold",
+                "TextSize": 13,
+                "TextColor3": [
+                  0.9568627450980393,
+                  0.9019607843137255,
+                  0.7843137254901961
+                ],
+                "BackgroundColor3": [
+                  0.9098039215686274,
+                  0.5411764705882353,
+                  0.33725490196078434
+                ],
+                "BorderSizePixel": 0,
+                "AnchorPoint": [
+                  1,
+                  0.5
+                ],
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -120
+                    ],
+                    [
+                      0.5,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      120
+                    ],
+                    [
+                      0,
+                      44
+                    ]
+                  ]
+                },
+                "Selectable": true
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        6
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "Name": "CapacityLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Text": "0 / 0",
+                "Font": "GothamBold",
+                "TextSize": 16,
+                "TextColor3": [
+                  0.8627450980392157,
+                  0.7058823529411765,
+                  0.34509803921568627
+                ],
+                "TextXAlignment": "Right",
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      120
+                    ],
+                    [
+                      0,
+                      26
+                    ]
+                  ]
+                },
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -68
+                    ],
+                    [
+                      0.5,
+                      0
+                    ]
+                  ]
+                },
+                "AnchorPoint": [
+                  1,
+                  0.5
+                ]
+              }
+            },
+            {
+              "Name": "Close",
+              "ClassName": "TextButton",
+              "Properties": {
+                "AutoButtonColor": false,
+                "BorderSizePixel": 0,
+                "BackgroundColor3": [
+                  0.0392156862745098,
+                  0.12549019607843137,
+                  0.1568627450980392
+                ],
+                "Text": "X",
+                "Font": "GothamBold",
+                "TextColor3": [
+                  0.8156862745098039,
+                  0.7764705882352941,
+                  0.6980392156862745
+                ],
+                "TextScaled": false,
+                "AnchorPoint": [
+                  1,
+                  0.5
+                ],
+                "Position": {
+                  "UDim2": [
+                    [
+                      1,
+                      -12
+                    ],
+                    [
+                      0.5,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0,
+                      44
+                    ],
+                    [
+                      0,
+                      44
+                    ]
+                  ]
+                },
+                "Selectable": true
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        6
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Name": "Body",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "BorderSizePixel": 0,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  56
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  -56
+                ]
+              ]
+            }
+          },
+          "Children": [
+            {
+              "Name": "UIPadding",
+              "ClassName": "UIPadding",
+              "Properties": {
+                "PaddingLeft": {
+                  "UDim": [
+                    0,
+                    16
+                  ]
+                },
+                "PaddingRight": {
+                  "UDim": [
+                    0,
+                    16
+                  ]
+                },
+                "PaddingTop": {
+                  "UDim": [
+                    0,
+                    16
+                  ]
+                },
+                "PaddingBottom": {
+                  "UDim": [
+                    0,
+                    16
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "SmokeColumn",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0.5,
+                      -8
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                }
+              },
+              "Children": [
+                {
+                  "Name": "ColumnHeader",
+                  "ClassName": "TextLabel",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "Text": "SLOTS",
+                    "Font": "GothamBold",
+                    "TextSize": 14,
+                    "TextColor3": [
+                      0.8156862745098039,
+                      0.7764705882352941,
+                      0.6980392156862745
+                    ],
+                    "TextXAlignment": "Left",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          0
+                        ],
+                        [
+                          0,
+                          22
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0
+                        ]
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "SmokeSlotGrid",
+                  "ClassName": "ScrollingFrame",
+                  "Properties": {
+                    "BackgroundColor3": [
+                      0.14901960784313725,
+                      0.4,
+                      0.43137254901960786
+                    ],
+                    "BorderSizePixel": 0,
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          28
+                        ]
+                      ]
+                    },
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          0
+                        ],
+                        [
+                          1,
+                          -28
+                        ]
+                      ]
+                    },
+                    "ScrollBarThickness": 6,
+                    "ScrollBarImageColor3": [
+                      0.0392156862745098,
+                      0.12549019607843137,
+                      0.1568627450980392
+                    ],
+                    "CanvasSize": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0
+                        ]
+                      ]
+                    },
+                    "AutomaticCanvasSize": "Y",
+                    "ElasticBehavior": "Always"
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            10
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "Name": "UIPadding",
+                      "ClassName": "UIPadding",
+                      "Properties": {
+                        "PaddingTop": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        },
+                        "PaddingBottom": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        },
+                        "PaddingLeft": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        },
+                        "PaddingRight": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "Name": "ListLayout",
+                      "ClassName": "UIListLayout",
+                      "Properties": {
+                        "Padding": {
+                          "UDim": [
+                            0,
+                            6
+                          ]
+                        },
+                        "SortOrder": "LayoutOrder"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "Name": "InventoryColumn",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0.5,
+                      8
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      0.5,
+                      -8
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                }
+              },
+              "Children": [
+                {
+                  "Name": "ColumnHeader",
+                  "ClassName": "TextLabel",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "Text": "INVENTORY (TAP TO SMOKE)",
+                    "Font": "GothamBold",
+                    "TextSize": 14,
+                    "TextColor3": [
+                      0.8156862745098039,
+                      0.7764705882352941,
+                      0.6980392156862745
+                    ],
+                    "TextXAlignment": "Left",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          0
+                        ],
+                        [
+                          0,
+                          22
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0
+                        ]
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "InventorySlotGrid",
+                  "ClassName": "ScrollingFrame",
+                  "Properties": {
+                    "BackgroundColor3": [
+                      0.14901960784313725,
+                      0.4,
+                      0.43137254901960786
+                    ],
+                    "BorderSizePixel": 0,
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          28
+                        ]
+                      ]
+                    },
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          0
+                        ],
+                        [
+                          1,
+                          -28
+                        ]
+                      ]
+                    },
+                    "ScrollBarThickness": 6,
+                    "ScrollBarImageColor3": [
+                      0.0392156862745098,
+                      0.12549019607843137,
+                      0.1568627450980392
+                    ],
+                    "CanvasSize": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0
+                        ]
+                      ]
+                    },
+                    "AutomaticCanvasSize": "Y",
+                    "ElasticBehavior": "Always"
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            10
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "Name": "UIPadding",
+                      "ClassName": "UIPadding",
+                      "Properties": {
+                        "PaddingTop": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        },
+                        "PaddingBottom": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        },
+                        "PaddingLeft": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        },
+                        "PaddingRight": {
+                          "UDim": [
+                            0,
+                            8
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "Name": "GridLayout",
+                      "ClassName": "UIGridLayout",
+                      "Properties": {
+                        "CellSize": {
+                          "UDim2": [
+                            [
+                              0,
+                              108
+                            ],
+                            [
+                              0,
+                              132
+                            ]
+                          ]
+                        },
+                        "CellPadding": {
+                          "UDim2": [
+                            [
+                              0,
+                              8
+                            ],
+                            [
+                              0,
+                              8
+                            ]
+                          ]
+                        },
+                        "FillDirectionMaxCells": 4,
+                        "SortOrder": "LayoutOrder"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "Name": "SmokeSlot_Template",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundColor3": [
+                  0.07058823529411765,
+                  0.20392156862745098,
+                  0.23529411764705882
+                ],
+                "BorderSizePixel": 0,
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0,
+                      72
+                    ]
+                  ]
+                },
+                "Visible": false
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        6
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "ThumbViewport",
+                  "ClassName": "ViewportFrame",
+                  "Properties": {
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          8
+                        ],
+                        [
+                          0,
+                          8
+                        ]
+                      ]
+                    },
+                    "Size": {
+                      "UDim2": [
+                        [
+                          0,
+                          56
+                        ],
+                        [
+                          0,
+                          56
+                        ]
+                      ]
+                    },
+                    "BackgroundColor3": [
+                      0.0392156862745098,
+                      0.12549019607843137,
+                      0.1568627450980392
+                    ],
+                    "BorderSizePixel": 0,
+                    "LightColor": [
+                      0.8823529411764706,
+                      0.9098039215686274,
+                      0.9607843137254902
+                    ],
+                    "LightDirection": [
+                      -1,
+                      -2,
+                      -1
+                    ]
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            6
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "Name": "ProgressRing",
+                  "ClassName": "Frame",
+                  "Properties": {
+                    "BackgroundColor3": [
+                      0.0392156862745098,
+                      0.12549019607843137,
+                      0.1568627450980392
+                    ],
+                    "BorderSizePixel": 0,
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          72
+                        ],
+                        [
+                          0,
+                          44
+                        ]
+                      ]
+                    },
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -156
+                        ],
+                        [
+                          0,
+                          8
+                        ]
+                      ]
+                    }
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            4
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "Name": "ProgressFill",
+                      "ClassName": "Frame",
+                      "Properties": {
+                        "BackgroundColor3": [
+                          0.9098039215686274,
+                          0.5411764705882353,
+                          0.33725490196078434
+                        ],
+                        "BorderSizePixel": 0,
+                        "Size": {
+                          "UDim2": [
+                            [
+                              0,
+                              0
+                            ],
+                            [
+                              1,
+                              0
+                            ]
+                          ]
+                        }
+                      },
+                      "Children": [
+                        {
+                          "Name": "UICorner",
+                          "ClassName": "UICorner",
+                          "Properties": {
+                            "CornerRadius": {
+                              "UDim": [
+                                0,
+                                4
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Name": "EmptyHint",
+                  "ClassName": "TextLabel",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "Text": "Empty",
+                    "Font": "GothamBold",
+                    "TextSize": 12,
+                    "TextColor3": [
+                      0.8156862745098039,
+                      0.7764705882352941,
+                      0.6980392156862745
+                    ],
+                    "TextXAlignment": "Center",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          0,
+                          72
+                        ],
+                        [
+                          0,
+                          20
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0.5,
+                          0
+                        ],
+                        [
+                          0.5,
+                          0
+                        ]
+                      ]
+                    },
+                    "AnchorPoint": [
+                      0.5,
+                      0.5
+                    ]
+                  }
+                },
+                {
+                  "Name": "FishNameLabel",
+                  "ClassName": "TextLabel",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "Text": "Fish",
+                    "Font": "GothamBold",
+                    "TextSize": 12,
+                    "TextColor3": [
+                      0.9568627450980393,
+                      0.9019607843137255,
+                      0.7843137254901961
+                    ],
+                    "TextXAlignment": "Left",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -8
+                        ],
+                        [
+                          0,
+                          16
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          4
+                        ],
+                        [
+                          0,
+                          86
+                        ]
+                      ]
+                    },
+                    "TextTruncate": "AtEnd"
+                  }
+                },
+                {
+                  "Name": "TimeLabel",
+                  "ClassName": "TextLabel",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "Text": "",
+                    "Font": "Gotham",
+                    "TextSize": 12,
+                    "TextColor3": [
+                      0.7843137254901961,
+                      0.47058823529411764,
+                      0.3137254901960784
+                    ],
+                    "TextXAlignment": "Left",
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -8
+                        ],
+                        [
+                          0,
+                          16
+                        ]
+                      ]
+                    },
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          4
+                        ],
+                        [
+                          0,
+                          102
+                        ]
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "ModifierPillStrip",
+                  "ClassName": "Frame",
+                  "Properties": {
+                    "BackgroundTransparency": 1,
+                    "ClipsDescendants": true,
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0,
+                          4
+                        ],
+                        [
+                          0,
+                          102
+                        ]
+                      ]
+                    },
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -8
+                        ],
+                        [
+                          0,
+                          16
+                        ]
+                      ]
+                    }
+                  },
+                  "Children": [
+                    {
+                      "Name": "UIListLayout",
+                      "ClassName": "UIListLayout",
+                      "Properties": {
+                        "FillDirection": "Horizontal",
+                        "Padding": {
+                          "UDim": [
+                            0,
+                            2
+                          ]
+                        },
+                        "VerticalAlignment": "Center"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "Name": "CollectButton",
+                  "ClassName": "TextButton",
+                  "Properties": {
+                    "AutoButtonColor": false,
+                    "Text": "Add",
+                    "Font": "GothamBold",
+                    "TextSize": 12,
+                    "TextColor3": [
+                      0.9568627450980393,
+                      0.9019607843137255,
+                      0.7843137254901961
+                    ],
+                    "BackgroundColor3": [
+                      0.3058823529411765,
+                      0.611764705882353,
+                      0.6352941176470588
+                    ],
+                    "BorderSizePixel": 0,
+                    "Size": {
+                      "UDim2": [
+                        [
+                          1,
+                          -8
+                        ],
+                        [
+                          0,
+                          44
+                        ]
+                      ]
+                    },
+                    "AnchorPoint": [
+                      0.5,
+                      1
+                    ],
+                    "Position": {
+                      "UDim2": [
+                        [
+                          0.5,
+                          0
+                        ],
+                        [
+                          1,
+                          -4
+                        ]
+                      ]
+                    },
+                    "Selectable": true
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            6
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

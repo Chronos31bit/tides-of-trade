@@ -1,0 +1,608 @@
+{
+  "ClassName": "ScreenGui",
+  "Properties": {
+    "Enabled": false,
+    "ResetOnSpawn": false,
+    "IgnoreGuiInset": false,
+    "ZIndexBehavior": "Sibling"
+  },
+  "Children": [
+    {
+      "Name": "Meta",
+      "ClassName": "Folder",
+      "Children": [
+        {
+          "Name": "DisplayOrderKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "CatchReveal"
+          }
+        },
+        {
+          "Name": "ResetOnSpawn",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": false
+          }
+        },
+        {
+          "Name": "RespectTopbar",
+          "ClassName": "BoolValue",
+          "Properties": {
+            "Value": true
+          }
+        },
+        {
+          "Name": "ThemeKey",
+          "ClassName": "StringValue",
+          "Properties": {
+            "Value": "catch-reveal"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "Card",
+      "ClassName": "Frame",
+      "Properties": {
+        "AnchorPoint": [
+          0.5,
+          0
+        ],
+        "Position": {
+          "UDim2": [
+            [
+              0.5,
+              0
+            ],
+            [
+              0,
+              16
+            ]
+          ]
+        },
+        "Size": {
+          "UDim2": [
+            [
+              0,
+              360
+            ],
+            [
+              0,
+              132
+            ]
+          ]
+        },
+        "BackgroundColor3": [
+          0.07058823529411765,
+          0.20392156862745098,
+          0.23529411764705882
+        ],
+        "BorderSizePixel": 0
+      },
+      "Children": [
+        {
+          "Name": "UICorner",
+          "ClassName": "UICorner",
+          "Properties": {
+            "CornerRadius": {
+              "UDim": [
+                0,
+                14
+              ]
+            }
+          }
+        },
+        {
+          "Name": "CardStroke",
+          "ClassName": "UIStroke",
+          "Properties": {
+            "Color": [
+              0.6901960784313725,
+              0.7137254901960784,
+              0.7450980392156863
+            ],
+            "Thickness": 3,
+            "Transparency": 0,
+            "ApplyStrokeMode": "Border"
+          }
+        },
+        {
+          "Name": "DismissButton",
+          "ClassName": "TextButton",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Text": "",
+            "AutoButtonColor": false,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "ZIndex": 5,
+            "Selectable": true
+          }
+        },
+        {
+          "Name": "FishViewport",
+          "ClassName": "ViewportFrame",
+          "Properties": {
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  16
+                ],
+                [
+                  0,
+                  16
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  80
+                ],
+                [
+                  0,
+                  80
+                ]
+              ]
+            },
+            "BackgroundColor3": [
+              0.0392156862745098,
+              0.12549019607843137,
+              0.1568627450980392
+            ],
+            "BorderSizePixel": 0,
+            "LightColor": [
+              0.8823529411764706,
+              0.9098039215686274,
+              0.9607843137254902
+            ],
+            "LightDirection": [
+              -1,
+              -2,
+              -1
+            ]
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    10
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "NameLabel",
+          "ClassName": "TextLabel",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  108
+                ],
+                [
+                  0,
+                  12
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  -120
+                ],
+                [
+                  0,
+                  28
+                ]
+              ]
+            },
+            "Font": "GothamBold",
+            "TextSize": 24,
+            "TextColor3": [
+              0.9568627450980393,
+              0.9019607843137255,
+              0.7843137254901961
+            ],
+            "TextXAlignment": "Left",
+            "TextTruncate": "AtEnd",
+            "Text": "Fish"
+          }
+        },
+        {
+          "Name": "ModifierPillStrip",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  108
+                ],
+                [
+                  0,
+                  64
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  -120
+                ],
+                [
+                  0,
+                  24
+                ]
+              ]
+            }
+          },
+          "Children": [
+            {
+              "Name": "UIListLayout",
+              "ClassName": "UIListLayout",
+              "Properties": {
+                "FillDirection": "Horizontal",
+                "SortOrder": "LayoutOrder",
+                "Padding": {
+                  "UDim": [
+                    0,
+                    4
+                  ]
+                },
+                "VerticalAlignment": "Center"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "CoinPreviewLabel",
+          "ClassName": "TextLabel",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "AnchorPoint": [
+              0,
+              1
+            ],
+            "Position": {
+              "UDim2": [
+                [
+                  0,
+                  108
+                ],
+                [
+                  1,
+                  -14
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  180
+                ],
+                [
+                  0,
+                  22
+                ]
+              ]
+            },
+            "Font": "GothamBold",
+            "TextSize": 16,
+            "TextColor3": [
+              0.8627450980392157,
+              0.7058823529411765,
+              0.34509803921568627
+            ],
+            "TextXAlignment": "Left",
+            "Text": "~0 coins"
+          }
+        },
+        {
+          "Name": "RarityChip",
+          "ClassName": "Frame",
+          "Properties": {
+            "AnchorPoint": [
+              1,
+              1
+            ],
+            "Position": {
+              "UDim2": [
+                [
+                  1,
+                  -14
+                ],
+                [
+                  1,
+                  -14
+                ]
+              ]
+            },
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  96
+                ],
+                [
+                  0,
+                  24
+                ]
+              ]
+            },
+            "BackgroundColor3": [
+              0.6901960784313725,
+              0.7137254901960784,
+              0.7450980392156863
+            ],
+            "BorderSizePixel": 0
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    8
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "Label",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBold",
+                "TextSize": 12,
+                "TextColor3": [
+                  1,
+                  1,
+                  1
+                ],
+                "Text": "COMMON"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "SparkleCommon",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "Visible": false,
+            "ZIndex": 6
+          },
+          "Children": [
+            {
+              "Name": "UIGradient",
+              "ClassName": "UIGradient",
+              "Properties": {
+                "Rotation": 25,
+                "Color": {
+                  "ColorSequence": [
+                    [
+                      0,
+                      [
+                        0.6901960784313725,
+                        0.7137254901960784,
+                        0.7450980392156863
+                      ]
+                    ],
+                    [
+                      1,
+                      [
+                        0.6901960784313725,
+                        0.7137254901960784,
+                        0.7450980392156863
+                      ]
+                    ]
+                  ]
+                },
+                "Transparency": {
+                  "NumberSequence": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      0.5,
+                      0.85
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "SparkleRare",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "Visible": false,
+            "ZIndex": 6
+          },
+          "Children": [
+            {
+              "Name": "UIGradient",
+              "ClassName": "UIGradient",
+              "Properties": {
+                "Rotation": 25,
+                "Color": {
+                  "ColorSequence": [
+                    [
+                      0,
+                      [
+                        0.37254901960784315,
+                        0.6470588235294118,
+                        0.9411764705882353
+                      ]
+                    ],
+                    [
+                      1,
+                      [
+                        0.37254901960784315,
+                        0.6470588235294118,
+                        0.9411764705882353
+                      ]
+                    ]
+                  ]
+                },
+                "Transparency": {
+                  "NumberSequence": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      0.5,
+                      0.85
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "SparkleLegendary",
+          "ClassName": "Frame",
+          "Properties": {
+            "BackgroundTransparency": 1,
+            "Size": {
+              "UDim2": [
+                [
+                  1,
+                  0
+                ],
+                [
+                  1,
+                  0
+                ]
+              ]
+            },
+            "Visible": false,
+            "ZIndex": 6
+          },
+          "Children": [
+            {
+              "Name": "UIGradient",
+              "ClassName": "UIGradient",
+              "Properties": {
+                "Rotation": 25,
+                "Color": {
+                  "ColorSequence": [
+                    [
+                      0,
+                      [
+                        0.9607843137254902,
+                        0.7058823529411765,
+                        0.29411764705882354
+                      ]
+                    ],
+                    [
+                      1,
+                      [
+                        0.9607843137254902,
+                        0.7058823529411765,
+                        0.29411764705882354
+                      ]
+                    ]
+                  ]
+                },
+                "Transparency": {
+                  "NumberSequence": [
+                    [
+                      0,
+                      1
+                    ],
+                    [
+                      0.5,
+                      0.85
+                    ],
+                    [
+                      1,
+                      1
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

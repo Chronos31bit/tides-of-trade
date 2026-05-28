@@ -100,20 +100,27 @@ function HarborEditController:_open()
 	HarborService:GetBuildingCatalog():andThen(function(catalog)
 		self._catalog = catalog
 		self._active = true
-		-- Hide the HUD while editing — the build palette and action bar
-		-- both anchor to the bottom of the screen and were overlapping.
+		local ok, handle = pcall(function()
+			return HarborEditUI.show(catalog,
+				function(kind) self:_selectKind(kind) end,
+				function()
+					self._rotation = (self._rotation + 90) % 360
+					if self._ui then self._ui.setRotationHint(self._rotation) end
+				end,
+				function() self:_confirm() end,
+				function() self:_toggleDemolish() end,
+				function() self:_toggleUpgrade() end,
+				function() self:_close() end
+			)
+		end)
+		if not ok then
+			self._active = false
+			warn("[HarborEdit] UI failed:", handle)
+			return
+		end
+		self._ui = handle
+		-- Hide HUD only after build UI is live (palette overlaps action bar).
 		Knit.GetController("HUDController"):SetVisible(false)
-		self._ui = HarborEditUI.show(catalog,
-			function(kind) self:_selectKind(kind) end,
-			function()
-				self._rotation = (self._rotation + 90) % 360
-				if self._ui then self._ui.setRotationHint(self._rotation) end
-			end,
-			function() self:_confirm() end,
-			function() self:_toggleDemolish() end,
-			function() self:_toggleUpgrade() end,
-			function() self:_close() end
-		)
 		-- One Highlight Instance shared by demolish + upgrade hover. We just
 		-- re-tint it on mode change so we don't pay for two of them. Parented
 		-- to Workspace because Highlights must descend from Workspace or
