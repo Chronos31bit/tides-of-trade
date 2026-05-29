@@ -557,6 +557,13 @@ GameConfig.UI = {
 		SlideOffsetPx    = 24,   -- panel slides up on open (skipped under ReducedMotion)
 	},
 
+	-- Audio attribution modal (CreditsUI), opened from the Settings hub.
+	-- Width / padding / fade / slide / backdrop all reuse UI.Modal tokens;
+	-- only the fixed panel height is unique to this screen.
+	CreditsModal = {
+		MaxHeightPx = 460,   -- fits the 720px design height with margin; list scrolls past this
+	},
+
 	-- Catch reveal card — top edge aligns with HUD Wallet top (Wallet Position Y).
 	CatchReveal = {
 		RestTopOffsetPx        = 16,   -- fallback when HUD Wallet not mounted yet
@@ -576,6 +583,7 @@ GameConfig.UI = {
 		CastMeter    = 30,  -- fishing overlay (above HUD, below modals)
 		Notification = 31,  -- bottom-center toast stack (above cast thumb)
 		Modal        = 40,  -- Inventory, Market, Harbor, Rod, Bait, Aquarium, Shop, Social
+		Credits      = 41,  -- audio attribution modal, opened from the Settings panel (above it)
 		CatchReveal  = 50,  -- celebration overlay above all modals
 		Tutorial     = 60,  -- highlight overlay, sits above everything
 		Admin        = 70,  -- admin weather / dev tools (above tutorial)

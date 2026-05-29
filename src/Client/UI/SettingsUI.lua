@@ -6,9 +6,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig    = require(ReplicatedStorage.Shared.Config.GameConfig)
-local CreditsConfig = require(ReplicatedStorage.Shared.Config.CreditsConfig)
 local MotionUtil    = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local TemplateLoader = require(script.Parent.TemplateLoader)
+local CreditsUI     = require(script.Parent.CreditsUI)
 local UIKit         = require(script.Parent.UIKit)
 
 local SettingsUI = {}
@@ -130,32 +130,26 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 	end
 	refreshModes()
 
-	for i, entry in ipairs(CreditsConfig) do
-		local nameLbl = UIKit.Label(
-			string.format("%s — %s", entry.title, entry.author),
-			"body",
-			{
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				TextWrapped = true,
-				LayoutOrder = i * 10,
-			}
-		)
-		nameLbl.Parent = creditsBody
-
-		local licLine = entry.license
-		local url = entry.sourceUrl or entry.licenseUrl
-		if url then
-			licLine = string.format("%s  •  %s", entry.license, url)
+	-- Credits live in a dedicated modal (CreditsUI) so the attribution gets a
+	-- full, readable screen instead of a cramped row inside this scroll. The
+	-- modal is created lazily on first open; the Settings hub owns its lifecycle
+	-- (hidden when this panel hides, destroyed in destroy()).
+	local creditsModal: CreditsUI.Handle? = nil
+	local function openCredits()
+		if not creditsModal then
+			creditsModal = CreditsUI.create()
 		end
-		local licLbl = UIKit.Label(licLine, "caption", {
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			TextWrapped = true,
-			LayoutOrder = i * 10 + 1,
-		})
-		licLbl.Parent = creditsBody
+		local modal = creditsModal :: CreditsUI.Handle
+		modal.show()
 	end
+
+	local creditsButton = UIKit.Button("Audio credits", {
+		variant = "secondary",
+		onClick = openCredits,
+		Size = UDim2.new(1, 0, 0, UIKit.MinTouchPx),
+		LayoutOrder = 1,
+	})
+	creditsButton.Parent = creditsBody
 
 	local isOpen = false
 	local closed = false
@@ -174,6 +168,9 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 	local function hide()
 		if not isOpen or closed then return end
 		isOpen = false
+		-- Close the credits modal with the hub so it can't linger on its own
+		-- (higher) layer after the panel that opened it is gone.
+		if creditsModal then creditsModal.hide() end
 		if UIKit.reducedMotion() then
 			finishClose()
 			return
@@ -213,6 +210,10 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 		hide = hide,
 		destroy = function()
 			closed = true
+			if creditsModal then
+				creditsModal.destroy()
+				creditsModal = nil
+			end
 			if gui.Parent then gui:Destroy() end
 		end,
 		setMuted = function(muted: boolean)
