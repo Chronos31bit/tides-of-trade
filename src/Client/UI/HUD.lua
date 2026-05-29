@@ -40,7 +40,7 @@ export type HUDController = {
 	rodChipStroke: UIStroke,
 	rodChipValue: TextLabel,
 
-	-- Settings gear (top-right, under the status column). Opens SettingsUI.
+	-- Settings gear (bottom-right corner, clear of the QuestTracker tab). Opens SettingsUI.
 	settingsButton: TextButton,
 
 	-- Action bar
@@ -104,15 +104,15 @@ function HUD.create(): HUDController
 	UIKit.skinActionButton(homeButton, P.Uncommon)
 
 	-- Settings gear. Built in code (not in the template) so it's one self-
-	-- contained block. Anchored top-right, tucked just under StatusColumn —
-	-- position derived from the column's own size so template tweaks don't
-	-- strand it. 44px hit target; skinned like the action bar.
+	-- contained block. Anchored bottom-right corner with symmetric margins;
+	-- the centered ActionBar clears it on portrait. 44px hit target; skinned
+	-- like the action bar.
 	local settingsButton = Instance.new("TextButton")
 	settingsButton.Name = "SettingsButton"
-	settingsButton.AnchorPoint = Vector2.new(1, 0)
+	settingsButton.AnchorPoint = Vector2.new(1, 1)
 	settingsButton.Position = UDim2.new(
-		1, statusCol.Position.X.Offset,
-		0, statusCol.Position.Y.Offset + statusCol.Size.Y.Offset + UIKit.Spacing.sm
+		1, -UIKit.Spacing.md,
+		1, -UIKit.Spacing.md
 	)
 	settingsButton.Size = UDim2.fromOffset(UIKit.MinTouchPx, UIKit.MinTouchPx)
 	settingsButton.AutoButtonColor = false
