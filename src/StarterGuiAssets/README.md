@@ -131,6 +131,14 @@ Tunable numbers (colors, spacing, font sizes, modal widths) stay in `GameConfig.
 - **Runtime:** `ShopUI.show()` clones via `TemplateLoader.spawn("Shop", { instanceName = "ShopUI" })`; rows clone `ShopRow_Template` (`NameLabel`, `DescriptionLabel`, `PriceLabel`, `BuyButton`).
 - **Meta:** `DisplayOrderKey = "Modal"`, `ThemeKey = "modal-teal"`. Colors applied at spawn via `UIKit.applySpawnedChrome` / `applyCardStyle`.
 
+## Settings
+
+- **Canonical Rojo source:** `SettingsUI_Template.model.json`.
+- **Studio rebuild:** run `scripts/Studio/CommandBar_BuildSettingsUITemplate.luau` in the command bar (or `python scripts/gen_settings_template.py` to regenerate `.model.json`).
+- **Runtime:** `SettingsUI.create()` clones via `TemplateLoader.spawn("Settings", { instanceName = "SettingsUI" })`; slider/toggle mount into template mounts; motion mode uses `Mode_auto` / `Mode_off` / `Mode_reduced` buttons; credits from `CreditsConfig`.
+- **Layout:** compact panel **anchored bottom-right** (`GameConfig.UI.SettingsHub` margin/size), not a centered fullscreen modal.
+- **Meta:** `DisplayOrderKey = "Modal"`, `ResetOnSpawn = false`, `IgnoreGuiInset = true`, `FadeDuration` / `SlideOffsetPx` for open tween.
+
 ## Admin weather
 
 - **Canonical Rojo source:** `AdminWeatherUI_Template.model.json`.
