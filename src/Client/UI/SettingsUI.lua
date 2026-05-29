@@ -1,17 +1,14 @@
 --!strict
 -- SettingsUI.lua
--- The Settings hub modal. Three collapsible sections — Audio, Motion, Credits —
--- stacked in a scrolling body inside UIKit.ModalShell. Pure presentation: it
--- reports user intent via the callbacks passed to create() and reflects
--- server/profile state via the returned handle's setters. SettingsController
--- owns the wiring; this module never touches SoundController/persistence directly.
---
--- All sizing/color/font come from UIKit tokens — no inline literals.
+-- Settings hub: bottom-right panel from SettingsUI_Template. Audio, Motion, Credits.
+-- Pure presentation — callbacks report intent; SettingsController owns wiring.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig    = require(ReplicatedStorage.Shared.Config.GameConfig)
 local CreditsConfig = require(ReplicatedStorage.Shared.Config.CreditsConfig)
+local MotionUtil    = require(ReplicatedStorage.Shared.Util.MotionUtil)
+local TemplateLoader = require(script.Parent.TemplateLoader)
 local UIKit         = require(script.Parent.UIKit)
 
 local SettingsUI = {}
@@ -20,8 +17,6 @@ export type Callbacks = {
 	onMuteChanged: ((muted: boolean) -> ())?,
 	onMasterVolume: ((volume: number) -> ())?,
 	onMotionMode: ((mode: string) -> ())?,
-	-- Fired whenever the modal closes (backdrop tap, X button, or hide()),
-	-- so the owner can keep its open/closed state in sync.
 	onClosed: (() -> ())?,
 }
 
@@ -29,77 +24,61 @@ export type Handle = {
 	show: () -> (),
 	hide: () -> (),
 	destroy: () -> (),
-	-- Reflect authoritative (profile) state in the controls, without firing callbacks.
 	setMuted: (muted: boolean) -> (),
 	setMasterVolume: (volume: number) -> (),
 	setMotionMode: (mode: string) -> (),
 }
 
--- Display labels for the motion-mode segmented control. Order is intentional:
--- Auto first (the default / recommended), then the two explicit overrides.
 local MOTION_OPTIONS = {
 	{ mode = "auto", label = "Auto" },
 	{ mode = "off", label = "Always Off" },
 	{ mode = "reduced", label = "Always Reduced" },
 }
 
+local function req(parent: Instance, name: string, className: string): Instance
+	local child = parent:FindFirstChild(name)
+	if not child or not child:IsA(className) then
+		error(`[SettingsUI] Missing {className} "{name}" under {parent:GetFullName()}`, 2)
+	end
+	return child
+end
+
 function SettingsUI.create(callbacks: Callbacks?): Handle
 	local cb = callbacks or {}
 	local P = UIKit.Palette
+	local H = GameConfig.UI.SettingsHub
 
-	local shell
-	shell = UIKit.ModalShell({
-		name = "Settings",
-		title = "Settings",
-		-- Reusable: closing hides the GUI instead of destroying it, so the
-		-- controller can re-open the same instance with state preserved.
-		onClose = function()
-			if shell then shell.gui.Enabled = false end
-			if cb.onClosed then cb.onClosed() end
-		end,
-	})
+	local gui = TemplateLoader.spawn("Settings", { instanceName = "SettingsUI" })
+	local backdrop = req(gui, "Backdrop", "TextButton") :: TextButton
+	local panel = req(gui, "Panel", "Frame") :: Frame
+	local closeBtn = req(req(panel, "Header", "Frame"), "Close", "TextButton") :: TextButton
+	local sections = req(req(panel, "Body", "Frame"), "Sections", "ScrollingFrame") :: ScrollingFrame
 
-	-- Scrolling container so the sections fit any phone height.
-	local scroll = Instance.new("ScrollingFrame")
-	scroll.Name = "Sections"
-	scroll.BackgroundTransparency = 1
-	scroll.BorderSizePixel = 0
-	scroll.Size = UDim2.fromScale(1, 1)
-	scroll.CanvasSize = UDim2.new()
-	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	scroll.ScrollBarThickness = 6
-	scroll.ScrollBarImageColor3 = P.BorderMid
-	scroll.ScrollingDirection = Enum.ScrollingDirection.Y
-	scroll.Parent = shell.body
+	local audioBody = req(req(sections, "AudioSection", "Frame"), "AudioBody", "Frame") :: Frame
+	local sliderMount = req(audioBody, "VolumeSliderMount", "Frame") :: Frame
+	local muteMount = req(audioBody, "MuteToggleMount", "Frame") :: Frame
 
-	local list = Instance.new("UIListLayout")
-	list.FillDirection = Enum.FillDirection.Vertical
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Padding = UDim.new(0, UIKit.Spacing.md)
-	list.Parent = scroll
+	local motionBody = req(req(sections, "MotionSection", "Frame"), "MotionBody", "Frame") :: Frame
+	local modeRow = req(motionBody, "ModeRow", "Frame") :: Frame
+	local creditsBody = req(req(sections, "CreditsSection", "Frame"), "CreditsBody", "Frame") :: Frame
 
-	-- Keep cards clear of the scrollbar.
-	local scrollPad = Instance.new("UIPadding")
-	scrollPad.PaddingRight = UDim.new(0, UIKit.Spacing.sm)
-	scrollPad.Parent = scroll
+	local fadeDuration = H.FadeDuration
+	local slideOffsetPx = H.SlideOffsetPx
+	local meta = gui:FindFirstChild("Meta")
+	if meta and meta:IsA("Folder") then
+		local fadeVal = meta:FindFirstChild("FadeDuration")
+		if fadeVal and fadeVal:IsA("NumberValue") then
+			fadeDuration = fadeVal.Value
+		end
+		local slideVal = meta:FindFirstChild("SlideOffsetPx")
+		if slideVal and slideVal:IsA("NumberValue") then
+			slideOffsetPx = slideVal.Value
+		end
+	end
 
-	-- ---------------------------------------------------------------
-	-- AUDIO
-	-- ---------------------------------------------------------------
-	local audio = UIKit.CollapsibleCard({
-		title = "Audio",
-		startOpen = true,
-		LayoutOrder = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-	})
-	audio.card.Parent = scroll
-
-	local volLabel = UIKit.Label("Master volume", "body", {
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		LayoutOrder = 0,
-	})
-	volLabel.Parent = audio.body
+	panel.AnchorPoint = Vector2.new(1, 1)
+	panel.Position = UDim2.new(1, -H.MarginPx, 1, -H.MarginPx)
+	panel.Size = UDim2.fromOffset(H.PanelWidthPx, H.PanelHeightPx)
 
 	local slider = UIKit.Slider({
 		value = GameConfig.Settings.DefaultMasterVolume,
@@ -109,9 +88,9 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 		onChanged = function(v)
 			if cb.onMasterVolume then cb.onMasterVolume(v) end
 		end,
-		LayoutOrder = 1,
+		LayoutOrder = 0,
 	})
-	slider.frame.Parent = audio.body
+	slider.frame.Parent = sliderMount
 
 	local muteToggle = UIKit.Toggle({
 		label = "Mute all sound",
@@ -119,46 +98,9 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 		onChanged = function(on)
 			if cb.onMuteChanged then cb.onMuteChanged(on) end
 		end,
-		LayoutOrder = 2,
+		LayoutOrder = 0,
 	})
-	muteToggle.frame.Parent = audio.body
-
-	-- ---------------------------------------------------------------
-	-- MOTION
-	-- ---------------------------------------------------------------
-	local motion = UIKit.CollapsibleCard({
-		title = "Motion",
-		startOpen = true,
-		LayoutOrder = 2,
-		Size = UDim2.new(1, 0, 0, 0),
-	})
-	motion.card.Parent = scroll
-
-	local motionHint = UIKit.Label(
-		"Reduce on-screen animation. Auto follows your device's accessibility setting.",
-		"caption",
-		{
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			TextWrapped = true,
-			LayoutOrder = 0,
-		}
-	)
-	motionHint.Parent = motion.body
-
-	local segRow = Instance.new("Frame")
-	segRow.Name = "ModeRow"
-	segRow.BackgroundTransparency = 1
-	segRow.BorderSizePixel = 0
-	segRow.Size = UDim2.new(1, 0, 0, UIKit.MinTouchPx)
-	segRow.LayoutOrder = 1
-	segRow.Parent = motion.body
-
-	local segLayout = Instance.new("UIListLayout")
-	segLayout.FillDirection = Enum.FillDirection.Horizontal
-	segLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	segLayout.Padding = UDim.new(0, UIKit.Spacing.sm)
-	segLayout.Parent = segRow
+	muteToggle.frame.Parent = muteMount
 
 	local selectedMode = GameConfig.Settings.DefaultMotionMode
 	local modeButtons: { [string]: TextButton } = {}
@@ -168,60 +110,25 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 			local on = (mode == selectedMode)
 			btn.BackgroundColor3 = if on then P.Mint else P.Parchment
 			btn.TextColor3 = if on then P.Cream else P.InkSoft
-			local stroke = btn:FindFirstChildOfClass("UIStroke")
-			if stroke then
-				stroke.Color = if on then P.MintDark else P.BorderMid
+			local s = btn:FindFirstChildOfClass("UIStroke")
+			if s then
+				s.Color = if on then P.MintDark else P.BorderMid
 			end
 		end
 	end
 
-	-- Segmented buttons are plain TextButtons (token-styled) rather than
-	-- UIKit.Button so we fully own the selected/unselected colors — UIKit.Button's
-	-- hover feedback would fight the persistent selected tint.
-	for i, opt in ipairs(MOTION_OPTIONS) do
-		local btn = Instance.new("TextButton")
-		btn.Name = "Mode_" .. opt.mode
-		btn.AutoButtonColor = false
-		btn.BorderSizePixel = 0
-		btn.Size = UDim2.new(1 / #MOTION_OPTIONS, -UIKit.Spacing.sm, 1, 0)
-		btn.Font = UIKit.Typography.caption.font
-		btn.TextSize = math.max(UIKit.Typography.caption.size, UIKit.MinFontPx)
-		btn.Text = opt.label
-		btn.TextWrapped = true
-		btn.LayoutOrder = i
-		btn.Parent = segRow
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, UIKit.Radii.md)
-		corner.Parent = btn
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 1.2
-		stroke.Transparency = 0.25
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Parent = btn
-
-		local mode = opt.mode
-		btn.Activated:Connect(function()
-			selectedMode = mode
-			refreshModes()
-			if cb.onMotionMode then cb.onMotionMode(mode) end
-		end)
-
-		modeButtons[mode] = btn
+	for _, opt in ipairs(MOTION_OPTIONS) do
+		local btn = modeRow:FindFirstChild("Mode_" .. opt.mode)
+		if btn and btn:IsA("TextButton") then
+			modeButtons[opt.mode] = btn
+			btn.Activated:Connect(function()
+				selectedMode = opt.mode
+				refreshModes()
+				if cb.onMotionMode then cb.onMotionMode(opt.mode) end
+			end)
+		end
 	end
 	refreshModes()
-
-	-- ---------------------------------------------------------------
-	-- CREDITS  (schema-driven from CreditsConfig — adding an entry is one line)
-	-- ---------------------------------------------------------------
-	local credits = UIKit.CollapsibleCard({
-		title = "Credits",
-		startOpen = true,
-		LayoutOrder = 3,
-		Size = UDim2.new(1, 0, 0, 0),
-	})
-	credits.card.Parent = scroll
 
 	for i, entry in ipairs(CreditsConfig) do
 		local nameLbl = UIKit.Label(
@@ -234,10 +141,8 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 				LayoutOrder = i * 10,
 			}
 		)
-		nameLbl.Parent = credits.body
+		nameLbl.Parent = creditsBody
 
-		-- License + link. Roblox can't reliably open URLs in a normal experience,
-		-- so the link renders as readable text — sufficient for CC BY attribution.
 		local licLine = entry.license
 		local url = entry.sourceUrl or entry.licenseUrl
 		if url then
@@ -249,16 +154,67 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 			TextWrapped = true,
 			LayoutOrder = i * 10 + 1,
 		})
-		licLbl.Parent = credits.body
+		licLbl.Parent = creditsBody
 	end
 
-	-- Start hidden; the controller shows it when the HUD gear is tapped.
-	shell.close()
+	local isOpen = false
+	local closed = false
+	local restPos = panel.Position
+	local fromPos = UDim2.new(
+		restPos.X.Scale, restPos.X.Offset,
+		restPos.Y.Scale, restPos.Y.Offset + slideOffsetPx
+	)
+	local fadeInfo = TweenInfo.new(fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+	local function finishClose()
+		gui.Enabled = false
+		if cb.onClosed then cb.onClosed() end
+	end
+
+	local function hide()
+		if not isOpen or closed then return end
+		isOpen = false
+		if UIKit.reducedMotion() then
+			finishClose()
+			return
+		end
+		MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = 1 })
+		MotionUtil.tweenOrSnap(panel, fadeInfo, {
+			BackgroundTransparency = 1,
+			Position = fromPos,
+		})
+		task.delay(fadeDuration, finishClose)
+	end
+
+	local function show()
+		if isOpen or closed then return end
+		isOpen = true
+		panel.BackgroundTransparency = 1
+		backdrop.BackgroundTransparency = 1
+		gui.Enabled = true
+		if UIKit.reducedMotion() then
+			panel.Position = restPos
+			panel.BackgroundTransparency = 0
+			backdrop.BackgroundTransparency = H.BackdropAlpha
+		else
+			panel.Position = fromPos
+			MotionUtil.tweenOrSnap(backdrop, fadeInfo, { BackgroundTransparency = H.BackdropAlpha })
+			MotionUtil.tweenOrSnap(panel, fadeInfo, { BackgroundTransparency = 0, Position = restPos })
+		end
+	end
+
+	backdrop.Activated:Connect(hide)
+	closeBtn.Activated:Connect(hide)
+
+	gui.Enabled = false
 
 	return {
-		show = function() shell.open() end,
-		hide = function() shell.close() end,
-		destroy = function() shell.destroy() end,
+		show = show,
+		hide = hide,
+		destroy = function()
+			closed = true
+			if gui.Parent then gui:Destroy() end
+		end,
 		setMuted = function(muted: boolean)
 			muteToggle.set(muted)
 		end,

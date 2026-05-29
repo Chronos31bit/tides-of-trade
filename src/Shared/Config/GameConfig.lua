@@ -547,6 +547,16 @@ GameConfig.UI = {
 		BodyPaddingPx  = 16,    -- inner padding from panel edge to body content
 	},
 
+	-- Settings hub — compact panel anchored bottom-right (not centered modal).
+	SettingsHub = {
+		PanelWidthPx     = 360,
+		PanelHeightPx    = 520,
+		MarginPx         = 16,   -- inset from bottom-right viewport corner
+		BackdropAlpha    = 0.45,
+		FadeDuration     = 0.18,
+		SlideOffsetPx    = 24,   -- panel slides up on open (skipped under ReducedMotion)
+	},
+
 	-- Catch reveal card — top edge aligns with HUD Wallet top (Wallet Position Y).
 	CatchReveal = {
 		RestTopOffsetPx        = 16,   -- fallback when HUD Wallet not mounted yet
