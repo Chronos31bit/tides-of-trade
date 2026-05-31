@@ -43,6 +43,26 @@ GameConfig.Biomes = {
 	Reef       = "Reef",        -- mid-game, more variety
 	DeepWater  = "DeepWater",   -- requires boat/dock tier 2+
 	Trench     = "Trench",      -- end-game, mythics only at high tide
+
+	-- Authoritative dock-tier access map. The server gates which biome band a
+	-- player may actually roll fish from by their Dock building tier, so deep
+	-- bands cannot be reached by swimming or teleport-spoofing into the zone.
+	-- FishingService._getContext reads this and silently downgrades the
+	-- resolved biome to the highest band the player's dock tier unlocks.
+	-- Pier is harbor-adjacent → tier 1 (it resolves as Shoreline in practice,
+	-- but is listed so the map is total over the biome keys above).
+	DockTierRequired = {
+		Shoreline = 1,
+		Pier      = 1,
+		Reef      = 1,
+		DeepWater = 2,
+		Trench    = 3,
+	},
+
+	-- Canonical shallow → deep band order. Used by the dock-tier fallback to
+	-- pick the *highest* band a player is allowed without ever resolving to a
+	-- band deeper than the one they are physically standing in.
+	BandOrder = { "Shoreline", "Pier", "Reef", "DeepWater", "Trench" },
 }
 
 -- ====================================================================
