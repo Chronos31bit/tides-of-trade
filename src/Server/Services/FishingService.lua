@@ -352,6 +352,33 @@ function FishingService:_getContext(player: Player): {biome: string, timeOfDay: 
 		end
 	end
 
+	-- Biome fallback: deep bands silently downgrade to the highest unlocked
+	-- biome when dock tier is insufficient. This closes the swim/spoof bypass
+	-- without a failure state. Dock tier is read from the player's Dock building
+	-- (default 1 — the inherited rundown dock — when no Dock record exists).
+	local dockRequired = GameConfig.Biomes.DockTierRequired[biome]
+	if dockRequired and dockRequired > 1 then
+		local dockTier = 1
+		for _, b in ipairs(data.buildings or {}) do
+			local t = b.tier or 1
+			if b.kind == "Dock" and t > dockTier then
+				dockTier = t
+			end
+		end
+		if dockTier < dockRequired then
+			local order = GameConfig.Biomes.BandOrder
+			local resolvedIdx = table.find(order, biome) or 1
+			local allowed = order[1]  -- Shoreline floor (always tier 1)
+			for i = 1, resolvedIdx do
+				local band = order[i]
+				if (GameConfig.Biomes.DockTierRequired[band] or 1) <= dockTier then
+					allowed = band
+				end
+			end
+			biome = allowed
+		end
+	end
+
 	local rareMul = 1.0
 	if data.activeBuff then
 		if os.time() < data.activeBuff.expiresAt then
