@@ -10,45 +10,12 @@
 -- Studio templates: see assets/weather/README.md
 
 local GuiService        = game:GetService("GuiService")
-local HttpService       = game:GetService("HttpService")
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService        = game:GetService("RunService")
 local TweenService      = game:GetService("TweenService")
 local Workspace         = game:GetService("Workspace")
 local Lighting          = game:GetService("Lighting")
-
--- #region agent log
-local DEBUG_SESSION = "f637f8"
-local DEBUG_ENDPOINT = "http://127.0.0.1:7254/ingest/6b09c600-dbca-439f-aa5a-b1441cfb072e"
-local function agentLog(hypothesisId: string, location: string, message: string, data: {[string]: any}?)
-	local payload = {
-		sessionId = DEBUG_SESSION,
-		hypothesisId = hypothesisId,
-		location = location,
-		message = message,
-		data = data,
-		timestamp = DateTime.now().UnixTimestampMillis,
-	}
-	local okEncode, body = pcall(function()
-		return HttpService:JSONEncode(payload)
-	end)
-	if okEncode and body then
-		print("[DEBUG:f637f8]", body)
-		task.defer(function()
-			pcall(function()
-				HttpService:PostAsync(
-					DEBUG_ENDPOINT,
-					body,
-					Enum.HttpContentType.ApplicationJson,
-					false,
-					{ ["X-Debug-Session-Id"] = DEBUG_SESSION }
-				)
-			end)
-		end)
-	end
-end
--- #endregion
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local Trove      = require(ReplicatedStorage.Packages.Trove)
@@ -67,7 +34,6 @@ local ATTR_WEATHER = GameConfig.Weather.WorkspaceAttribute
 local LIGHTNING_CC_NAME = "TidesLightningFlash"
 local RAIN_FIELD_NAME = "WorldFX_RainField"
 local FOG_FIELD_NAME = "WorldFX_FogField"
-local RAIN_DEBUG_ATTR = "TidesRainDebug"
 -- Bump when rain field layout/texture changes so Play Solo rebuilds instead of reusing invisible emitters.
 local RAIN_FIELD_REVISION = 5
 
@@ -115,15 +81,6 @@ local function rainTextureId(): string
 		return RAIN_CFG.PlaceholderTextureId
 	end
 	return RAIN_CFG.FallbackTextureId or "rbxasset://textures/particles/smoke_main.dds"
-end
-
-local function publishRainDebug(payload: {[string]: any})
-	local ok, encoded = pcall(function()
-		return HttpService:JSONEncode(payload)
-	end)
-	if ok and encoded then
-		Workspace:SetAttribute(RAIN_DEBUG_ATTR, encoded)
-	end
 end
 
 local function applyRainEmitterShape(emitter: ParticleEmitter)
@@ -301,7 +258,6 @@ function WorldFXController:_tearDownRain()
 	self._rainGridCenter = Vector3.zero
 	self._rainKind = ""
 	self._rainRevision = 0
-	Workspace:SetAttribute(RAIN_DEBUG_ATTR, nil)
 end
 
 function WorldFXController:_rainCellCount(): number
@@ -341,13 +297,6 @@ function WorldFXController:_tuneRainEmitter(emitter: ParticleEmitter, perCellRat
 	applyRainTutorialStyle(emitter)
 	local spread = RAIN_CFG.EmitterSpreadAngle or self._baseSpread
 	emitter.SpreadAngle = if reduced then Vector2.new(0, 0) else spread
-	-- #region agent log
-	agentLog("H6", "WorldFXController:_tuneRainEmitter", "texture", {
-		texture = emitter.Texture,
-		rate = perCellRate,
-		shape = tostring(emitter.Shape),
-	})
-	-- #endregion
 end
 
 function WorldFXController:_setRainRates(weather: string, reduced: boolean, duration: number)
@@ -440,10 +389,6 @@ function WorldFXController:_buildRainField(weather: string, reduced: boolean)
 	local followCFrame = getRainFollowCFrame()
 	if not followPos or not followCFrame then
 		warn("[WorldFX] No follow position — rain deferred")
-		-- #region agent log
-		agentLog("H2", "WorldFXController:_buildRainField", "aborted_no_follow_pos", { weather = weather })
-		publishRainDebug({ status = "aborted_no_follow_pos", weather = weather })
-		-- #endregion
 		return
 	end
 
@@ -520,41 +465,6 @@ function WorldFXController:_buildRainField(weather: string, reduced: boolean)
 	self._rainEmitters = emitters
 	self._rainCells = cells
 	self._rainRevision = RAIN_FIELD_REVISION
-	-- #region agent log
-	local sampleRate = emitters[1] and emitters[1].Rate or -1
-	agentLog("H3", "WorldFXController:_buildRainField", "built", {
-		weather = weather,
-		cells = #cells,
-		emitters = #emitters,
-		sampleRate = sampleRate,
-		sampleEnabled = emitters[1] and emitters[1].Enabled or false,
-		followY = followPos.Y,
-		rainY = followCFrame.Position.Y,
-		tutorial = useTutorial,
-		footprint = footprint,
-		hasTemplate = self._rainVolumeTemplate ~= nil,
-	})
-	agentLog("H9", "WorldFXController:_buildRainField", "tutorial_follow", {
-		followY = followPos.Y,
-		rainY = followCFrame.Position.Y,
-		offsetY = (RAIN_CFG.FollowOffsetStuds or Vector3.zero).Y,
-	})
-	local sample = emitters[1]
-	publishRainDebug({
-		status = "built",
-		weather = weather,
-		style = if useTutorial then "SuperCatHeroesTutorial" else "grid",
-		emitters = #emitters,
-		cells = #cells,
-		texture = sample and sample.Texture or "",
-		rate = sample and sample.Rate or 0,
-		squash = RAIN_CFG.EmitterSquash,
-		size = RAIN_CFG.EmitterSize,
-		lockedToPart = sample and sample.LockedToPart or false,
-		rainY = followCFrame.Position.Y,
-		procedural = self._useProceduralRain,
-	})
-	-- #endregion
 end
 
 function WorldFXController:_applyRain(weather: string, duration: number)
@@ -576,14 +486,9 @@ function WorldFXController:_applyRain(weather: string, duration: number)
 		self:_buildRainField(weather, reduced)
 	end)
 	if not buildOk then
-		-- #region agent log
-		agentLog("H3", "WorldFXController:_applyRain", "build_error", { err = tostring(buildErr) })
-		publishRainDebug({ status = "build_error", err = tostring(buildErr) })
-		-- #endregion
 		warn("[WorldFX] _buildRainField error:", buildErr)
 	elseif #self._rainEmitters == 0 then
 		warn("[WorldFX] Rain field built with zero emitters")
-		publishRainDebug({ status = "zero_emitters", weather = weather })
 	elseif duration > 0 and #self._rainEmitters > 0 then
 		self:_setRainRates(weather, reduced, duration)
 	end
@@ -707,20 +612,12 @@ function WorldFXController:_buildFogField()
 	self:_tearDownFog()
 
 	if FOG_CFG.EnableParticleFog == false then
-		-- #region agent log
-		agentLog("H8", "WorldFXController:_buildFogField", "distance_fog_only", {
-			weatherAttr = Workspace:GetAttribute(ATTR_WEATHER),
-		})
-		-- #endregion
 		return
 	end
 
 	local followPos = getFollowPosition()
 	if not followPos then
 		warn("[WorldFX] No follow position — fog deferred")
-		-- #region agent log
-		agentLog("H2", "WorldFXController:_buildFogField", "aborted_no_follow_pos", {})
-		-- #endregion
 		return
 	end
 
@@ -793,16 +690,6 @@ function WorldFXController:_buildFogField()
 	self._fogTrove = trove
 	self._fogEmitters = emitters
 	self._fogCells = cells
-	-- #region agent log
-	local fogY = cells[1] and cells[1].Position.Y or -1
-	agentLog("H4", "WorldFXController:_buildFogField", "built", {
-		cells = #cells,
-		emitters = #emitters,
-		sampleRate = emitters[1] and emitters[1].Rate or -1,
-		fogCellY = fogY,
-		hasTemplate = template ~= nil,
-	})
-	-- #endregion
 end
 
 function WorldFXController:_applyFog(weather: string, _duration: number)
@@ -817,9 +704,6 @@ function WorldFXController:_applyFog(weather: string, _duration: number)
 		self:_buildFogField()
 	end)
 	if not fogOk then
-		-- #region agent log
-		agentLog("H3", "WorldFXController:_applyFog", "build_error", { err = tostring(fogErr) })
-		-- #endregion
 		warn("[WorldFX] _buildFogField error:", fogErr)
 	end
 end
@@ -942,16 +826,6 @@ function WorldFXController:_onWeatherChanged(weather: string, previousWeather: s
 			duplicateSkip = true
 		end
 	end
-	-- #region agent log
-	agentLog("H1", "WorldFXController:_onWeatherChanged", if duplicateSkip then "skipped_duplicate" else "apply", {
-		weather = weather,
-		previous = previousWeather,
-		duplicateSkip = duplicateSkip,
-		rainEmitters = #self._rainEmitters,
-		fogEmitters = #self._fogEmitters,
-		attrWeather = Workspace:GetAttribute(ATTR_WEATHER),
-	})
-	-- #endregion
 	if duplicateSkip then
 		return
 	end
@@ -1026,15 +900,6 @@ function WorldFXController:KnitStart()
 	else
 		warn("[WorldFX] Missing ReplicatedStorage.Assets — using procedural rain")
 	end
-	-- #region agent log
-	agentLog("H3", "WorldFXController:KnitStart", "assets_resolved", {
-		hasAssets = assets ~= nil,
-		hasRainTemplate = self._rainVolumeTemplate ~= nil,
-		hasStormTemplate = self._stormRainTemplate ~= nil,
-		hasFogTemplate = self._fogMistTemplate ~= nil,
-	})
-	-- #endregion
-
 	TideService.TideChanged:Connect(function(state, level)
 		self._targetTideLevel = level
 		Workspace:SetAttribute("TideState", state)
@@ -1057,15 +922,9 @@ function WorldFXController:KnitStart()
 
 	local function retryWeatherFxIfNeeded(source: string)
 		if isRainyWeather(self._currentWeather) and #self._rainEmitters == 0 then
-			-- #region agent log
-			agentLog("H2", "WorldFXController:retry", "rain_retry", { source = source, weather = self._currentWeather })
-			-- #endregion
 			self:_applyRain(self._currentWeather, 0)
 		end
 		if self._currentWeather == "Fog" and #self._fogEmitters == 0 then
-			-- #region agent log
-			agentLog("H2", "WorldFXController:retry", "fog_retry", { source = source })
-			-- #endregion
 			self:_applyFog(self._currentWeather, 0)
 		end
 	end
