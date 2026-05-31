@@ -245,25 +245,6 @@ local function bindSlot(
 	nameLbl.Text = displayName
 	incomeLbl.Text = formatIncomeLine(item)
 
-	-- #region agent log
-	do
-		local HttpService = game:GetService("HttpService")
-		print(`[DEBUG:39f298] {HttpService:JSONEncode({
-			message = "slot_income",
-			hypothesisId = "H1",
-			location = "AquariumUI:bindSlot",
-			timestamp = DateTime.now().UnixTimestampMillis,
-			data = {
-				speciesId = sid,
-				rarity = fd and fd.rarity or "unknown",
-				coinsPerSec = AquariumIncome.coinsPerSecond(item),
-				weightKg = item.weightKg,
-				modifiers = item.modifiers,
-			},
-		})}`)
-	end
-	-- #endregion
-
 	local vpf = req(ring, "ViewportFrame", "ViewportFrame") :: ViewportFrame
 	vpf.Visible = true
 	local cw = if slot.Size.X.Offset > 0 then slot.Size.X.Offset else 152
@@ -360,24 +341,6 @@ function AquariumUI.show(
 				layoutSlotText(ch)
 			end
 		end
-
-		-- #region agent log
-		do
-			local HttpService = game:GetService("HttpService")
-			print(`[DEBUG:39f298] {HttpService:JSONEncode({
-				message = "grid_fill",
-				hypothesisId = "H1",
-				location = "AquariumUI:syncGridCellSizes",
-				timestamp = DateTime.now().UnixTimestampMillis,
-				data = {
-					scrollW = aqScroll.AbsoluteSize.X,
-					cellW = cellW,
-					cellH = cellH,
-					cols = gridCols,
-				},
-			})}`)
-		end
-		-- #endregion
 	end
 
 	local restPos = panel.Position
