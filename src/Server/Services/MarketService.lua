@@ -185,17 +185,59 @@ function MarketService:_readListings(): {Types.MarketListing}
 	return value :: {Types.MarketListing}
 end
 
--- Sweep expired listings off the index. Cheap to do whenever we already have
--- the array open inside an UpdateAsync callback.
-local function pruneExpired(listings: {Types.MarketListing}): {Types.MarketListing}
+-- Sweep expired listings off the index AND reconstruct returnable items so
+-- sellers don't permanently lose their goods. Called only inside UpdateAsync
+-- callbacks; the caller collects `expiredItems` via closure and writes them to
+-- the side DataStore AFTER the pcall succeeds.
+local function pruneAndQueueReturns(listings: {Types.MarketListing})
 	local now = os.time()
-	local kept = {}
+	local kept: {Types.MarketListing} = {}
+	local expiredItems: {{sellerId: number, item: any}} = {}
+
 	for _, l in ipairs(listings) do
 		if l.expiresAt > now then
 			table.insert(kept, l)
+		else
+			-- Reconstruct item from listing fields (matches Cancel pattern).
+			local item: any
+			if l.itemKind == "Fish" then
+				item = {
+					uid = UidUtil.new("fish"),
+					kind = "Fish",
+					speciesId = l.speciesId,
+					weightKg = l.weightKg,
+					caughtAt = os.time(),
+					modifiers = l.modifiers,
+				}
+			else
+				item = {
+					uid = UidUtil.new("good"),
+					kind = "Good",
+					goodId = l.goodId,
+					count = l.count,
+				}
+			end
+			table.insert(expiredItems, { sellerId = l.sellerId, item = item })
 		end
 	end
-	return kept
+
+	return kept, expiredItems
+end
+
+-- Writes expired item returns to the side DataStore. Called after the
+-- MarketStore UpdateAsync succeeds so the callback stays pure.
+local function flushExpiredItems(expiredItems: {{sellerId: number, item: any}}?)
+	if not expiredItems or #expiredItems == 0 then return end
+	local expiredStore = DataStoreService:GetDataStore(GameConfig.DataStores.ExpiredListingsStore)
+	for _, entry in ipairs(expiredItems) do
+		pcall(function()
+			expiredStore:UpdateAsync("u_" .. entry.sellerId, function(old)
+				old = old or {}
+				table.insert(old, entry.item)
+				return old
+			end)
+		end)
+	end
 end
 
 function MarketService:_publishCacheRefresh()
@@ -351,10 +393,13 @@ function MarketService.Client:Create(player: Player, itemUid: string, price: num
 	--   2. Only on success, remove the item from the player's profile.
 	-- If the DataStore write fails the player keeps the item.
 	local addedListing
+	local expiredItems
 	local ok, err = pcall(function()
 		self._marketStore:UpdateAsync(MARKET_INDEX_KEY, function(old)
 			old = old or {}
-			old = pruneExpired(old)
+			local kept, expired = pruneAndQueueReturns(old :: {Types.MarketListing})
+			expiredItems = expired
+			old = kept
 			-- Re-check cap inside the transaction (caps may have updated cross-server).
 			local mine = 0
 			for _, l in ipairs(old) do
@@ -395,6 +440,9 @@ function MarketService.Client:Create(player: Player, itemUid: string, price: num
 	-- Now safe to remove from inventory.
 	PlayerDataService:RemoveItemByUid(player, itemUid)
 
+	-- Queue any expired listing returns (from this transactions prune sweep).
+	flushExpiredItems(expiredItems)
+
 	-- Quest hook for the lister.
 	self.ListedServer:Fire(player, addedListing)
 
@@ -424,10 +472,13 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	local data = PlayerDataService:GetProfile(player); if not data then return { ok = false, reason = "no_profile" } end
 
 	local boughtListing
+	local expiredItems
 	local ok, err = pcall(function()
 		self._marketStore:UpdateAsync(MARKET_INDEX_KEY, function(old)
 			old = old or {}
-			old = pruneExpired(old)
+			local kept, expired = pruneAndQueueReturns(old :: {Types.MarketListing})
+			expiredItems = expired
+			old = kept
 			for i, l in ipairs(old) do
 				if l.listingId == listingId then
 					if l.sellerId == player.UserId then
@@ -452,6 +503,9 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	if not boughtListing then
 		return { ok = false, reason = "listing_unavailable" }
 	end
+
+	-- Queue any expired listing returns (from this transactions prune sweep).
+	flushExpiredItems(expiredItems)
 
 	-- Apply demand spike multiplier to the *seller payout* only (buyer pays
 	-- the listed price; the spike rewards selling rare items today).
@@ -681,6 +735,26 @@ function MarketService:SettlePendingPayouts(player: Player)
 	if ok and payload and payload._settled and payload._settled > 0 then
 		local PlayerDataService = Knit.GetService("PlayerDataService")
 		PlayerDataService:AddCoins(player, payload._settled, "market_offline_payout")
+	end
+end
+
+-- Server-callable: settle expired listing item returns on login.
+-- Mirrors SettlePendingPayouts: reads per-user array of reconstructed items
+-- from the side DataStore, inserts each into inventory, then wipes the queue.
+function MarketService:SettleExpiredListings(player: Player)
+	local expiredStore = DataStoreService:GetDataStore(GameConfig.DataStores.ExpiredListingsStore)
+	local ok, payload = pcall(function()
+		return expiredStore:UpdateAsync("u_" .. player.UserId, function(old)
+			if not old or #old == 0 then return nil end
+			local items = old
+			return { _settled = items }
+		end)
+	end)
+	if ok and payload and payload._settled and #payload._settled > 0 then
+		local PlayerDataService = Knit.GetService("PlayerDataService")
+		for _, item in ipairs(payload._settled) do
+			PlayerDataService:AddItem(player, item)
+		end
 	end
 end
 

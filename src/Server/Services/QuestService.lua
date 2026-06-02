@@ -782,6 +782,7 @@ function QuestService:KnitStart()
 
 		local MarketService2 = Knit.GetService("MarketService")
 		MarketService2:SettlePendingPayouts(player)
+		MarketService2:SettleExpiredListings(player)
 	end
 
 	Players.PlayerAdded:Connect(onJoin)

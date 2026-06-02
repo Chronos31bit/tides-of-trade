@@ -945,6 +945,9 @@ GameConfig.DataStores = {
 	MarketStore  = "TidesMarket_v1",
 	-- Daily demand spike — single key written by master server each UTC day.
 	DemandStore  = "TidesDemand_v1",
+	-- Cross-server expired listing queue — listings swept by pruneAndQueueReturns
+	-- land here, settled on next login like SettlePendingPayouts.
+	ExpiredListingsStore = "TidesExpiredListings_v1",
 }
 
 -- ====================================================================
