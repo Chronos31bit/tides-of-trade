@@ -181,6 +181,19 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	zoneCommon.Size = UDim2.new(1, 0, greenSize, 0)
 	zoneCommon.BackgroundColor3 = P.Uncommon  -- warm green zone (template default is gray)
 
+	-- Gold perfect strip inside the green zone (25% of zone height, centered).
+	local castPerfectStrip = Instance.new("Frame")
+	castPerfectStrip.Name = "CastPerfect"
+	castPerfectStrip.BackgroundColor3 = P.Gold
+	castPerfectStrip.BorderSizePixel = 0
+	castPerfectStrip.AnchorPoint = Vector2.new(0.5, 0.5)
+	castPerfectStrip.Position = UDim2.new(0.5, 0, 0.5, 0)
+	castPerfectStrip.Size = UDim2.new(1, 0, FT.PerfectZoneFraction, 0)
+	local cpsCorner = Instance.new("UICorner")
+	cpsCorner.CornerRadius = UDim.new(0, 2)
+	cpsCorner.Parent = castPerfectStrip
+	castPerfectStrip.Parent = zoneCommon
+
 	local castStart = os.clock()
 	local lastMarker = 0.5
 	local wasInCastGreen   = false
@@ -407,9 +420,8 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 			lastState = newState
 			local glowInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 			if newState == "tracking" then
-				-- Soft teal glow on the zone; warm indicator.
+				-- Soft glow on the zone (rarity color); warm indicator.
 				MotionUtil.tweenOrSnap(zone, glowInfo, {
-					BackgroundColor3 = P.TealLight,
 					BackgroundTransparency = math.clamp(1 - params.glowAlpha, 0, 1),
 				})
 				MotionUtil.tweenOrSnap(indicator, glowInfo, { BackgroundColor3 = P.Sunset })
@@ -430,7 +442,6 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 				end
 			else  -- neutral
 				MotionUtil.tweenOrSnap(zone, glowInfo, {
-					BackgroundColor3 = rarityColor(rarity),
 					BackgroundTransparency = NEUTRAL_TRANSPARENCY,
 				})
 				MotionUtil.tweenOrSnap(indicator, glowInfo, { BackgroundColor3 = P.Cream })
@@ -468,7 +479,13 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 					return
 				end
 			end
-			if indicatorPos >= 1 then indicatorPos = 1 end
+			if indicatorPos >= 1 then
+				indicatorPos = 1
+				if reelHeld then
+					fireEscape()
+					return
+				end
+			end
 
 			-- Spring-follow: smooth visual so movement feels weighted, not snappy.
 			displayPos = displayPos + (indicatorPos - displayPos) * math.min(1, dt * 18)
