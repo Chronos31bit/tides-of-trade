@@ -288,11 +288,13 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 
 		-- ---- transition: fade cast visuals, slide vertical bar out ----
 		local fadeInfo = TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		releaseHint.Visible = false
+		castPerfectStrip.Visible = false
 		MotionUtil.tweenOrSnap(indicator, fadeInfo, { BackgroundTransparency = 1 })
 		MotionUtil.tweenOrSnap(zoneCommon, fadeInfo, { BackgroundTransparency = 1 })
 		MotionUtil.tweenOrSnap(track,
 			TweenInfo.new(FT.MeterTransitionDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-			{ Position = track.Position + UDim2.fromOffset(0, CM.BarHeightPx + 20) })
+			{ BackgroundTransparency = 1, Position = track.Position + UDim2.fromOffset(0, CM.BarHeightPx + 20) })
 
 		-- ---- create horizontal reel bar ----
 		local rb = UIUtil.makePanel({

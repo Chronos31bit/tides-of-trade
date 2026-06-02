@@ -76,7 +76,7 @@ local BuildingCatalog: {[BuildingKind]: BuildingDef} = {
 		id = "Lighthouse",
 		displayName = "Lighthouse",
 		footprint = {3, 3},
-		description = "Lures fish near your harbor. Buffs catch rate within radius.",
+		description = "Lures rare fish to your harbor. Improves catch rarity and modifier luck while you fish within its glow.",
 		tiers = {
 			{ incomePerTick = 0, lighthouseLureRadiusStuds = 30 },
 			{ incomePerTick = 0, lighthouseLureRadiusStuds = 55 },

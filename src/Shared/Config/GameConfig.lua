@@ -351,7 +351,7 @@ GameConfig.Buildings = {
 	Dock        = { tierCosts = { 0,     40,     9000  } },
 	MarketStall = { tierCosts = { 800,   3500,   12000 } },
 	Smokehouse  = { tierCosts = { 1500,  6000,   18000 }, PreserveTimeSec = 300 },
-	Lighthouse  = { tierCosts = { 2000,  7500,   22000 }, RarityBumpChance = { 0.15, 0.28, 0.45 } },
+	Lighthouse  = { tierCosts = { 2000,  7500,   22000 }, RarityBumpChance = { 0.15, 0.28, 0.45 }, ModifierLuckMultiplier = { 1.15, 1.30, 1.50 } },
 	BaitShop    = { tierCosts = { 600,   2400,   8000  } },
 	Aquarium    = { tierCosts = { 1200,  5000,   16000 } },
 	Guildhall   = { tierCosts = { 5000,  15000,  40000 } },
@@ -599,6 +599,7 @@ GameConfig.UI = {
 		World        = 0,   -- world-anchored BillboardGuis (waypoint, prompts)
 		HUD          = 10,  -- bottom action bar, currency wallet, rod chip
 		QuestTracker = 12,  -- right-edge tracker tab + popups
+		Settings     = 13,  -- bottom-right gear; above QuestTracker so it never hides behind the tracker panel
 		Dialogue     = 20,  -- Mira NPC chat box
 		CastMeter    = 30,  -- fishing overlay (above HUD, below modals)
 		Notification = 31,  -- bottom-center toast stack (above cast thumb)
