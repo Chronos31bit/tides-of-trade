@@ -89,7 +89,11 @@ function BaitShopController:_open()
 				BaitService:BuyBait(baitId, qty):andThen(function(res: any)
 					if not res.ok then
 						warn("[BaitShop] BuyBait:", res.reason)
+						return
 					end
+					-- Auto-equip the purchased bait so the player gets the buff
+					-- immediately without a second tap. Unequip first if switching.
+					BaitService:EquipBait(baitId)
 				end)
 			end,
 			function(baitId: string?)

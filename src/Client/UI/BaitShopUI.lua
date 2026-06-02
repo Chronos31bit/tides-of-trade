@@ -60,7 +60,7 @@ function BaitShopUI.show(
 	local tileTpl = req(body, "BaitTile_Template", "Frame") :: Frame
 
 	title.Text = discountPct > 0
-		and ("Bait Shop  ·  -%d%% dock"):format(math.round(discountPct * 100))
+		and ("Bait Shop  ·  Dock %d%% off"):format(math.round(discountPct * 100))
 		or "Bait Shop"
 
 	-- Rebuilds all rows from the current stash state.

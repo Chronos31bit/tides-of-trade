@@ -147,14 +147,17 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	flash.Name = "PerfectFlash"
 	flash.BackgroundTransparency = 1
 	flash.AnchorPoint = Vector2.new(0.5, 1)
-	flash.Position = UDim2.new(0.5, 0, 0, -12)
+	-- Position flash just above the track top edge in screen coords.
+	local flashRestY = -(CM.CastButtonBottomPx + CM.CastButtonSizePx + CM.BarButtonGapPx + CM.BarHeightPx + 12)
+	flash.Position = UDim2.new(0.5, 0, 1, flashRestY)
 	flash.Size = UDim2.fromOffset(220, 30)
 	flash.Font = Enum.Font.GothamBlack
 	flash.TextSize = 22
 	flash.TextColor3 = P.Gold
 	flash.TextTransparency = 1
 	flash.Text = "PERFECT!"
-	flash.Parent = track
+	flash.Parent = gui
+	flash.ZIndex = 10  -- above all track children
 
 	local lastFlashAt = -math.huge
 	local function flashPerfect()
@@ -163,10 +166,10 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 		if now - lastFlashAt < 1.0 then return end
 		lastFlashAt = now
 		flash.TextTransparency = 0
-		flash.Position = UDim2.new(0.5, 0, 0, -12)
+		flash.Position = UDim2.new(0.5, 0, 1, flashRestY)
 		MotionUtil.tween(flash, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			TextTransparency = 1,
-			Position = UDim2.new(0.5, 0, 0, -28),
+			Position = UDim2.new(0.5, 0, 1, flashRestY - 16),
 		})
 	end
 
@@ -176,7 +179,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	-- Zone geometry: greenCenter/greenSize are 0..1 fractions where 0 is top and 1 is bottom.
 	zoneCommon.Position = UDim2.new(0, 0, 1 - greenCenter - greenSize / 2, 0)
 	zoneCommon.Size = UDim2.new(1, 0, greenSize, 0)
-	zoneCommon.BackgroundColor3 = P.Success  -- green zone tint (template default is gray)
+	zoneCommon.BackgroundColor3 = P.Uncommon  -- warm green zone (template default is gray)
 
 	local castStart = os.clock()
 	local lastMarker = 0.5
