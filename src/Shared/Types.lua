@@ -167,14 +167,6 @@ export type Profile = {
 	-- Social
 	crewId: string?,
 
-	-- Active bait buff (nil when no bait is active). The server checks
-	-- expiresAt every time fish are rolled, and clears it if expired.
-	activeBuff: {
-		kind: string,
-		expiresAt: number,
-		rareWeightMultiplier: number,   -- how much to boost Uncommon/Rare/Mythic weights
-	}?,
-
 	-- Bait inventory: baitId -> unit count. Populated by BaitService;
 	-- never stored inside the general inventory array because bait is
 	-- stackable, consumed per-cast, and looked up by id frequently.

@@ -379,18 +379,8 @@ function FishingService:_getContext(player: Player): {biome: string, timeOfDay: 
 		end
 	end
 
-	local rareMul = 1.0
-	if data.activeBuff then
-		if os.time() < data.activeBuff.expiresAt then
-			rareMul = data.activeBuff.rareWeightMultiplier or 1.0
-		else
-			data.activeBuff = nil
-		end
-	end
-
-	-- Stack bait rarityBoost on top of any active buff multiplier.
 	local BaitService = Knit.GetService("BaitService")
-	rareMul = rareMul * BaitService:GetEquippedRarityBoost(player)
+	local rareMul = BaitService:GetEquippedRarityBoost(player)
 
 	return {
 		biome = biome,

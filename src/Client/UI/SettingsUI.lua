@@ -76,8 +76,8 @@ function SettingsUI.create(callbacks: Callbacks?): Handle
 		end
 	end
 
-	panel.AnchorPoint = Vector2.new(1, 1)
-	panel.Position = UDim2.new(1, -H.MarginPx, 1, -H.MarginPx)
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.new(0.5, 0, 0.5, 0)
 	panel.Size = UDim2.fromOffset(H.PanelWidthPx, H.PanelHeightPx)
 
 	local slider = UIKit.Slider({

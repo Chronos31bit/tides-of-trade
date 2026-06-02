@@ -176,6 +176,7 @@ function CastMeter.show(greenCenter: number, greenSize: number, period: number, 
 	-- Zone geometry: greenCenter/greenSize are 0..1 fractions where 0 is top and 1 is bottom.
 	zoneCommon.Position = UDim2.new(0, 0, 1 - greenCenter - greenSize / 2, 0)
 	zoneCommon.Size = UDim2.new(1, 0, greenSize, 0)
+	zoneCommon.BackgroundColor3 = P.Success  -- green zone tint (template default is gray)
 
 	local castStart = os.clock()
 	local lastMarker = 0.5
