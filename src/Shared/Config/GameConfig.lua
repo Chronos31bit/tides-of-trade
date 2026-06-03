@@ -689,6 +689,12 @@ GameConfig.Tutorial = {
 	WanderRecallDistanceStuds       = 80,
 	WanderRecallCheckSeconds        = 2,
 
+	-- Returning-vet auto-complete: if a profile has tutorial.state == "not_started"
+	-- but lifetime catches/sales exceed these thresholds, force-complete the
+	-- tutorial so legacy players aren't re-onboarded after launch.
+	VetDetectMinCatches = 3,
+	VetDetectMinSold    = 1,
+
 	-- DialogueUI feel.
 	TypewriterCharsPerSecond        = 40,
 	DialogueSlideInDuration         = 0.4,
@@ -842,6 +848,11 @@ GameConfig.AntiExploit = {
 	-- Minimum elapsed seconds between bite and ReleaseReel claim.
 	-- Below this, the reel mini-game couldn't have been played honestly.
 	MinReelSeconds = 0.5,
+
+	-- Server-side TextService:FilterStringAsync() timeout guard (crew chat).
+	-- The pcall in SocialService serves as the actual timeout; TextService
+	-- does not accept a timeout parameter. Documented here as reference.
+	ChatFilterTimeoutMs = 2000,
 }
 
 -- ====================================================================

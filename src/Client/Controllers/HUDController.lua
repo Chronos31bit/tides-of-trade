@@ -37,6 +37,11 @@ function HUDController:SetVisible(visible: boolean)
 	if self._hud and self._hud.gui then
 		self._hud.gui.Enabled = visible
 	end
+	-- The settings gear is a separate ScreenGui (own DisplayOrder layer), so it
+	-- must be toggled alongside the HUD or it would linger when panels hide the HUD.
+	if self._hud and self._hud.settingsGui then
+		self._hud.settingsGui.Enabled = visible
+	end
 end
 
 function HUDController:KnitStart()

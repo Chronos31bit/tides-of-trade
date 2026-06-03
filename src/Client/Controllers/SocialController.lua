@@ -15,6 +15,10 @@ local UIKit      = require(script.Parent.Parent.UI.UIKit)
 
 local EMOTES = { "wave", "dance", "fish_pose", "salute", "bow" }
 
+-- How many crew-chat messages to retain client-side so the panel can replay
+-- recent history when reopened. Matches SocialUI's MAX_CHAT_ROWS render cap.
+local MAX_CHAT_LOG = 50
+
 type EmoteState = {
 	tracks: { AnimationTrack },
 	char: Model?,
@@ -28,6 +32,7 @@ local SocialController = Knit.CreateController({
 	_animFolder = nil :: Folder?,
 	_activeByUserId = {} :: {[number]: EmoteState},
 	_warnedMissingAssets = false,
+	_chatLog = {} :: { {from: string, message: string} },
 })
 
 local function emoteCfg(): {[string]: any}
@@ -149,7 +154,7 @@ function SocialController:KnitStart()
 		self:_playEmoteForUser(userId, emoteId)
 	end))
 	self._emoteTrove:Add(SocialService.CrewChat:Connect(function(fromName, message)
-		print(("[Crew] %s: %s"):format(fromName, message))
+		self:_onCrewChat(fromName, message)
 	end))
 
 	self._emoteTrove:Add(Players.PlayerRemoving:Connect(function(player)
@@ -168,16 +173,37 @@ function SocialController:KnitStart()
 	end)
 end
 
+-- Crew-chat messages arrive here (server fans out to every member on this
+-- server, including the sender). Keep a capped history so reopening the panel
+-- replays recent chatter, and live-append when the panel is open.
+function SocialController:_onCrewChat(fromName: string, message: string)
+	table.insert(self._chatLog, { from = fromName, message = message })
+	while #self._chatLog > MAX_CHAT_LOG do
+		table.remove(self._chatLog, 1)
+	end
+	if self._open and self._handle then
+		self._handle.appendChat(fromName, message)
+	end
+end
+
 function SocialController:Open()
 	if self._open then self:_close() return end
 	self._open = true
 	local SocialService = Knit.GetService("SocialService")
-	self._handle = SocialUI.show(EMOTES, function(emoteId)
-		SocialService:PlayEmote(emoteId)
-	end, function()
-		self._open = false
-		self._handle = nil
-	end)
+	self._handle = SocialUI.show({
+		emotes = EMOTES,
+		onPlayEmote = function(emoteId)
+			SocialService:PlayEmote(emoteId)
+		end,
+		onSendChat = function(message)
+			SocialService:SendCrewChat(message)
+		end,
+		initialChat = self._chatLog,
+		onClose = function()
+			self._open = false
+			self._handle = nil
+		end,
+	})
 end
 
 function SocialController:_close()

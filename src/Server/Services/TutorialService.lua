@@ -93,6 +93,19 @@ local function miraSpawnForPlot(plotOrigin: CFrame): (Vector3, Vector3)
 	return pos, plotCenter
 end
 
+-- Detect legacy returning players who have prior play stats but a
+-- tutorial.state still at "not_started" (profile that pre-dates the
+-- tutorial system or was created before the default). Returns true if
+-- stats show prior catches/sales above the vet-detect thresholds.
+function TutorialService:_isReturningVet(data: any): boolean
+	if not data.tutorial or data.tutorial.state ~= "not_started" then
+		return false
+	end
+	local stats = data.stats
+	return stats and (stats.totalCatches >= TUNE.VetDetectMinCatches
+		or stats.totalSold >= TUNE.VetDetectMinSold)
+end
+
 -- Send the full state snapshot to the owning client. Client uses this to
 -- re-render dialogue and any active highlights.
 function TutorialService:_pushState(player: Player)
@@ -439,6 +452,21 @@ function TutorialService:_bootstrapPlayer(player: Player)
 	if not t then
 		-- Profile pre-dates the tutorial system. Reconcile should have
 		-- filled it; bail defensively if not.
+		return
+	end
+
+	-- Returning-vet auto-complete: force-complete tutorial for legacy
+	-- players whose stats show prior play but tutorial state is still
+	-- "not_started". Without this, every returning playtester would be
+	-- re-onboarded after launch.
+	if self:_isReturningVet(data) then
+		t.state = "complete"
+		t.completedAt = os.time()
+		if t.beginnerAssistsRemaining then
+			t.beginnerAssistsRemaining = 0
+		end
+		FishingService:ClearAssist(player)
+		self:_pushState(player)
 		return
 	end
 

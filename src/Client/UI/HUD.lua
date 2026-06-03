@@ -40,7 +40,10 @@ export type HUDController = {
 	rodChipStroke: UIStroke,
 	rodChipValue: TextLabel,
 
-	-- Settings gear (bottom-right corner, clear of the QuestTracker tab). Opens SettingsUI.
+	-- Settings gear. Lives in its own ScreenGui at DisplayOrder.Settings (above
+	-- QuestTracker) so the right-edge quest tracker never draws over it. Bottom-
+	-- right corner. Opens SettingsUI.
+	settingsGui: ScreenGui,
 	settingsButton: TextButton,
 
 	-- Action bar
@@ -104,9 +107,14 @@ function HUD.create(): HUDController
 	UIKit.skinActionButton(homeButton, P.Uncommon)
 
 	-- Settings gear. Built in code (not in the template) so it's one self-
-	-- contained block. Anchored bottom-right corner with symmetric margins;
-	-- the centered ActionBar clears it on portrait. 44px hit target; skinned
-	-- like the action bar.
+	-- contained block. It lives in its OWN ScreenGui at DisplayOrder.Settings
+	-- (one above QuestTracker) because the quest tracker is a separate, higher-
+	-- order ScreenGui pinned to the right edge — parented inside the HUD it drew
+	-- *under* the tracker panel. Its own layer keeps it on top while staying in
+	-- the bottom-right corner. 44px hit target; skinned like the action bar.
+	local settingsGui = UIUtil.makeScreenGui("SettingsGui", gui.Parent, { respectTopbar = true })
+	settingsGui.DisplayOrder = UIUtil.DisplayOrder.Settings
+
 	local settingsButton = Instance.new("TextButton")
 	settingsButton.Name = "SettingsButton"
 	settingsButton.AnchorPoint = Vector2.new(1, 1)
@@ -122,7 +130,7 @@ function HUD.create(): HUDController
 	settingsButton.Font = UIKit.Typography.title.font
 	settingsButton.TextSize = math.max(UIKit.Typography.title.size, UIKit.MinFontPx)
 	settingsButton.TextColor3 = UIKit.Palette.Cream
-	settingsButton.Parent = gui
+	settingsButton.Parent = settingsGui
 
 	local gearCorner = Instance.new("UICorner")
 	gearCorner.CornerRadius = UDim.new(0, UIKit.Radii.md)
@@ -147,6 +155,7 @@ function HUD.create(): HUDController
 		rodChipIcon = rodChipIcon,
 		rodChipStroke = rodChipStroke,
 		rodChipValue = rodChipValue,
+		settingsGui = settingsGui,
 		settingsButton = settingsButton,
 		actionBar = actionBar,
 		rodButton = rodButton,

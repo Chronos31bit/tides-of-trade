@@ -18,6 +18,7 @@ local Workspace        = game:GetService("Workspace")
 local GuiService       = game:GetService("GuiService")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Trove      = require(ReplicatedStorage.Packages.Trove)
 
 local Knit       = require(ReplicatedStorage.Packages.Knit)
 local UIUtil     = require(script.Parent.Parent.UI.UIUtil)
@@ -40,6 +41,7 @@ local TutorialController = Knit.CreateController({
 	_autoDismissToken = 0,           -- bumped per render; running task checks it to bail
 	_objectiveGui = nil :: any,
 	_objectiveLabel = nil :: any,
+	_trove          = nil :: any,
 })
 
 -- Per-beat objective text shown in the persistent pill at the top of
@@ -137,6 +139,9 @@ end
 -- ====================================================================
 function TutorialController:_clearWaypoint()
 	if self._waypoint then
+		if self._trove then
+			self._trove:Remove(self._waypoint)
+		end
 		self._waypoint:Destroy()
 		self._waypoint = nil
 	end
@@ -151,6 +156,9 @@ function TutorialController:_setWaypoint(worldPos: Vector3)
 	part.Size = Vector3.new(1, 1, 1)
 	part.Position = worldPos + Vector3.new(0, 8, 0)
 	part.Parent = Workspace
+	if self._trove then
+		self._trove:Add(part)
+	end
 
 	local bb = Instance.new("BillboardGui")
 	bb.Adornee = part
@@ -438,6 +446,17 @@ end
 -- LIFECYCLE
 -- ====================================================================
 
+function TutorialController:KnitInit()
+	self._trove = Trove.new()
+end
+
+function TutorialController:KnitStop()
+	if self._trove then
+		self._trove:Destroy()
+		self._trove = nil
+	end
+end
+
 function TutorialController:KnitStart()
 	local TutorialService = Knit.GetService("TutorialService")
 	local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -447,11 +466,11 @@ function TutorialController:KnitStart()
 	-- ProximityPrompt on Mira (added server-side in NPCs/Mira.lua) re-
 	-- opens the dialogue at the current state line. The prompt only
 	-- fires on the owner client because Mira is invisible to others.
-	ProximityPromptService.PromptTriggered:Connect(function(prompt, triggerer)
+	self._trove:Add(ProximityPromptService.PromptTriggered:Connect(function(prompt, triggerer)
 		if triggerer ~= LP then return end
 		if prompt.ObjectText ~= "Captain Mira" then return end
 		self:_reopenDialogue()
-	end)
+	end))
 
 	-- Initial state pull (in case StateUpdate already fired before this
 	-- controller's KnitStart ran).
@@ -459,34 +478,34 @@ function TutorialController:KnitStart()
 		if state then self:_renderState(state) end
 	end)
 
-	TutorialService.StateUpdate:Connect(function(state)
+	self._trove:Add(TutorialService.StateUpdate:Connect(function(state)
 		self:_renderState(state)
-	end)
+	end))
 
-	TutorialService.MiraSpawned:Connect(function(_pos)
+	self._trove:Add(TutorialService.MiraSpawned:Connect(function(_pos)
 		-- Refresh highlight now that the model exists; some highlights
 		-- target Mira-adjacent geometry.
 		if self._state then self:_applyHighlight(self._state.highlight) end
-	end)
+	end))
 
-	TutorialService.MiraDespawned:Connect(function()
+	self._trove:Add(TutorialService.MiraDespawned:Connect(function()
 		self:_clearHighlight()
 		self:_clearWaypoint()
-	end)
+	end))
 
-	TutorialService.HighlightSet:Connect(function(key)
+	self._trove:Add(TutorialService.HighlightSet:Connect(function(key)
 		self:_applyHighlight(key)
-	end)
+	end))
 
-	TutorialService.WaypointSet:Connect(function(worldPos)
+	self._trove:Add(TutorialService.WaypointSet:Connect(function(worldPos)
 		if worldPos then
 			self:_setWaypoint(worldPos)
 		else
 			self:_clearWaypoint()
 		end
-	end)
+	end))
 
-	TutorialService.FlashElement:Connect(function(key)
+	self._trove:Add(TutorialService.FlashElement:Connect(function(key)
 		-- Best-effort flash for HUD-internal elements. The HUD owns
 		-- those buttons so we reach into PlayerGui by ScreenGui name to
 		-- find them. Failure to find = silent no-op (tutorial spec says
@@ -504,7 +523,7 @@ function TutorialController:KnitStart()
 				end)
 			end
 		end
-	end)
+	end))
 end
 
 return TutorialController

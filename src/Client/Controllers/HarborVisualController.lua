@@ -132,7 +132,16 @@ function HarborVisualController:_buildModel(plotOwnerId: number, plotOrigin: CFr
 	model:SetAttribute("kind", building.kind)
 	model:SetAttribute("tier", building.tier)
 
-	model.Parent = self:_plotFolder(plotOwnerId)
+	-- Guard against duplicate models for one uid. A world replay or a live-sync
+	-- reload can re-enter _buildModel while an earlier clone of the same uid is
+	-- still parented (and possibly untracked in _plots). Destroy any stale
+	-- namesake first so demolish — which removes only the *tracked* model — can
+	-- never leave an orphaned twin behind.
+	local targetFolder = self:_plotFolder(plotOwnerId)
+	local stale = targetFolder:FindFirstChild(building.uid)
+	if stale then stale:Destroy() end
+
+	model.Parent = targetFolder
 	CollectionService:AddTag(model, "HarborBuilding")
 	return model
 end
@@ -256,6 +265,20 @@ function HarborVisualController:_onRemove(plotOwnerId: number, buildingUid: stri
 	if entry then
 		entry.trove:Destroy()
 		state.buildings[buildingUid] = nil
+	end
+	-- Belt-and-suspenders: destroy any model still named after this uid in the
+	-- plot folder. Normally the tracked trove above already removed it, but an
+	-- untracked duplicate (left by a prior replay/reload) would otherwise survive
+	-- as a ghost — the exact "demolish leaves the model" symptom. Silent in the
+	-- common case (no namesake left); warns only when it actually cleans one.
+	local folder = self:_ensureRoot():FindFirstChild(tostring(plotOwnerId))
+	if folder then
+		for _, child in ipairs(folder:GetChildren()) do
+			if child:IsA("Model") and child.Name == buildingUid then
+				warn(("[HarborVisualController] _onRemove cleaned an untracked leftover model for uid %s (duplicate from a prior replay/reload)"):format(buildingUid))
+				child:Destroy()
+			end
+		end
 	end
 	self:_clearDebrisForBuilding(plotOwnerId, buildingUid, true)
 end

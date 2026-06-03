@@ -7,13 +7,15 @@
 local Players          = game:GetService("Players")
 local TeleportService  = game:GetService("TeleportService")
 local DataStoreService = game:GetService("DataStoreService")
+local TextService     = game:GetService("TextService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Knit        = require(ReplicatedStorage.Packages.Knit)
-local GameConfig  = require(ReplicatedStorage.Shared.Config.GameConfig)
-local UidUtil     = require(ReplicatedStorage.Shared.Util.UidUtil)
-local Signal      = require(ReplicatedStorage.Packages.Signal)
-local RateLimiter = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local Knit            = require(ReplicatedStorage.Packages.Knit)
+local GameConfig      = require(ReplicatedStorage.Shared.Config.GameConfig)
+local UidUtil         = require(ReplicatedStorage.Shared.Util.UidUtil)
+local Signal          = require(ReplicatedStorage.Packages.Signal)
+local RateLimiter     = require(ReplicatedStorage.Shared.Util.RateLimiter)
+local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
 
 local SocialService = Knit.CreateService({
 	Name = "SocialService",
@@ -49,6 +51,45 @@ function SocialService:KnitStart()
 		self._emoteLimiter:reset(player)
 		self._visitLimiter:reset(player)
 	end)
+end
+
+-- ====================================================================
+-- CREW CAPACITY — base slots + guildhall bonus
+-- ====================================================================
+-- Effective member cap = GameConfig.Crew.MaxMembers + the owner's best
+-- guildhall bonus (BuildingCatalog.Guildhall.tiers[tier].guildhallCrewBonus).
+-- We read the owner's *live* profile, so the bonus only applies when the owner
+-- is on this server — there is no offline-profile read API, and CLAUDE.md bars
+-- touching DataStores directly from gameplay code. When the owner is elsewhere
+-- we fall back to the base cap. This mirrors the same-server-only stance crew
+-- chat already takes below; cross-server cap resolution is deferred with it.
+--
+-- Non-yielding (GetPlayerByUserId / GetProfile / catalog lookups don't yield),
+-- so it is safe to call inside an UpdateAsync transform.
+function SocialService:_effectiveCrewCap(ownerId: number): number
+	local base = GameConfig.Crew.MaxMembers
+	if typeof(ownerId) ~= "number" then return base end
+
+	local owner = Players:GetPlayerByUserId(ownerId)
+	if not owner then return base end
+
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local ownerData = PlayerDataService:GetProfile(owner)
+	if not ownerData then return base end
+
+	-- Take the best bonus across all guildhalls the owner has placed (a player
+	-- could have more than one; use the highest-tier one).
+	local bestBonus = 0
+	for _, b in ipairs(ownerData.buildings) do
+		if b.kind == "Guildhall" then
+			local def = BuildingCatalog.Guildhall
+			local tier = def.tiers[b.tier]
+			if tier and tier.guildhallCrewBonus and tier.guildhallCrewBonus > bestBonus then
+				bestBonus = tier.guildhallCrewBonus
+			end
+		end
+	end
+	return base + bestBonus
 end
 
 -- ====================================================================
@@ -97,9 +138,11 @@ function SocialService.Client:JoinCrew(player: Player, crewId: string): {ok: boo
 	local ok = pcall(function()
 		self._crewStore:UpdateAsync(crewId, function(crew)
 			if not crew then result = "no_such_crew" return nil end
-			if #crew.members >= GameConfig.Crew.MaxMembers then result = "full" return nil end
-			-- Check buildings for guildhall slot bonus on the *owner* — simple,
-			-- avoids cross-profile lookups here.
+			-- Effective cap = base + owner's guildhall bonus (see
+			-- _effectiveCrewCap). Resolved against the owner's live profile, so
+			-- tier-2 guildhall → 10, tier-3 → 12 when the owner is on-server.
+			local cap = self:_effectiveCrewCap(crew.ownerId)
+			if #crew.members >= cap then result = "full" return nil end
 			table.insert(crew.members, player.UserId)
 			return crew
 		end)
@@ -150,13 +193,32 @@ function SocialService.Client:SendCrewChat(player: Player, message: string)
 	-- server with a TTL — fine for v1 to fetch each time since chat is low rate.
 	local crew = self._crewStore:GetAsync(data.crewId)
 	if not crew then return end
+
+	-- Server-side content filter via Roblox TextService. Must run
+	-- server-side — clients cannot be trusted to filter their own
+	-- text. pcall guards against TextService unavailability; on
+	-- failure we silently drop the message (cozy pillar — never
+	-- surface infrastructure errors to the player).
+	local filteredMessage = message
+	local filterOk = pcall(function()
+		local filterResult = TextService:FilterStringAsync(
+			message,
+			player.UserId,
+			Enum.TextFilterContext.PublicChat
+		)
+		filteredMessage = filterResult:GetNonChatStringForBroadcast()
+	end)
+	if not filterOk then
+		return  -- silently drop; do NOT broadcast unfiltered text
+	end
+
 	for _, uid in ipairs(crew.members) do
 		local member = Players:GetPlayerByUserId(uid)
 		-- Cross-server crew chat would route through MessagingService; v1 is
 		-- same-server only. Document this clearly so we don't ship a feature
 		-- that silently no-ops for distant crewmates.
 		if member then
-			self.Client.CrewChat:Fire(member, player.Name, message)
+			self.Client.CrewChat:Fire(member, player.Name, filteredMessage)
 		end
 	end
 end
