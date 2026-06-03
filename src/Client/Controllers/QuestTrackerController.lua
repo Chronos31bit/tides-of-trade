@@ -67,6 +67,11 @@ function QuestTrackerController:KnitStart()
 		self._handle.queueStreak(day, reward)
 	end)
 
+	-- Welcome-back popup (returning player bonus).
+	QuestService.WelcomeBack:Connect(function(payload: {daysAway: number, coinsGranted: number})
+		self._handle.queueWelcomeBack(payload.daysAway, payload.coinsGranted)
+	end)
+
 	-- Refresh countdown ticker. RunService.Heartbeat-throttled to 1 Hz.
 	local accum = 0
 	RunService.Heartbeat:Connect(function(dt)

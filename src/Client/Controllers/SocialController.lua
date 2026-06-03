@@ -7,11 +7,12 @@
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Knit       = require(ReplicatedStorage.Packages.Knit)
-local Trove      = require(ReplicatedStorage.Packages.Trove)
-local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
-local SocialUI   = require(script.Parent.Parent.UI.SocialUI)
-local UIKit      = require(script.Parent.Parent.UI.UIKit)
+local Knit           = require(ReplicatedStorage.Packages.Knit)
+local Trove          = require(ReplicatedStorage.Packages.Trove)
+local GameConfig     = require(ReplicatedStorage.Shared.Config.GameConfig)
+local FishMutations  = require(ReplicatedStorage.Shared.Util.FishMutations)
+local SocialUI       = require(script.Parent.Parent.UI.SocialUI)
+local UIKit          = require(script.Parent.Parent.UI.UIKit)
 
 local EMOTES = { "wave", "dance", "fish_pose", "salute", "bow" }
 
@@ -34,6 +35,9 @@ local SocialController = Knit.CreateController({
 	_warnedMissingAssets = false,
 	_chatLog = {} :: { {from: string, message: string} },
 	_mutedNames = {} :: {[string]: boolean},
+	-- Other players' held fish models, keyed by userId. Populated by
+	-- BroadcastHeldFish, cleaned up by ClearHeldFish or PlayerRemoving.
+	_heldFishByUserId = {} :: {[number]: {model: Model, mutHandle: any}},
 })
 
 local function emoteCfg(): {[string]: any}
@@ -157,9 +161,16 @@ function SocialController:KnitStart()
 	self._emoteTrove:Add(SocialService.CrewChat:Connect(function(fromName, message)
 		self:_onCrewChat(fromName, message)
 	end))
+	self._emoteTrove:Add(SocialService.BroadcastHeldFish:Connect(function(payload)
+		self:_spawnHeldFishForUser(payload)
+	end))
+	self._emoteTrove:Add(SocialService.ClearHeldFish:Connect(function(payload)
+		self:_destroyHeldFishForUser(payload.userId)
+	end))
 
 	self._emoteTrove:Add(Players.PlayerRemoving:Connect(function(player)
 		self:_clearUserState(player.UserId)
+		self:_destroyHeldFishForUser(player.UserId)
 	end))
 
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -172,6 +183,92 @@ function SocialController:KnitStart()
 	task.defer(function()
 		self:_resolveAnimFolder()
 	end)
+end
+
+-- ====================================================================
+-- HOLD-FISH CROSS-CLIENT — spawn / destroy fish models for other players
+-- ====================================================================
+
+function SocialController:_spawnHeldFishForUser(payload: {userId: number, speciesId: string, modifiers: {string}, weightKg: number, weightMin: number, weightMax: number})
+	local player = Players:GetPlayerByUserId(payload.userId)
+	if not player then return end
+	local char = player.Character
+	if not char then return end
+
+	-- Clean up any existing held fish for this user.
+	self:_destroyHeldFishForUser(payload.userId)
+
+	local fishAssets = ReplicatedStorage:FindFirstChild("Assets")
+		and ReplicatedStorage.Assets:FindFirstChild("Fish")
+	local tmpl = fishAssets and fishAssets:FindFirstChild(payload.speciesId)
+	if not tmpl then return end
+
+	local hand: BasePart? = (char:FindFirstChild("RightHand") :: BasePart?)
+		or (char:FindFirstChild("Right Arm") :: BasePart?)
+	if not hand then return end
+
+	local clone: Model = (tmpl :: Model):Clone()
+	clone.Parent = workspace
+
+	-- Size by weight (same logic as HoldFishController).
+	local parts: {BasePart} = {}
+	for _, d in ipairs(clone:GetDescendants()) do
+		if d:IsA("BasePart") then table.insert(parts, d :: BasePart) end
+	end
+	if #parts == 1 then
+		local p = parts[1]
+		local maxDim = math.max(p.Size.X, p.Size.Y, p.Size.Z)
+		if maxDim > 0.01 then
+			local heldCfg: {[string]: any} = (GameConfig :: any).FishHeld or {}
+			local minStuds: number = heldCfg.MinStuds or 1.0
+			local maxStuds: number = heldCfg.MaxStuds or 3.5
+			local wKg  = payload.weightKg or 0
+			local wMin = payload.weightMin or 0
+			local wMax = payload.weightMax or 1
+			local t = (wMax > wMin) and math.clamp((wKg - wMin) / (wMax - wMin), 0, 1) or 0.5
+			local targetStuds = minStuds + t * (maxStuds - minStuds)
+			p.Size = p.Size * (targetStuds / maxDim)
+		end
+	end
+
+	-- Unanchor, no collision, massless.
+	for _, d in ipairs(clone:GetDescendants()) do
+		if d:IsA("BasePart") then
+			local bp = d :: BasePart
+			bp.Anchored   = false
+			bp.CanCollide = false
+			bp.CanTouch   = false
+			bp.Massless   = true
+			bp.CastShadow = false
+		end
+	end
+
+	local attachPart: BasePart? = clone.PrimaryPart
+	if not attachPart then
+		for _, d in ipairs(clone:GetDescendants()) do
+			if d:IsA("BasePart") then attachPart = d :: BasePart; break end
+		end
+	end
+	if not attachPart then clone:Destroy(); return end
+
+	clone:PivotTo(hand.CFrame * CFrame.new(0, -0.5, -1.5))
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = hand
+	weld.Part1 = attachPart
+	weld.Parent = attachPart
+
+	local mutHandle = FishMutations.attach(attachPart, payload.modifiers or {}, { heldScale = true })
+
+	self._heldFishByUserId[payload.userId] = { model = clone, mutHandle = mutHandle }
+end
+
+function SocialController:_destroyHeldFishForUser(userId: number)
+	local entry = self._heldFishByUserId[userId]
+	if not entry then return end
+	if entry.mutHandle then entry.mutHandle:Destroy() end
+	if entry.model then entry.model:Destroy() end
+	self._heldFishByUserId[userId] = nil
 end
 
 -- Crew-chat messages arrive here (server fans out to every member on this

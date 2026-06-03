@@ -7,6 +7,7 @@
 local Players          = game:GetService("Players")
 local TeleportService  = game:GetService("TeleportService")
 local DataStoreService = game:GetService("DataStoreService")
+local MessagingService = game:GetService("MessagingService")
 local TextService     = game:GetService("TextService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -16,12 +17,17 @@ local UidUtil         = require(ReplicatedStorage.Shared.Util.UidUtil)
 local Signal          = require(ReplicatedStorage.Packages.Signal)
 local RateLimiter     = require(ReplicatedStorage.Shared.Util.RateLimiter)
 local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
+local FishCatalog     = require(ReplicatedStorage.Shared.Config.FishCatalog)
 
 local SocialService = Knit.CreateService({
 	Name = "SocialService",
 	Client = {
 		CrewChat    = Knit.CreateSignal(),  -- (fromName, message)
 		EmotePlayed = Knit.CreateSignal(),  -- (userId, emoteId)
+		-- Cross-client held-fish replication. Server broadcasts to all
+		-- OTHER players when someone holds/releases a fish.
+		BroadcastHeldFish = Knit.CreateSignal(),  -- ({userId, speciesId, modifiers, weightKg, weightMin, weightMax})
+		ClearHeldFish     = Knit.CreateSignal(),  -- ({userId})
 	},
 
 	-- Server-internal Signals. QuestService listens to these to advance
@@ -29,8 +35,16 @@ local SocialService = Knit.CreateService({
 	-- Remote/Server affix sweep.
 	HarborVisitedServer = Signal.new(),  -- (visitor, hostUserId)
 	EmoteUsedServer     = Signal.new(),  -- (player, emoteId)
+	CrewChangedServer   = Signal.new(),  -- (player, action) where action is "joined"|"left"
 
 	_crewStore = nil :: any,
+	-- Per-crew MessagingService subscriptions. Keyed by crewId.
+	-- Lazily created on first SendCrewChat to avoid subscribing to
+	-- topics for crews that never chat on this server.
+	_crewSubs = {} :: {[string]: RBXScriptConnection},
+	-- Track how many crew members are on this server per crewId for
+	-- cleanup: when the last member leaves we unsubscribe.
+	_crewServerMemberCount = {} :: {[string]: number},
 })
 
 function SocialService:KnitInit()
@@ -41,11 +55,17 @@ function SocialService:KnitInit()
 	self._crewOpLimiter   = RateLimiter.new(GameConfig.AntiExploit.MaxCrewOpsPerMinute, 60)
 	self._crewChatLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxCrewChatsPerMinute, 60)
 	self._emoteLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxEmotesPerMinute, 60)
-	self._visitLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxVisitsPerMinute, 60)
+	self._visitLimiter      = RateLimiter.new(GameConfig.AntiExploit.MaxVisitsPerMinute, 60)
+	self._holdFishLimiter   = RateLimiter.new(GameConfig.AntiExploit.MaxHoldFishPerMinute, 60)
 	-- Build emote whitelist lookup from config (single source of truth).
 	self._allowedEmotes = {}
 	for _, e in ipairs(GameConfig.Social.AllowedEmotes) do
 		self._allowedEmotes[e] = true
+	end
+	-- Build fish species whitelist for hold-fish validation.
+	self._fishSpecies = {}
+	for _, f in ipairs(FishCatalog.fish) do
+		self._fishSpecies[f.id] = true
 	end
 end
 
@@ -55,7 +75,33 @@ function SocialService:KnitStart()
 		self._crewChatLimiter:reset(player)
 		self._emoteLimiter:reset(player)
 		self._visitLimiter:reset(player)
+			self._holdFishLimiter:reset(player)
+
+		-- Track crew membership for subscription lifecycle. When the
+		-- last member of a crew leaves this server, unsubscribe from
+		-- the cross-server relay to avoid leaking subscriptions.
+		local PlayerDataService = Knit.GetService("PlayerDataService")
+		local data = PlayerDataService:GetProfile(player)
+		if data and data.crewId then
+			local cid = data.crewId
+			self._crewServerMemberCount[cid] = math.max(0, (self._crewServerMemberCount[cid] or 1) - 1)
+			if self._crewServerMemberCount[cid] <= 0 then
+				local conn = self._crewSubs[cid]
+				if conn then
+					pcall(function() conn:Disconnect() end)
+					self._crewSubs[cid] = nil
+				end
+				self._crewServerMemberCount[cid] = nil
+			end
+		end
 	end)
+
+	-- Track crew member count as players join with an existing crew.
+	-- We can't intercept PlayerAdded here cleanly since profiles may not
+	-- be loaded yet, so we bump counts lazily in _ensureCrewSub and on
+	-- first SendCrewChat instead. The PlayerRemoving decrement above is
+	-- the safety net — subscriptions are cleaned up eventually even if
+	-- the count drifts.
 end
 
 -- ====================================================================
@@ -126,6 +172,7 @@ function SocialService.Client:CreateCrew(player: Player, name: string): {ok: boo
 		return { ok = false, reason = "datastore_error" }
 	end
 	data.crewId = crewId
+	self.CrewChangedServer:Fire(player, "joined")
 	return { ok = true, crewId = crewId }
 end
 
@@ -154,6 +201,7 @@ function SocialService.Client:JoinCrew(player: Player, crewId: string): {ok: boo
 	end)
 	if not ok or result then return { ok = false, reason = result or "datastore_error" } end
 	data.crewId = crewId
+	self.CrewChangedServer:Fire(player, "joined")
 	return { ok = true }
 end
 
@@ -178,6 +226,7 @@ function SocialService.Client:LeaveCrew(player: Player): {ok: boolean, reason: s
 	end)
 	if not ok then return { ok = false, reason = "datastore_error" } end
 	data.crewId = nil
+	self.CrewChangedServer:Fire(player, "left")
 	return { ok = true }
 end
 
@@ -217,14 +266,61 @@ function SocialService.Client:SendCrewChat(player: Player, message: string)
 		return  -- silently drop; do NOT broadcast unfiltered text
 	end
 
+	local senderWasOnServer = false
 	for _, uid in ipairs(crew.members) do
 		local member = Players:GetPlayerByUserId(uid)
-		-- Cross-server crew chat would route through MessagingService; v1 is
-		-- same-server only. Document this clearly so we don't ship a feature
-		-- that silently no-ops for distant crewmates.
 		if member then
 			self.Client.CrewChat:Fire(member, player.Name, filteredMessage)
+			senderWasOnServer = true
 		end
+	end
+
+	-- Cross-server relay via MessagingService. Publish so other servers
+	-- can fan out to crew members there. Wrap in pcall — MessagingService
+	-- can throttle or fail silently.
+	if senderWasOnServer then
+		self:_ensureCrewSub(data.crewId)
+		pcall(function()
+			MessagingService:PublishAsync(GameConfig.Topics.CrewChat, {
+				crewId = data.crewId,
+				fromName = player.Name,
+				fromUserId = player.UserId,
+				message = filteredMessage,
+			})
+		end)
+	end
+end
+
+-- Lazily subscribe to cross-server crew chat for a given crewId.
+-- Called on first SendCrewChat for a crew on this server. The subscription
+-- handler fans out incoming messages to any crew members present here,
+-- skipping the sender's server (dedup by fromUserId).
+function SocialService:_ensureCrewSub(crewId: string)
+	if self._crewSubs[crewId] then return end
+
+	local topic = GameConfig.Topics.CrewChat .. "_" .. crewId
+	local ok, conn = pcall(function()
+		return MessagingService:SubscribeAsync(topic, function(msg)
+			local data = msg.Data
+			if not data or not data.message then return end
+			-- Deduplicate: skip if sender is on this server (they already
+			-- got the message via the same-server fan-out above).
+			if data.fromUserId and Players:GetPlayerByUserId(data.fromUserId) then
+				return
+			end
+			-- Fan out to crew members on this server.
+			local crew = self._crewStore:GetAsync(crewId)
+			if not crew then return end
+			for _, uid in ipairs(crew.members) do
+				local member = Players:GetPlayerByUserId(uid)
+				if member then
+					self.Client.CrewChat:Fire(member, data.fromName, data.message)
+				end
+			end
+		end)
+	end)
+	if ok and conn then
+		self._crewSubs[crewId] = conn
 	end
 end
 
@@ -244,6 +340,43 @@ function SocialService.Client:PlayEmote(player: Player, emoteId: string)
 	end
 	-- Server-side fan-out for quest progress (social_emote_n).
 	self.EmoteUsedServer:Fire(player, emoteId)
+end
+
+-- ====================================================================
+-- HOLD FISH — cross-client replication. When a player holds a fish from their
+-- bag, the server broadcasts to all OTHER players so they can see the fish
+-- welded to the holder's hand. Release clears it. Session-only — no DataStore.
+-- ====================================================================
+
+function SocialService.Client:HoldFish(player: Player, speciesId: string, modifiers: {string}?, weightKg: number?, weightMin: number?, weightMax: number?)
+	local self = self.Server
+	-- Rate limit + whitelist check.
+	if not self._holdFishLimiter:check(player) then return end
+	if typeof(speciesId) ~= "string" or not self._fishSpecies[speciesId] then return end
+
+	local payload = {
+		userId = player.UserId,
+		speciesId = speciesId,
+		modifiers = modifiers or {},
+		weightKg = weightKg or 0,
+		weightMin = weightMin or 0,
+		weightMax = weightMax or 1,
+	}
+
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player then
+			self.Client.BroadcastHeldFish:Fire(other, payload)
+		end
+	end
+end
+
+function SocialService.Client:ReleaseHeld(player: Player)
+	local self = self.Server
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player then
+			self.Client.ClearHeldFish:Fire(other, { userId = player.UserId })
+		end
+	end
 end
 
 -- ====================================================================

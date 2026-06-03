@@ -176,7 +176,7 @@ function CosmeticShopUI.show(opts: ShopShowOpts): ShopHandle
 	local function close()
 		if closed then return end
 		closed = true
-		shell.close()
+		shell.destroy()
 	end
 
 	return {

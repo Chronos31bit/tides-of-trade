@@ -37,6 +37,9 @@ GameConfig.Economy = {
 
 	-- Smokehouse conversion: preserved goods sell for this multiple of raw fish.
 	SmokehouseMultiplier = 3.0,
+
+	-- Number of recent sale samples to store per species for the sparkline.
+	PriceHistorySamples = 24,
 }
 
 -- ====================================================================
@@ -873,6 +876,12 @@ GameConfig.Quests = {
 	-- Login-streak days that fire StreakMilestone toast (in addition to rewards).
 	StreakMilestoneToastDays = { 7, 14, 30, 50, 100 },
 
+	-- Welcome-back bonus: when a player returns after this many days away,
+	-- grant a small coin reward. Zero cost to the player, no FOMO — just a
+	-- cozy "we missed you" moment.
+	WelcomeBackThresholdDays = 3,
+	WelcomeBackCoins = 150,
+
 	-- Coalescing window for the QuestsChanged network push during
 	-- incremental progress. NOT a DataStore batch — the profile is mutated
 	-- in memory immediately and ProfileService owns the autosave, so there
@@ -933,6 +942,7 @@ GameConfig.AntiExploit = {
 	MaxTutorialOpsPerMinute = 30,
 	MaxSnapshotPullsPerMinute = 30, -- coarse limiter on read-only getters
 	MaxReelClaimsPerMinute  = 60,   -- one per cast; upstream gated by StartCast
+	MaxHoldFishPerMinute    = 10,   -- cross-client hold fish broadcasts
 
 	-- Sailing: at most N sail ops per minute per player. Low cap — teleport
 	-- is heavy and sail is rare in honest play.
@@ -1072,6 +1082,8 @@ GameConfig.DataStores = {
 	-- Cross-server expired listing queue — listings swept by pruneAndQueueReturns
 	-- land here, settled on next login like SettlePendingPayouts.
 	ExpiredListingsStore = "TidesExpiredListings_v1",
+	-- Per-species ring-buffer of recent sale prices for sparkline display.
+	PriceHistoryStore = "TidesPriceHistory_v1",
 }
 
 -- ====================================================================
@@ -1124,6 +1136,9 @@ GameConfig.Topics = {
 	MarketSold     = "TidesMarket_Sold",
 	MarketCanceled = "TidesMarket_Canceled",
 	DemandRotated  = "TidesMarket_Demand",
+	-- Cross-server crew chat relay. Each server subscribes per-crew
+	-- lazily on first message send.
+	CrewChat       = "TidesCrew_Chat",
 }
 
 -- ====================================================================
@@ -1297,6 +1312,31 @@ GameConfig.Leaderboard = {
 	DataStores = {
 		Catches  = "TidesLB_Catches_v1",
 		Species  = "TidesLB_Species_v1",
+	},
+}
+
+-- Season Pass
+GameConfig.SeasonPass = {
+	-- Number of tiers in the free track. Rewards are at milestone tiers.
+	TierCount = 20,
+	-- XP needed to advance one tier. Tier = floor(xp / XPPerTier) + 1.
+	XPPerTier = 100,
+	-- Free-track milestone rewards by tier number (1-indexed).
+	FreeRewards = {
+		[1]  = { xp = 50 },
+		[5]  = { lureTokens = 5 },
+		[10] = { xp = 100 },
+		[15] = { lureTokens = 10 },
+		[20] = { xp = 200 },
+	},
+	-- How much season-pass XP each gameplay event grants. Small drip —
+	-- a diligent player hits tier 20 in ~2-3 weeks of daily play.
+	EventXP = {
+		FishCaught       = 1,
+		Sold             = 1,
+		BuildingUpgraded = 3,
+		HarborVisited    = 2,
+		EmoteUsed        = 1,
 	},
 }
 

@@ -77,6 +77,12 @@ local MarketService = Knit.CreateService({
 	_demandSpike = { speciesId = nil, multiplier = 1.0, expiresAt = 0 },
 	-- Avoid re-toasting the same daily demand on every cross-server refresh.
 	_lastDemandToastDay = nil :: string?,
+
+	-- Per-species price history cache: {[speciesId]: {{price, ts}}}.
+	-- Populated lazily on first GetPriceHistory call and refreshed when a
+	-- sale is recorded on this server.
+	_priceHistoryCache = {} :: any,
+	_priceHistoryStore = nil :: any,
 })
 
 -- ====================================================================
@@ -247,6 +253,39 @@ function MarketService:_publishCacheRefresh()
 	end)
 end
 
+-- Record a completed sale in the per-species price history DataStore.
+-- Uses a ring-buffer capped at GameConfig.Economy.PriceHistorySamples.
+-- Also updates the in-memory cache so GetPriceHistory returns instantly.
+function MarketService:_recordSale(speciesId: string, price: number)
+	if not speciesId or price <= 0 then return end
+	local key = speciesId:lower()
+	local maxSamples = GameConfig.Economy.PriceHistorySamples
+	local sample = { price = price, ts = os.time() }
+
+	-- Write to DataStore (fire-and-forget).
+	pcall(function()
+		self._priceHistoryStore:UpdateAsync(key, function(old)
+			old = old or {}
+			table.insert(old, sample)
+			if #old > maxSamples then
+				table.remove(old, 1)
+			end
+			return old
+		end)
+	end)
+
+	-- Update in-memory cache.
+	local cache = self._priceHistoryCache[key]
+	if not cache then
+		cache = {}
+		self._priceHistoryCache[key] = cache
+	end
+	table.insert(cache, sample)
+	if #cache > maxSamples then
+		table.remove(cache, 1)
+	end
+end
+
 -- ====================================================================
 -- LIFECYCLE
 -- ====================================================================
@@ -254,6 +293,7 @@ end
 function MarketService:KnitInit()
 	self._marketStore = DataStoreService:GetDataStore(GameConfig.DataStores.MarketStore)
 	self._demandStore = DataStoreService:GetDataStore(GameConfig.DataStores.DemandStore)
+	self._priceHistoryStore = DataStoreService:GetDataStore(GameConfig.DataStores.PriceHistoryStore)
 	self._listLimiter      = RateLimiter.new(GameConfig.AntiExploit.MaxListingsPerMinute, 60)
 	self._buyLimiter       = RateLimiter.new(GameConfig.AntiExploit.MaxBuysPerMinute, 60)
 	self._cancelLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxCancelsPerMinute, 60)
@@ -354,6 +394,32 @@ end
 
 function MarketService.Client:GetDemand(_player: Player): {speciesId: string?, multiplier: number, expiresAt: number}
 	return self.Server._demandSpike
+end
+
+-- Return recent sale samples for a species sparkline. Reads from in-memory
+-- cache first; falls back to DataStore on cache miss. Returns empty array
+-- when no history exists (fewer than 2 samples → UI shows '--').
+function MarketService.Client:GetPriceHistory(_player: Player, speciesId: string): {{price: number, ts: number}}
+	if typeof(speciesId) ~= "string" or #speciesId == 0 then return {} end
+	local self = self.Server
+	local key = speciesId:lower()
+
+	-- Check in-memory cache first.
+	local cached = self._priceHistoryCache[key]
+	if cached then return cached end
+
+	-- Read from DataStore on cache miss.
+	local store = self._priceHistoryStore
+	if not store then return {} end
+	local ok, result = pcall(function()
+		return store:GetAsync(key)
+	end)
+	if ok and result and type(result) == "table" then
+		self._priceHistoryCache[key] = result
+		return result
+	end
+
+	return {}
 end
 
 -- List an item. Server validates ownership, prices, and active-listing cap.
@@ -564,6 +630,11 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	-- Quest hook for the buyer.
 	self.BoughtServer:Fire(player, boughtListing)
 
+	-- Record price history for sparkline.
+	if boughtListing.itemKind == "Fish" and boughtListing.speciesId then
+		self:_recordSale(boughtListing.speciesId, boughtListing.price)
+	end
+
 	-- Pay the seller. They might be online on this server or a different one;
 	-- if they're online here we credit immediately, otherwise the next time
 	-- they log in we settle via the offline payouts queue.
@@ -718,6 +789,11 @@ function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: b
 	-- Server-side fan-out (tutorial beat 4 advance, quest progress, future
 	-- analytics). QuestService listens to SoldServer; no direct call needed.
 	self.SoldServer:Fire(player, payout, "quick")
+
+	-- Record price history for sparkline.
+	if item.kind == "Fish" and item.speciesId then
+		self:_recordSale(item.speciesId, payout)
+	end
 
 	return { ok = true, coinsEarned = payout }
 end

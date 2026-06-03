@@ -91,6 +91,12 @@ function NotificationController:KnitStart()
 		if not payload or not payload.day then return end
 		self:Toast(("%d-day login streak!"):format(payload.day))
 	end))
+
+	local AchievementService = Knit.GetService("AchievementService")
+	self._trove:Add(AchievementService.AchievementUnlocked:Connect(function(payload: {id: string, displayName: string, description: string, reward: any})
+		if not payload or not payload.displayName then return end
+		self:Toast(("Achievement unlocked: %s!"):format(payload.displayName))
+	end))
 end
 
 return NotificationController

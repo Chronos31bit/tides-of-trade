@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tides of Trade — What to Implement Next</title>
+<style>
+:root{
+  --bg:#0a1322; --ink:#e9eff8; --muted:#8597b3;
+  --panel:#111d34; --panel2:#19284a; --line:#2a3a63;
+  --done:#22c55e; --done-bg:rgba(34,197,94,.12); --done-bd:rgba(34,197,94,.45);
+  --wip:#f59e0b; --wip-bg:rgba(245,158,11,.14); --wip-bd:rgba(245,158,11,.5);
+  --critical:#ef4444; --critical-bg:rgba(239,68,68,.14); --critical-bd:rgba(239,68,68,.5);
+  --next:#60a5fa; --next-bg:rgba(96,165,250,.12); --next-bd:rgba(96,165,250,.45);
+  --polish:#a78bfa; --polish-bg:rgba(167,139,250,.12); --polish-bd:rgba(167,139,250,.45);
+  --launch:#f97316; --launch-bg:rgba(249,115,22,.14); --launch-bd:rgba(249,115,22,.5);
+  --backlog:#94a3b8; --backlog-bg:rgba(148,163,184,.10); --backlog-bd:rgba(148,163,184,.4);
+  --accent:#7dd3fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+body{padding:22px 24px 80px;max-width:1500px;margin:0 auto}
+h1{font-size:23px;font-weight:700;letter-spacing:-.4px}
+.sub{color:var(--muted);font-size:13px;margin-top:6px;max-width:880px;line-height:1.55}
+.sub b{color:var(--ink)}
+
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:5px 11px;border-radius:14px}
+.leg .sw{width:9px;height:9px;border-radius:50%}
+.sw.s-critical{background:var(--critical)} .sw.s-next{background:var(--next)} .sw.s-wip{background:var(--wip)} .sw.s-polish{background:var(--polish)} .sw.s-launch{background:var(--launch)} .sw.s-done{background:var(--done)} .sw.s-backlog{background:var(--backlog)}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.pill{background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;padding:6px 12px;border-radius:20px;cursor:pointer;transition:all .15s}
+.pill:hover{color:var(--ink);border-color:var(--accent)}
+.pill.on{background:rgba(125,211,252,.14);border-color:var(--accent);color:var(--accent)}
+.search{flex:1;max-width:260px;background:var(--panel);border:1px solid var(--line);color:var(--ink);font-size:12px;padding:8px 12px;border-radius:20px;outline:none}
+.search:focus{border-color:var(--accent)}
+
+.graph{position:relative;margin-top:22px;background:linear-gradient(180deg,#0b1428 0%,#0a1124 100%);border:1px solid var(--line);border-radius:14px;padding:20px;overflow:hidden}
+.graph-inner{position:relative;width:100%;min-height:1080px}
+svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.lane-title{position:absolute;font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);top:6px;text-align:center;transform:translateX(-50%);white-space:nowrap}
+
+.node{position:absolute;width:160px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;user-select:none;transform:translate(-50%,-50%)}
+.node:hover{transform:translate(-50%,-50%) translateY(-3px);box-shadow:0 10px 28px rgba(0,0,0,.45)}
+.node:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.node .nm{font-size:12.5px;font-weight:700;line-height:1.2}
+.node .sb{font-size:10px;color:var(--muted);margin-top:3px;line-height:1.3}
+.node .pri{position:absolute;top:-7px;right:-7px;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);letter-spacing:.3px}
+
+.node.critical{background:var(--critical-bg);border-color:var(--critical-bd)} .node.critical .nm{color:var(--critical)}
+.node.next{background:var(--next-bg);border-color:var(--next-bd)} .node.next .nm{color:var(--next)}
+.node.wip{background:var(--wip-bg);border-color:var(--wip-bd)} .node.wip .nm{color:var(--wip)}
+.node.polish{background:var(--polish-bg);border-color:var(--polish-bd)} .node.polish .nm{color:var(--polish)}
+.node.launch{background:var(--launch-bg);border-color:var(--launch-bd)} .node.launch .nm{color:var(--launch)}
+.node.done{background:var(--done-bg);border-color:var(--done-bd)} .node.done .nm{color:var(--done)}
+.node.backlog{background:var(--backlog-bg);border-color:var(--backlog-bd)} .node.backlog .nm{color:var(--backlog)}
+.node.dim{opacity:.18}
+.node.hl{box-shadow:0 0 0 2px var(--accent),0 10px 28px rgba(125,211,252,.25)}
+
+.edge{stroke:var(--line);stroke-width:1.4;fill:none;transition:stroke .15s,stroke-width .15s,opacity .15s}
+.edge.active{stroke:var(--accent);stroke-width:2.2}
+.edge.dim{opacity:.12}
+
+.scrim{position:fixed;inset:0;background:rgba(2,6,18,.78);display:none;align-items:center;justify-content:center;padding:18px;z-index:50;backdrop-filter:blur(6px)}
+.scrim.on{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:820px;width:100%;max-height:90vh;overflow:auto}
+.mh{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.mh .ttl{font-size:18px;font-weight:700}
+.mh .ms{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.chip{font-size:10px;font-weight:700;letter-spacing:.4px;padding:3px 8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);text-transform:uppercase}
+.chip.critical{color:var(--critical);border-color:var(--critical-bd);background:var(--critical-bg)}
+.chip.next{color:var(--next);border-color:var(--next-bd);background:var(--next-bg)}
+.chip.wip{color:var(--wip);border-color:var(--wip-bd);background:var(--wip-bg)}
+.chip.polish{color:var(--polish);border-color:var(--polish-bd);background:var(--polish-bg)}
+.chip.launch{color:var(--launch);border-color:var(--launch-bd);background:var(--launch-bg)}
+.chip.done{color:var(--done);border-color:var(--done-bd);background:var(--done-bg)}
+.chip.backlog{color:var(--backlog);border-color:var(--backlog-bd);background:var(--backlog-bg)}
+.close{margin-left:auto;background:transparent;border:0;color:var(--muted);font-size:24px;cursor:pointer;padding:0 4px}
+.close:hover{color:var(--ink)}
+.mb{padding:16px 22px 22px}
+.mb h4{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:16px 0 6px;font-weight:700}
+.mb h4:first-child{margin-top:0}
+.mb p{font-size:13px;line-height:1.6;color:var(--ink)}
+.mb ul{margin:6px 0 0 18px;color:var(--ink);font-size:13px;line-height:1.6}
+.mb ul li{margin-bottom:4px}
+.prompt-box{position:relative;background:#06101f;border:1px solid var(--line);border-radius:10px;padding:14px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;color:#cfe2ff;white-space:pre-wrap;word-wrap:break-word;margin-top:8px;max-height:380px;overflow:auto}
+.prompt-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.btn{background:var(--accent);color:#062136;border:0;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;transition:filter .15s}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent)}
+.copy-msg{font-size:11px;color:var(--done);font-weight:600;opacity:0;transition:opacity .2s}
+.copy-msg.on{opacity:1}
+.pillars-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.pchip{font-size:10px;padding:3px 8px;border-radius:10px;border:1px dashed var(--line);color:var(--muted)}
+.deps-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.dep{font-size:10px;padding:3px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);cursor:pointer}
+.dep:hover{color:var(--accent);border-color:var(--accent)}
+
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat .lbl{font-size:10px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;font-weight:600}
+.stat .val{font-size:20px;font-weight:700;margin-top:4px}
+.stat.critical .val{color:var(--critical)}
+.stat.next .val{color:var(--next)}
+.stat.wip .val{color:var(--wip)}
+.stat.polish .val{color:var(--polish)}
+.stat.launch .val{color:var(--launch)}
+.stat.backlog .val{color:var(--backlog)}
+
+@media (max-width:780px){
+  .node{width:130px;padding:8px 9px}
+  .node .nm{font-size:11px}
+  .node .sb{font-size:9px}
+  .graph-inner{min-height:1600px}
+}
+</style>
+</head>
+<body>
+
+<h1>Tides of Trade — What to Implement Next</h1>
+<p class="sub">A prioritized flowchart of what's left to ship. Arrows point <b>prereq → unlocks</b>. <b>Click any node</b> for a ready-to-paste prompt that respects every guardrail in <b>CLAUDE.md</b>. Filter by phase below.</p>
+
+<div class="summary" id="summary"></div>
+
+<div class="legend">
+  <span class="leg"><span class="sw s-critical"></span>Critical gap (blocking launch)</span>
+  <span class="leg"><span class="sw s-next"></span>Next up (planned)</span>
+  <span class="leg"><span class="sw s-wip"></span>In progress (finish before new work)</span>
+  <span class="leg"><span class="sw s-polish"></span>Polish &amp; juice</span>
+  <span class="leg"><span class="sw s-launch"></span>Pre-launch must-do</span>
+  <span class="leg"><span class="sw s-backlog"></span>Backlog / discovery</span>
+  <span class="leg"><span class="sw s-done"></span>Done (context)</span>
+</div>
+
+<div class="controls">
+  <button class="pill on" data-filter="all">All</button>
+  <button class="pill" data-filter="critical">Critical</button>
+  <button class="pill" data-filter="wip">In progress</button>
+  <button class="pill" data-filter="next">Next up</button>
+  <button class="pill" data-filter="polish">Polish</button>
+  <button class="pill" data-filter="launch">Pre-launch</button>
+  <button class="pill" data-filter="backlog">Backlog</button>
+  <input type="text" id="search" class="search" placeholder="Search nodes…">
+</div>
+
+<div class="graph" id="graphWrap">
+  <div class="graph-inner" id="graph">
+    <svg class="edges" id="edges" preserveAspectRatio="none"></svg>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" role="dialog" aria-modal="true">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const LANES = ["Critical gaps", "Finish in-flight", "Next features", "Polish &amp; juice", "Pre-launch", "Backlog / discovery"];
+
+const CLAUDE_PREAMBLE = `Per CLAUDE.md: server-authoritative, no magic numbers (GameConfig only), TweenService not Heartbeat for UI motion, Trove for cleanup, MotionUtil for ReducedMotion safety, UIKit for chrome (no inline Color3/font sizes/spacing), mobile-first 380px (44px hit targets, ≥12px font), additive schema only (no TidesProfile_v1 break), cozy tone (no FOMO, no red/green up-down arrows, no flashing). Follow the mandatory git workflow: branch feat/<name>, commit frequently, merge --no-ff, push, delete branch.
+
+`;
+
+const NODES = [
+  // ============ LANE 0 — CRITICAL GAPS ============
+  {id:"meshes", name:"Building Meshes", sub:"6 kinds × 3 tiers", lane:0, y:.10, status:"critical", priority:"P0",
+   pillars:["visible"], deps:[],
+   why:"Procedural fallback ships today — players see tier-ups but they read as 'placeholder geometry'. Real meshes are the gap between alpha and a finished cozy game. The visible-transformation pillar can't be honored at 30 studs without them.",
+   tasks:["Generate tier1/2/3 meshes for Dock, MarketStall, Lighthouse, BaitShop, Smokehouse, Aquarium","Install via CommandBar_InstallHarborVisual.luau","Verify 30-stud silhouette read"],
+   prompt:`Generate harbor building meshes per scripts/Studio/MCP_HarborBuildings.md.
+
+For each kind (Dock, MarketStall, Lighthouse, BaitShop, Smokehouse, Aquarium):
+1. Read scripts/Studio/HarborMeshPrompts.lua for the canonical tier prompts.
+2. Run MCP generate_mesh for tier1/2/3 — prepend cozy-harbor prefix + append the tier prompt.
+3. For each tier: edit scripts/Studio/CommandBar_InstallHarborVisual.luau (KIND, TIER, footprint from MCP_HarborBuildings.md), then run via execute_luau.
+4. Verify in the open place: silhouettes MUST read DIFFERENTLY at 30 studs (size, color, signature shape) — that's the visible-transformation pillar.
+5. If a mesh bakes in a 45° yaw, use CommandBar_AlignHarborVisual.luau to fix.
+
+DO NOT save the place file until I've inspected each kind. Report per-kind with what generate_mesh returned and whether install snapped to the correct footprint.`},
+
+  {id:"mobileqa", name:"Mobile QA Audit", sub:"380px portrait pass", lane:0, y:.30, status:"critical", priority:"P0",
+   pillars:["mobile"], deps:["ui"],
+   why:"CLAUDE.md mandates mobile-first 380px baseline. This MUST happen before launch — every UI module audited for 44px hit targets, ≥12px font, thumb-zone reachability, ReducedMotion handling, flashing-effects check.",
+   tasks:["Screenshot every UI screen at 380px","Hit-target audit + violation table","Thumb-zone reachability check","Priority-ordered fix list"],
+   prompt:`Mobile-first audit of every UI module in src/Client/UI/ at 380px portrait.
+
+Use MCP execute_luau to set the viewport (StarterPlayer device emulator preset) and step through each UI state.
+
+Output a markdown table per screen:
+| file | 44px violation (line) | <12px font violation (line) | thumb-zone problem | ReducedMotion handled? | flashing/strobing risk |
+
+Then end with a priority-ordered fix list (worst-offending screens first). Don't change code on this pass — audit only. After the table, suggest the top 3 to fix in the next branch.`},
+
+  {id:"visit", name:"Harbor Visiting", sub:"Read-only crew tours", lane:0, y:.50, status:"critical", priority:"P1",
+   pillars:["cozy","visible"], deps:["crew","meshes"],
+   why:"Walking through a crewmate's harbor showcases the visible-transformation pillar. Cozy social loop — no theft, no economy interaction. Server already rate-limits VisitLocalHarbor; the visit itself isn't implemented.",
+   tasks:["Server clones host plot into Workspace.VisitorViews.<visitorId>","Restricted collision group prevents ClickDetector firing","HUD 'Visiting [hostName]' widget + Leave button","Despawn clone on leave or disconnect"],
+   prompt:`Design + implement 'visit harbor' per CLAUDE.md.
+
+VisitLocalHarbor is already rate-limited + typeof-guarded in SocialService. The visit itself isn't implemented yet.
+
+Proposal:
+1. Server clones host buildings under Workspace.VisitorViews.<visitorId>, server-owned and read-only.
+2. Visitor character moved to a restricted CollisionGroup so ClickDetectors / ProximityPrompts can't fire.
+3. HUD widget: 'Visiting [hostName]' chip + Leave button. UIKit.Button, 44px hit-target.
+4. On Leave / disconnect / host leaving: despawn the clone folder, restore visitor's CollisionGroup.
+5. StreamingEnabled-friendly — don't unstream the visitor's own plot while they're away.
+
+Show the service plan + RemoteEvent contracts FIRST. Wait for confirmation, then patch SocialService + HarborService + new HUD widget. Plan first.`},
+
+  {id:"leader", name:"Leaderboards", sub:"Identity, not wealth", lane:0, y:.70, status:"critical", priority:"P1",
+   pillars:["cozy","identity"], deps:["crew"],
+   why:"Cozy leaderboards reward identity / decoration, NEVER raw wealth. 'Most decorated harbor' = pride; 'richest player' = FOMO. Forbidden: 'most coins'. Required: 3 cozy-aligned metrics on OrderedDataStore.",
+   tasks:["Pick 3 cozy-aligned metrics (species cataloged, tier-3 buildings, decorations placed)","LeaderboardService with OrderedDataStore per metric + weekly UTC Monday reset","MessagingService heartbeat for cross-server cache invalidation","Mobile-first HUD widget (UIKit, 44px, ≥12px font)"],
+   prompt:`Design 3 leaderboard metrics that reward identity NOT wealth per CLAUDE.md.
+
+Forbidden: 'most coins'. Acceptable: species cataloged, tier-3 buildings owned, harbor decorations placed, days played, longest streak. Pick 3 + justify against the cozy pillar.
+
+Then deliver:
+1. src/Server/Services/LeaderboardService.lua using OrderedDataStore per metric. Weekly reset UTC Monday midnight. MessagingService heartbeat to invalidate caches across servers.
+2. HUD widget: top 10 per metric. Mobile-first (380px, 44px hit, ≥12px font). Built with UIKit.Card / UIKit.Button.
+3. NO 'beat your friends' copy — factual only ('Top 10 most-decorated harbors this week').
+
+Plan first — metric picks + service architecture — wait for confirmation before patching.`},
+
+  // ============ LANE 1 — FINISH IN-FLIGHT (WIP) ============
+  {id:"ui", name:"UIKit Adoption", sub:"Phase 2 sweep", lane:1, y:.10, status:"wip", priority:"P0",
+   pillars:["mobile","cozy"], deps:[],
+   why:"UIKit.lua Phase-1 design system shipped (tokens + factories). Phase-2 is converting every feature UI to use UIKit instead of inline Color3 / font sizes / spacing. docs/UI_OVERHAUL.md is the enforced contract.",
+   tasks:["Audit src/Client/UI/* for inline tokens","Convert hand-rolled modals to UIKit.ModalShell","Verify ≥12px / ≥44px enforcement warnings fire","Mobile-first 380px screenshot pass"],
+   prompt:`Drive Phase-2 UIKit adoption per docs/UI_OVERHAUL.md.
+
+1. Grep src/Client/UI/*.lua for: Color3.fromRGB, FontSize/TextSize literals, BackgroundColor3 = Color3, UDim2.fromOffset for spacing. Exclude UIKit.lua + UIUtil.lua. Output file:line + the UIKit token that should replace each hit.
+
+2. Identify hand-rolled modals (modules building their own backdrop + panel + header + close instead of UIKit.ModalShell). Convert ONE as proof — pick MarketUI, InventoryUI, or ShopUI (whichever has the most inline chrome).
+
+3. Verify enforcement guards: UIUtil.makeLabel should warn below MinFontPx (12); UIUtil.makePrimaryButton should warn below MinTouchPx (44). Use MCP execute_luau to create a 10px label + 30px button — confirm warnings fire.
+
+4. Mobile-first verify: 380×720 viewport via MCP, screenshot each converted screen.
+
+No gameplay logic on this pass — UI chrome only. Audit table first, wait for confirmation.`},
+
+  {id:"reduce", name:"ReducedMotion Sweep", sub:"100% MotionUtil", lane:1, y:.30, status:"wip", priority:"P1",
+   pillars:["mobile","cozy"], deps:["ui"],
+   why:"MotionUtil shipped (tween / tweenOrSnap / reducedMotionEnabled). Adopted in AquariumController, CastMeterController, FishingController. UI_OVERHAUL.md mandates 100% UI adoption — convert remaining controllers + UI.",
+   tasks:["Grep TweenService:Create in Controllers/ + UI/","Classify each hit: gameplay-critical / decorative / UI transition","Convert decorative + UI to MotionUtil","Verify ReducedMotion toggle in the live place"],
+   prompt:`Drive MotionUtil adoption to 100% in client UI per UI_OVERHAUL.md rule #2.
+
+1. Grep src/Client/Controllers/ + src/Client/UI/ for TweenService:Create. Exclude AquariumController, CastMeterController, FishingController (already compliant), UIKit.lua, UIUtil.lua.
+
+2. Classify each hit: (a) gameplay-critical — leave + document; (b) decorative (particles/glows/pulses) — MotionUtil.tween; (c) UI transition (modals/cards/hover) — MotionUtil.tweenOrSnap so it snaps under ReducedMotion.
+
+3. Audit table FIRST (file:line, classification, proposed change). Wait for OK before patching.
+
+4. Pick HarborVisualController:_runUpgradeBurst (~line 390) as proof patch — textbook decorative case.
+
+Use MCP execute_luau to toggle GuiService.ReducedMotionEnabled in the open place and verify each converted callsite (no jank, no missed cleanup).`},
+
+  {id:"social", name:"Emote Animations", sub:"Server broadcasts → animate", lane:1, y:.50, status:"wip", priority:"P2",
+   pillars:["cozy","mobile"], deps:[],
+   why:"Server broadcasts emotes, hardened against spam. SocialController line ~22 TODO: receives EmotePlayed but only prints — characters don't animate yet. The whole cozy social hook is silent without this.",
+   tasks:["Inventory ReplicatedStorage.Assets.Animations via MCP","If empty, create 5 stub Animations (wave/dance/fish_pose/salute/bow)","Hook PlayEmote on receive in SocialController","Stop previous emote on same player first"],
+   prompt:`Hook src/Client/Controllers/SocialController.lua line ~22 to play actual character animations on EmotePlayed.
+
+Use MCP execute_luau to inventory ReplicatedStorage.Assets.Animations. If empty, create the folder + 5 stub Animation instances (wave, dance, fish_pose, salute, bow) with placeholder AnimationIds.
+
+Patch SocialController:
+- On EmotePlayed: find target's Humanoid, load and play the matching Animation track.
+- Stop the currently-playing emote on the same player first (no stacking).
+- ReducedMotion: still play (it's player-triggered) but skip any decorative particle accompaniment.
+- Tunables in GameConfig.Social.Emotes (fade time, max concurrent).
+
+Whitelist is already enforced server-side — don't re-validate on the client.`},
+
+  {id:"crew", name:"Crew Improvements", sub:"Guildhall bonus + xserver chat", lane:1, y:.70, status:"wip", priority:"P2",
+   pillars:["cozy"], deps:[],
+   why:"Create/Join/Leave + chat shipped + rate-limited. Two TODOs: guildhallCrewBonus from BuildingCatalog not wired into MaxMembers, and crew chat is same-server only (not cross-server via MessagingService).",
+   tasks:["Wire guildhallCrewBonus into JoinCrew UpdateAsync (race-safe)","Cross-server crew chat via MessagingService","140-char truncation for 1KB payload cap","Schema-additive only"],
+   prompt:`Two crew improvements in src/Server/Services/SocialService.lua.
+
+1. Wire guildhallCrewBonus: when a crew owner has a tier-N Guildhall built, raise effective MaxMembers by BuildingCatalog.Guildhall.tiers[N].guildhallCrewBonus. Apply INSIDE the JoinCrew UpdateAsync transform so it's race-safe. Default to GameConfig.Crew.MaxMembers when there's no Guildhall.
+
+2. Cross-server crew chat: route through MessagingService so offsite crewmates receive messages. Keep the existing rate limiter. Truncate to 140 chars to fit MessagingService's 1KB payload cap.
+
+Schema-additive only. Plan first — show the transform diff + MessagingService topic name + dedupe strategy — then implement.`},
+
+  // ============ LANE 2 — NEXT FEATURES ============
+  {id:"achv", name:"Achievements", sub:"Catalog + Service + UI", lane:2, y:.10, status:"next", priority:"P1",
+   pillars:["cozy","identity"], deps:["quests","aquarium"],
+   why:"Cozy players love checklists. Identity-not-progress: cosmetic titles / badges only, NEVER coins or stat boosts. Stable IDs forever.",
+   tasks:["AchievementCatalog with 20 starter entries (5 fishing / 5 harbor / 5 market / 5 social)","AchievementService subscribing to existing Knit Signals","achievementUnlocks profile field (additive)","UIKit surface"],
+   prompt:`Per CLAUDE.md identity-not-progress: achievements award cosmetic titles / badges only — never coins, never stat boosts.
+
+1. src/Shared/Config/AchievementCatalog.lua with 20 starter achievements (5 fishing / 5 harbor / 5 market / 5 social). Schema: { id (stable forever), name, description, iconAssetId?, awards = { title? | badgeId? } }. Use stable IDs like 'first_legendary_fish', 'tier3_lighthouse'.
+
+2. src/Server/Services/AchievementService.lua subscribing to existing Signals — FishingService.CaughtServer, HarborService.BuildingUpgradedServer, MarketService.SoldServer, SocialService.HarborVisitedServer. Server-authoritative grant. Idempotent (re-firing the same Signal can't double-grant).
+
+3. Add achievementUnlocks: {[string]:number} to TidesProfile_v1 via ProfileService reconcile — ADDITIVE ONLY, no version bump.
+
+4. UI surface using UIKit.Card / UIKit.ModalShell. Defer polish to the UI Redesign track — basic but on-spec is fine.
+
+Plan first.`},
+
+  {id:"price", name:"Price History", sub:"24h sparkline", lane:2, y:.30, status:"next", priority:"P1",
+   pillars:["cozy"], deps:["market"],
+   why:"Cozy traders need market dynamics. A sparkline gives a reason to time sales WITHOUT stress. No red/green arrows — calm line only.",
+   tasks:["Rolling 24h price log per fish.id, DataStore-backed","GetPriceHistory remote (rate-limited, typeof-guarded)","60×16 sparkline on MarketUI cards using UIKit tokens","MotionUtil.tweenOrSnap for line draw"],
+   prompt:`Design + implement a 24-hour price-history sparkline.
+
+Server (src/Server/Services/MarketService.lua):
+- Rolling 24h price log per fish.id, DataStore-backed under TidesMarketPriceHistory_v1.
+- Hook the log to BoughtServer (when a listing is purchased).
+- Client:GetPriceHistory(speciesId) handler — typeof-guarded, rate-limited via the pre-staked MaxSnapshotPullsPerMinute. Silent-drop on over-limit (return last-known cache).
+
+Client (src/Client/UI/MarketUI.lua):
+- 60×16 sparkline above each listing card. Frame + CanvasGroup, line segments — no external lib.
+- Use UIKit.Palette tokens (no inline colors).
+- Cozy tone — NO red/green up/down arrows. Calm single-color line only.
+- MotionUtil.tweenOrSnap if you animate the line draw — ReducedMotion-safe.
+
+Tunables in GameConfig.Market.PriceHistory (sample interval, retention window, sparkline dimensions). Plan first.`},
+
+  {id:"cosmcat", name:"Cosmetics Catalog", sub:"Stable IDs + LoginReward hook", lane:2, y:.50, status:"next", priority:"P2",
+   pillars:["identity","cozy"], deps:["profile"],
+   why:"GameConfig.LoginRewards day-14/21/28 entries reference cosmetic IDs without a catalog. Blocks both daily streak rewards AND the future cosmetic shop. Forever-IDs critical.",
+   tasks:["CosmeticsCatalog with stable string IDs (forever)","3 sample entries matching streak slots","Wire into PlayerDataService:GrantItem","Schema-additive profile field"],
+   prompt:`GameConfig.LoginRewards around line 639 has day-14/21/28 entries referencing cosmetic IDs without a catalog.
+
+1. Create src/Shared/Config/CosmeticsCatalog.lua with stable string IDs (forever once shipped — never rename). Schema: { id, displayName, kind = 'hat'|'rod_skin'|'harbor_decor', meshAssetId?, description }. Add the 3 sample entries matching the streak slot IDs.
+
+2. NO Robux on these — they're streak rewards, not paid cosmetics. The future Cosmetic Shop will reuse this catalog with paid entries.
+
+3. Wire CosmeticsCatalog into PlayerDataService:GrantItem so LoginRewards actually grants something. Add cosmeticUnlocks: {[string]:boolean} to TidesProfile_v1 via ProfileService reconcile — ADDITIVE ONLY.
+
+4. Toast on grant: 'You unlocked the Lantern Rod!' via NotificationController:Toast (no Robux/coin chrome).
+
+Plan first.`},
+
+  // ============ LANE 3 — POLISH & JUICE ============
+  {id:"smokefx", name:"Smokehouse Steam", sub:"Visible-from-30 polish", lane:3, y:.10, status:"polish", priority:"P3",
+   pillars:["cozy","visible"], deps:["smoke","meshes"],
+   why:"When a smokehouse slot finishes, nothing changes visually. Visible-transformation pillar wants 'ready to claim' obvious from 30 studs.",
+   tasks:["Steam ParticleEmitter on chimney while slot active","Brighten chimney glow when ready-to-claim","ReducedMotion handling (cut steam 50%, no glow pulse)","Tunables in GameConfig.Smokehouse.VisualFX"],
+   prompt:`Smokehouse is feature-complete — OPTIONAL polish task per visible-transformation pillar.
+
+When a smokehouse slot finishes preserving, the building should communicate 'ready to claim' visibly from 30 studs. Today nothing changes visually.
+
+Use MCP execute_luau to inspect the current Smokehouse model under ReplicatedStorage.Assets.Buildings.Smokehouse.tier1.Visual. Identify a chimney / vent part.
+
+Patch src/Client/Controllers/HarborVisualController.lua (or SmokehouseController):
+- Gentle steam ParticleEmitter on the chimney while any slot is active.
+- Brighten chimney glow when any slot is ready-to-claim.
+- ReducedMotion: steam cut to 50%, glow doesn't pulse.
+
+Tunables in GameConfig.Smokehouse.VisualFX. No gameplay change.`},
+
+  {id:"tidefx", name:"Tide Visibility", sub:"Move shoreline visibly", lane:3, y:.30, status:"polish", priority:"P2",
+   pillars:["cozy","visible"], deps:["tide"],
+   why:"Server-driven tide loop is live. Visual subtlety remains — visible-transformation pillar wants the change OBVIOUS from 30 studs.",
+   tasks:["Tween water plane Y between known marks (use MotionUtil)","OR toggle tide-line Decal on dock at high/low marks","OR show/hide tidepool MeshParts at low tide","Estimate FPS + StreamingEnabled compatibility"],
+   prompt:`Make the tide visibly OBVIOUS from 30 studs per CLAUDE.md visible-transformation pillar.
+
+Use MCP execute_luau to read the current water plane Y and any beach / dock decorations near the player's plot.
+
+Propose 3 cheap implementations:
+(A) Tween water Y between two known marks across the tide cycle (use MotionUtil).
+(B) Toggle a 'tide line' Decal on the dock at high / low marks.
+(C) Show / hide tidepool MeshParts only during low tide.
+
+Estimate FPS impact + StreamingEnabled compatibility for each. Pick highest-impact / lowest-cost, then patch via TideService + WorldFXController. ReducedMotion-safe. No new gameplay.`},
+
+  {id:"toasthold", name:"Toast Holdouts", sub:"Replace print() user feedback", lane:3, y:.50, status:"polish", priority:"P3",
+   pillars:["cozy","mobile"], deps:["toasts"],
+   why:"NotificationController:Toast is live. FishingController line 685 still prints user feedback. Sweep other controllers.",
+   tasks:["Replace FishingController line 685 print with Toast","Grep print/warn across Controllers, classify each","Toast audit: max 3 stacked, 3.5s, ReducedMotion, 44px dismiss"],
+   prompt:`NotificationController:Toast is live. One holdout + sweep.
+
+1. src/Client/Controllers/FishingController.lua line 685 — replace the print with NotificationController:Toast(msg). Cozy text: 'The line slipped...' NOT 'FAILURE'.
+
+2. Grep src/Client/Controllers/ for print() / warn(). Classify each: (a) developer log — keep; (b) user feedback that should be a Toast — convert; (c) error worth surfacing.
+
+3. Audit Toast itself for cozy rules: max 3 stacked, 3.5s auto-dismiss, ReducedMotion (use MotionUtil.tweenOrSnap), ≥44px dismiss tap, no red unless data loss.
+
+All timing / colors from GameConfig + UIKit tokens.`},
+
+  {id:"audiocredits", name:"Credits + Mute", sub:"CC BY 4.0 attribution UI", lane:3, y:.70, status:"polish", priority:"P2",
+   pillars:["cozy","mobile"], deps:["audio"],
+   why:"Harbor music ('The calm theme' by BloodPixelHero) is CC BY 4.0 — REQUIRES visible attribution. Also need a player-facing mute toggle UI (currently config-only).",
+   tasks:["CreditsUI listing audio attributions (track / author / license / link)","Surface from HUD settings","Mute toggle UI widget (44px, persisted)","Verify all IDs play in-game via MCP"],
+   prompt:`Audio shipped; this is compliance + UX polish.
+
+1. Harbor music is 'The calm theme' by BloodPixelHero under CC BY 4.0 — REQUIRES visible attribution. Build src/Client/UI/CreditsUI.lua using UIKit (Card, Label, CloseButton) listing audio attributions: track name, author, license, link. Surface from HUD's settings menu — if there's no settings menu yet, show me where it should hook in.
+
+2. Mute toggle UI widget. UIKit.Button, 44px enforced. Persist via a player attribute that survives respawn. Hook SoundController:SetMuted.
+
+3. Use MCP execute_luau to verify the new sound IDs play in the open place: walk through each Sound name, confirm no 'unable to load sound' errors.
+
+UIKit = single source of truth for chrome. No inline tokens.`},
+
+  // ============ LANE 4 — PRE-LAUNCH ============
+  {id:"cosmshop", name:"Cosmetic Shop", sub:"Robux, no P2W", lane:4, y:.10, status:"launch", priority:"P1",
+   pillars:["identity"], deps:["cosmcat"],
+   why:"CLAUDE.md monetization: cosmetic / decorative / QoL ONLY. No speed-ups, no coins, no better-fish gear. Every item known-quantity (no loot boxes / gacha).",
+   tasks:["10 sample cosmetics across rod skins / harbor decor / hats","CosmeticShopService wrapping MarketplaceService + receipt processor","Preview-on-tap UI (UIKit, mobile-first)","Idempotent on retry"],
+   prompt:`Design + scaffold Cosmetic Shop per CLAUDE.md identity-not-progress.
+
+Hard rules:
+1. Robux only (no coins).
+2. Every item known-quantity. NO loot boxes, NO gacha, NO randomized purchases.
+3. Preview before buy.
+4. Free + paying players feel equally winning — paying = expression, not power.
+
+Deliver:
+- Extend src/Shared/Config/CosmeticsCatalog.lua with 10 paid cosmetics (rod skins, harbor decor, character hats). Reuse the same forever-ID schema — no second catalog.
+- src/Server/Services/CosmeticShopService.lua wrapping MarketplaceService.PromptProductPurchase + receipt processor. Idempotent on retry (ProcessReceipt MUST be safe to fire twice).
+- src/Client/UI/CosmeticShopUI.lua mobile-first using UIKit (Card / Button / ModalShell). Preview-on-tap shows the cosmetic on a mannequin / rotating preview.
+- Placeholder Developer Product IDs (real ones come from the Roblox dashboard later).
+
+Plan first.`},
+
+  {id:"season", name:"Season Pass", sub:"Cosmetics only, no FOMO", lane:4, y:.30, status:"launch", priority:"P2",
+   pillars:["identity"], deps:["cosmshop"],
+   why:"Season passes fine if rewards are cosmetic. Substantial free track per cozy pillar. Rewards REPEAT in future seasons (no permanent FOMO).",
+   tasks:["30-day season, 20 tiers (10 free + 10 paid)","XP curve in GameConfig","Reuse CosmeticsCatalog IDs","No FOMO copy — describe rewards, not absence"],
+   prompt:`Design Season Pass per CLAUDE.md.
+
+Hard rules:
+1. Every reward is cosmetic OR QoL — never coins, never better gear, never coin-doublers that gate progress.
+2. Free track is substantial.
+3. No FOMO copy — no red countdowns, no 'last chance!'.
+4. Cozy tone — describe what rewards ARE, not what you 'lose' missing them.
+5. Rewards REPEAT — items return in later seasons so absence isn't permanent.
+
+Deliver:
+- src/Shared/Config/SeasonPassConfig.lua: 30-day season, 20 reward tiers (10 free, 10 paid), XP curve.
+- src/Server/Services/SeasonPassService.lua: track XP, grant on tier-up, persist via additive profile fields (no TidesProfile_v1 break).
+- Reuse CosmeticsCatalog IDs from the existing catalog — DO NOT invent a second catalog.
+
+Plan first.`},
+
+  {id:"captain", name:"Captain's Log Pass", sub:"XP doubler + stats", lane:4, y:.50, status:"launch", priority:"P3",
+   pillars:["identity"], deps:["cosmshop"],
+   why:"README §8 call-out. XP doubler is identity / QoL, NOT pay-to-progress — non-payer still unlocks every system on standard cadence.",
+   tasks:["Monetization.lua with gamepass IDs (placeholders)","Server-side XP multiplier via UserOwnsGamePassAsync","Per-session cache","Personal stats dashboard (UIKit, no leaderboard comparison)"],
+   prompt:`Design Captain's Log gamepass per CLAUDE.md identity-not-progress.
+
+CRITICAL: XP doubler MUST NOT gate exclusive gameplay. Non-paying player unlocks every system on standard cadence — just slightly slower. Confirm this against GameConfig.Rods.UnlockLevel + any other level gates.
+
+Deliver:
+- src/Shared/Config/Monetization.lua: gamepass IDs (placeholders), perks list.
+- Wire XP multiplier server-side in PlayerDataService:AddXP via MarketplaceService:UserOwnsGamePassAsync. Cache per-session — don't re-query on every XP grant.
+- Personal stats UI (UIKit): totals (fish caught, coins earned, harbors visited). NO leaderboard comparison — personal record only, per cozy pillar.
+
+Plan first.`},
+
+  {id:"events", name:"Live Events", sub:"Returning, not exclusive", lane:4, y:.70, status:"launch", priority:"P3",
+   pillars:["cozy","visible"], deps:["meshes"],
+   why:"Cozy live events drive return visits. KEY RULE: event fish RETURN every year. Never one-shot FOMO. Player who misses Lantern Festival 2026 catches the same fish at Lantern Festival 2027.",
+   tasks:["EventService schedule for 4 events (Lantern / Harvest / Star / Quiet Snow)","Event-flagged FishCatalog entries","Visible harbor changes (bunting Decals, lanterns)","Mira dialogue swap on active event"],
+   prompt:`Design Live Events per CLAUDE.md cozy pillar.
+
+KEY RULE: event fish RETURN every year. Never one-shot FOMO. Player who misses Lantern Festival 2026 catches the same fish at Lantern Festival 2027.
+
+Deliver:
+1. src/Server/Services/EventService.lua schedule of 4 events (Lantern Tide, Harvest Catch, Star Migration, Quiet Snow). Each with start / end UTC date, pulls additional FishCatalog entries flagged eventId.
+2. Visible harbor changes during events — bunting Decals on docks, lanterns on Lighthouse. Use MCP execute_luau to scaffold ReplicatedStorage.Assets.Events.<id>.
+3. NPC dialogue swap: Mira mentions the current event on PlayerAdded if EventService:GetActiveEvent() is non-nil.
+
+NO loot boxes. NO randomized event rewards. Plan first.`},
+
+  // ============ INTERLEAVED ADDITIONS ============
+  {id:"settings", name:"Settings Menu", sub:"Hub for credits/mute/a11y", lane:0, y:.85, status:"critical", priority:"P1",
+   pillars:["mobile","cozy"], deps:["ui"],
+   why:"There is no Settings UI anywhere. Credits screen (CC BY 4.0 compliance), mute toggle, ReducedMotion preview, and future toggles (master volume, music mix, language) all need a home before launch.",
+   tasks:["src/Client/UI/SettingsUI.lua using UIKit.ModalShell","Hook from HUD top-right (44px gear icon)","Sections: Audio, Motion, Credits","Persist via player attributes that survive respawn"],
+   prompt:`Build the Settings hub UI per CLAUDE.md mobile-first + cozy pillars.
+
+Today there is no Settings menu — Credits (CC BY 4.0 audio attribution), mute, and any future toggle has nowhere to live. Settings is a launch blocker for license compliance.
+
+Deliver:
+1. src/Client/UI/SettingsUI.lua using UIKit.ModalShell. Sections (collapsible Cards): Audio, Motion, Credits.
+2. Hook open via a 44px gear button on HUD top-right (HUDController). Open/close via MotionUtil.tweenOrSnap.
+3. Audio section: master volume slider (44px thumb), mute toggle. Persist via player attribute that survives respawn. Hook SoundController:SetMuted + SetMasterVolume.
+4. Motion section: ReducedMotion override (Auto / Always Off / Always Reduced). Auto = respect GuiService.ReducedMotionEnabled. Stored in player attribute, read by MotionUtil.
+5. Credits section: lists audio attributions — 'The calm theme' by BloodPixelHero (CC BY 4.0) with link. Schema-driven from a small Credits config table so adding entries is one-line.
+
+No inline tokens. All sizing via UIKit. Plan first.`},
+
+  {id:"codex", name:"Fish Codex", sub:"Collection 'wow' moment", lane:2, y:.70, status:"next", priority:"P1",
+   pillars:["cozy","identity"], deps:["profile"],
+   why:"Cozy players LIVE for collection screens. FishCatalog has rich data (rarity, biome, weather, modifiers) but no surface — you have 'caught it' but not 'I've discovered 23/47'. Single biggest retention lever the game isn't pulling.",
+   tasks:["caughtSpecies:{[id]:{firstCaughtAt,bestWeightG,modifiersSeen}} profile field (additive)","Hook to FishingService.CaughtServer","CodexUI grid: silhouette → revealed card on catch","Filter by biome / rarity / modifier"],
+   prompt:`Design + scaffold the Fish Codex per CLAUDE.md identity-not-progress.
+
+This is a pure cozy collection screen — 47 species, you've caught 23, here's what you're missing. No rewards (achievements handle that). Identity ONLY.
+
+Deliver:
+1. Schema-additive profile field: caughtSpecies: {[fishId]: {firstCaughtAt: number, bestWeightG: number, modifiersSeen: {[modId]: boolean}}}. ProfileService reconcile — NO TidesProfile_v1 bump.
+2. Server hook: PlayerDataService:OnFishCaught(player, fish, weight, modifiers) called from FishingService.CaughtServer. Idempotent on re-fire; updates bestWeightG only on improvement.
+3. src/Client/UI/CodexUI.lua: grid of UIKit.Card per species. Uncaught = silhouette + '???'. Caught = thumbnail + name + best weight + seen modifiers as ModifierPills.
+4. Filter row: All / Biome / Rarity / Modifier (UIKit.Button). Mobile-first 380px — 2 cards per row on phone, scales up.
+5. Hook from HUD; or as a tab inside InventoryUI — propose both, default to a HUD action.
+
+Plan first.`},
+
+  {id:"weatherbond", name:"Weather→Catch Polish", sub:"Make it feel obvious", lane:3, y:.85, status:"polish", priority:"P2",
+   pillars:["cozy","visible"], deps:["weather"],
+   why:"Weather already drives fish modifiers in FishingService (Storm → storm_forged, Fog → fog_shrouded, etc.) but the player doesn't KNOW. Add a 'forecast' hint and a subtle 'rare conditions' toast so the world-stays-alive pillar pays out.",
+   tasks:["Forecast chip in HUD: current weather + tide icon, 44px tap → 'rare fish boosted' panel","NotificationController toast on rare condition entry","Mira optional dialogue line on rare weather","Document the modifier→condition map in GameConfig"],
+   prompt:`Weather and tide ALREADY influence fish modifiers and rarity in FishingService — but players don't know it. Make the pillar legible.
+
+Deliver:
+1. HUD forecast chip (HUDController): current weather icon + tide phase icon. 44px tap target. On tap → small UIKit.Card explaining what modifiers/fish are currently favored. NO 'BUFF' / 'BONUS' language — cozy tone, e.g. 'Storm waters: forged catches are more common.'
+
+2. NotificationController:Toast when entering a rare condition (Storm, Fog, peak High Tide). Throttled — once per condition entry per session.
+
+3. Optional: Mira dialogue line that surfaces on PlayerAdded if weather is currently rare.
+
+4. Document the weather/tide → modifier map as a table in GameConfig.Fishing.ConditionalModifiers (single source of truth — FishingService should READ from it, not have it inline at line ~629).
+
+Use UIKit tokens throughout. Plan first.`},
+
+  // ============ LANE 5 — BACKLOG / DISCOVERY ============
+  {id:"boat", name:"Boats & Deep Water", sub:"Unlock the deep biomes", lane:5, y:.08, status:"backlog", priority:"P2",
+   pillars:["cozy","visible"], deps:["meshes"],
+   why:"GameConfig.Biomes mentions DeepWater 'requires boat/dock tier 2+' and Trench is end-game — but there's no boat traversal system. Big unexplored content slice; design clarity needed before scoping.",
+   tasks:["Decide: drivable boats vs autopilot 'sail to' menu","Mobile-first input (one thumb)","Dock-tier gates boat access","Boat-anchored fishing zones in deep biomes"],
+   prompt:`Discovery brief: design Boats & Deep Water access for Tides of Trade.
+
+Context: GameConfig.Biomes defines DeepWater + Trench as 'requires boat/dock tier 2+' but there's no boat system. FishCatalog likely has entries pointing at these biomes that are currently unreachable.
+
+CLAUDE.md constraints to respect:
+- Mobile-first: must work with one thumb. Hard pass on twin-stick steering.
+- Low-pressure: a 5-minute session should still be satisfying — no 3-minute sail before any fishing.
+- No failure states: boats can't sink, can't run out of fuel.
+- World stays alive: tide affects where boats can go.
+
+Deliverable: design doc only (no code). Compare two options:
+(A) Drivable boat — touch joystick or auto-forward + tap-to-turn.
+(B) Autopilot 'sail to' menu — pick destination, fade transition, fish from anchored zones.
+
+For each: thumb ergonomics, server-auth feasibility, dev cost, alignment to cozy pillar. Pick a default + justify. End with a phased rollout (MVP → polish → endgame).`},
+
+  {id:"decor", name:"Harbor Decor", sub:"Placeables off the building grid", lane:5, y:.22, status:"backlog", priority:"P2",
+   pillars:["cozy","identity","visible"], deps:["cosmcat"],
+   why:"Buildings are 6×3 on a grid. Cozy players want planters, lanterns, signs, benches — small free-place decorations that express identity. Different from buildings (no income, no tier-ups). Direct monetization lever via Cosmetic Shop.",
+   tasks:["DecorCatalog with kind='decor' separate from BuildingCatalog","Placement system: free-rotate, snap to dock edge, cap per plot","Cosmetic-only — no income/quest gating","Render in HarborVisualController"],
+   prompt:`Design Harbor Decor — placeable cosmetic objects separate from the building grid.
+
+Context: BuildingCatalog handles 6 kinds × 3 tiers on a grid with income / tier-up logic. Decor is the OPPOSITE — no grid, no tiers, no income. Pure expression.
+
+CLAUDE.md rules:
+- Cosmetic only — no coin generation, no quest gates, no progression.
+- Visible-transformation pillar: must read at 30 studs.
+- Mobile-first placement (one thumb to place, rotate, confirm).
+- Per-plot cap to keep StreamingEnabled happy.
+
+Deliver:
+1. src/Shared/Config/DecorCatalog.lua — schema { id (forever), displayName, kind='planter'|'lantern'|'sign'|'bench'|..., assetId, footprintStuds }. 15 starter entries.
+2. Schema-additive profile field: harborDecor: {[uid]: {decorId, position, rotation}}. Cap via GameConfig.Harbor.MaxDecorPerPlot.
+3. Server: HarborService:PlaceDecor / RemoveDecor — rate-limited, typeof-guarded, validates ownership and footprint.
+4. Client: extend HarborEditController + HarborEditUI with a Decor tab. UIKit.Card grid. Tap-to-place with translucent ghost preview. Confirm via 44px primary button.
+5. Visual: HarborVisualController renders decor on HarborVisualUpdate broadcast.
+6. Monetization hook: SOME decor entries are cosmetic-shop unlocks (CosmeticsCatalog cross-reference) — most are free.
+
+Plan first.`},
+
+  {id:"analytics", name:"Analytics Service", sub:"Real funnel + retention", lane:5, y:.36, status:"backlog", priority:"P1",
+   pillars:["server"], deps:[],
+   why:"TutorialService, PlayerDataService, MarketService all reference 'analytics' as TODOs or comments — no actual service exists. You can't tune Day-1 retention or tutorial drop-off without instrumentation. Pre-launch blocker for any soft-launch read.",
+   tasks:["Wrap an external analytics SDK (PlayFab/GameAnalytics) or roll a thin HttpService wrapper","Define event schema: session_start, tutorial_beat_complete, first_catch, first_market_sale, churn signals","Server-authoritative — never trust client events","Rate-limited and batched"],
+   prompt:`Design + scaffold AnalyticsService for Tides of Trade.
+
+Context: TutorialService line ~371, PlayerDataService line ~250, and MarketService comments at lines 536/664 all reference 'analytics' as TODOs. Nothing exists. Without retention + funnel data we can't tune toward CLAUDE.md's low-pressure-session pillar.
+
+Hard rules:
+- Server-authoritative — clients NEVER fire events directly. Server services emit events on existing Knit Signals.
+- Privacy: no PII. UserId is fine (Roblox already exposes it).
+- Batched + rate-limited — HttpService is the bottleneck.
+- Failure-safe: analytics outages must NEVER affect gameplay.
+
+Deliver:
+1. Recommend SDK vs roll-your-own (PlayFab vs GameAnalytics vs custom HttpService wrapper). Cost / setup / Roblox fit. Pick a default.
+2. src/Server/Services/AnalyticsService.lua — Track(event, props) API, internal queue, FlushIntervalSeconds (GameConfig.Analytics).
+3. Subscribe to existing Signals: FishingService.CaughtServer (first_catch flag in profile), MarketService.SoldServer, TutorialService beat completions, PlayerAdded/Removing for session bounds.
+4. Schema-additive profile fields for first-time event flags so 'first_catch' fires exactly once per player.
+5. Replace the print() in PlayerDataService line 250 with Analytics:Track('player_data_recovered', { reason = reason }).
+
+Plan first — pick the SDK, show the event schema, then implement.`},
+
+  {id:"flags", name:"Feature Flags", sub:"Soft-launch kill switches", lane:5, y:.50, status:"backlog", priority:"P2",
+   pillars:["server"], deps:[],
+   why:"Once live you'll want to disable Smokehouse, Market, or new events without a deploy if something breaks. Currently every system runs unconditionally. Soft-launch hygiene.",
+   tasks:["GameConfig.FeatureFlags table","Every Client-facing handler reads its flag before processing","Disabled → silent-drop or polite Toast","MessagingService for live flips (optional)"],
+   prompt:`Design Feature Flags for soft-launch / live-ops kill switches.
+
+Context: Once live, you'll want to disable Market, Smokehouse, Cosmetic Shop, or new features without a deploy if something breaks. None of that exists today.
+
+Deliver:
+1. GameConfig.FeatureFlags table — flag per feature surface: Market.Listings, Market.PriceHistory, Smokehouse, Aquarium, CosmeticShop, etc. Default everything true.
+2. Pattern: every Client:* handler reads its flag at the top. Disabled → silent-drop (cozy: NotificationController:Toast 'The Market is briefly closed for maintenance').
+3. Optional Phase 2: MessagingService topic 'tides_flags' for live flips across servers without a deploy. Document the operational pattern.
+4. Audit Pattern: show the diff for ONE service (MarketService.Client:Browse) as the template. Don't sweep yet — show me the template first.
+
+Plan + template patch. Don't roll across all services until I sign off on the pattern.`},
+
+  {id:"welcomeback", name:"Welcome Back Path", sub:"Returning-player UX", lane:5, y:.64, status:"backlog", priority:"P2",
+   pillars:["cozy"], deps:["quests"],
+   why:"Cozy games live or die on the return visit. Today, a player gone 2 weeks sees a broken login streak and stale market listings. Need a 'welcome back' surface that doesn't punish absence.",
+   tasks:["Detect: lastLogin > 7 days → 'welcome back' Toast + Mira dialogue","Catch-up: maybe one free 'reunion fish' cosmetic","NEVER restore lost streak (would invalidate streakers)","Pure UX, no economic reward"],
+   prompt:`Design the 'welcome back' UX for players returning after 7+ days, per CLAUDE.md cozy pillar.
+
+Context: LoginRewards resets the streak on miss. That's correct economically — but the UX of 'You haven't played in 14 days. Streak reset.' is hostile to the cozy player who took a break.
+
+CLAUDE.md constraints:
+- No FOMO copy — never 'you missed X!'
+- No catch-up coins / pity rewards that devalue daily players' streaks.
+- World-stays-alive: NPCs should acknowledge return, not pretend nothing happened.
+
+Deliver:
+1. PlayerDataService: lastLoginAt timestamp (already there?). Compute daysSinceLastLogin on join.
+2. > 7 days → 'Welcome back' Toast in cozy tone ('Mira saved your seat by the pier').
+3. > 14 days → Mira dialogue beat on first dock approach: 'The tides missed you.' (TutorialService-adjacent but NOT a tutorial repeat.)
+4. > 30 days → one-time cosmetic 'Returner's Lantern' (DecorCatalog if it exists, else stub). Pure decor, no stats.
+5. Streak: do NOT restore. Document why in code comments.
+
+Plan first — show the Mira lines, dialogue trigger pattern, and the daysSinceLastLogin computation.`},
+
+  {id:"idle", name:"Idle Behavior", sub:"World when AFK", lane:5, y:.78, status:"backlog", priority:"P3",
+   pillars:["cozy","visible"], deps:[],
+   why:"Player AFKs for 3 minutes — what should happen? Today: nothing. Cozy precedent: camera pans, NPCs go about business, weather change spotlighted. Tiny code, big vibe.",
+   tasks:["AFK detection (no input N seconds via UserInputService)","Camera slow-orbit around plot OR fixed scenic pose","Resume on any input","ReducedMotion-aware"],
+   prompt:`Design + implement an AFK / idle camera mode per CLAUDE.md cozy + world-stays-alive pillars.
+
+Today, an idle player sees their character standing still and the camera fixed. Cozy genre precedent (Animal Crossing, Stardew on Switch) gently animates the world when the player steps away.
+
+Deliver:
+1. AfkController in src/Client/Controllers/AfkController.lua. UserInputService.LastInputType + activity timestamp. Idle threshold from GameConfig.UI.IdleSeconds (default 90s).
+2. On idle: slow camera orbit around harbor at 0.05 rad/s. Or alternative: fixed scenic pose looking toward the lighthouse. Pick one + justify.
+3. Resume IMMEDIATELY on any input. MotionUtil.tweenOrSnap back to gameplay camera.
+4. ReducedMotion: skip the orbit (snap to scenic pose only).
+5. No game state changes — pure presentation. Server doesn't even know.
+6. Subtle 'tap to wake' Toast after 2 minutes idle (cozy tone).
+
+Plan first.`},
+
+  {id:"friends", name:"Friend Visits", sub:"Roblox friend graph hook", lane:5, y:.92, status:"backlog", priority:"P3",
+   pillars:["cozy"], deps:["visit","crew"],
+   why:"Once 'visit harbor' ships, the next obvious move is 'visit a Roblox friend's harbor' even if they're not in your crew. Pure discovery loop. Uses Roblox social graph (free traffic).",
+   tasks:["GetFriends list in SocialController","Surface online friends in SocialUI","Tap friend → request visit (rate-limited)","Friend accept/decline server flow"],
+   prompt:`Design 'Visit a friend's harbor' built on Roblox's friend graph, per CLAUDE.md cozy pillar.
+
+PREREQ: the base 'visit harbor' system (Critical lane) must ship first. This is the friend-graph extension.
+
+Deliver:
+1. Client: SocialController calls Players:GetFriendsAsync(LocalPlayer.UserId), filters to currently-online-on-this-server (Phase 1) or any-server (Phase 2 via MessagingService discovery).
+2. SocialUI tab: 'Friends' list with online indicator. UIKit.Card per friend. 44px tap targets.
+3. Tap → SocialService.Client:RequestFriendVisit(friendUserId). Rate-limited (pre-stake GameConfig.AntiExploit.MaxFriendVisitRequestsPerMinute). Target receives a Toast with Accept / Decline (UIKit.Button row).
+4. On accept: reuse the base visit-harbor flow.
+5. Cozy guardrails: no 'reject' wording — 'Maybe later'. No public denial.
+
+Plan first.`},
+
+  // ============ DONE NODES (CONTEXT) ============
+  {id:"profile", name:"PlayerData", sub:"ProfileService", lane:0, y:.92, status:"done", priority:"DONE",
+   pillars:["server"], deps:[],
+   why:"Shipped — single source of truth for coins/inventory/buildings. Don't bump TidesProfile_v1.",
+   tasks:["No work needed."],
+   prompt:`Walk me through the ProfileService reconcile pattern in src/Server/Services/PlayerDataService.lua. For each field in the Profile type (src/Shared/Types.lua), explain how an additive change would land WITHOUT a version bump. Don't change code — just explain.`},
+
+  {id:"market", name:"Market", sub:"Cross-server", lane:1, y:.92, status:"done", priority:"DONE",
+   pillars:["cozy","server"], deps:[],
+   why:"Shipped — Listings + buy + cancel + quicksell all server-auth + rate-limited.",
+   tasks:["Optional: listing browse perf at scale."],
+   prompt:`Read src/Server/Services/MarketService.lua. Trace the Create → list → Buy lifecycle and verify the inventory item is removed AFTER the DataStore listing write succeeds. Flag any path where a race could leave the player without their item AND without coins. Do not change code — just produce the trace.`},
+
+  {id:"quests", name:"Daily Quests", sub:"3 + streak", lane:2, y:.92, status:"done", priority:"DONE",
+   pillars:["cozy"], deps:[],
+   why:"Shipped — QuestService + tracker live. Claim path rate-limited + typeof-guarded.",
+   tasks:["LoginReward catalog (see Cosmetics Catalog node)."],
+   prompt:`Read src/Server/Services/QuestService.lua and src/Shared/Config/QuestTemplates.lua. Verify the 3-quest daily rotation is deterministic per UTC day and that no quest can be claimed twice. Output a trace — no code changes.`},
+
+  {id:"aquarium", name:"Aquarium", sub:"Display rare catches", lane:2, y:.70, status:"done", priority:"DONE",
+   pillars:["cozy","visible","identity"], deps:[],
+   why:"Shipped — pure identity/decoration. MaxAquariumOpsPerMinute limiter wired.",
+   tasks:["Future: cosmetic upsell (more slots)."],
+   prompt:`Read src/Server/Services/AquariumService.lua. Confirm GetContents/Deposit/Withdraw all share the MaxAquariumOpsPerMinute limiter with silent-drop and reset-on-PlayerRemoving. Trace, don't change.`},
+
+  {id:"smoke", name:"Smokehouse", sub:"Offline-safe", lane:3, y:.92, status:"done", priority:"DONE",
+   pillars:["cozy"], deps:[],
+   why:"Shipped — hardened, slot-index-guarded, offline-safe time math confirmed.",
+   tasks:["Optional steam FX (see Smokehouse Steam node)."],
+   prompt:`Read src/Server/Services/SmokehouseService.lua. Walk me through the offline-safe time math — how does a slot started before disconnect compute its progress on next login? Trace only.`},
+
+  {id:"toasts", name:"Notifications", sub:"Toast shipped", lane:4, y:.92, status:"done", priority:"DONE",
+   pillars:["mobile","cozy"], deps:[],
+   why:"Shipped — NotificationController:Toast in use by MarketController. One holdout (see Toast Holdouts).",
+   tasks:["See Toast Holdouts node."],
+   prompt:`Read src/Client/Controllers/NotificationController.lua. Verify the Toast queue: max 3 stacked, 3.5s auto-dismiss, ReducedMotion handling, 44px dismiss tap. Trace — no changes.`},
+];
+
+const EDGES = [
+  // Critical flow
+  ["meshes","visit"], ["meshes","smokefx"], ["meshes","events"],
+  ["ui","mobileqa"], ["ui","reduce"], ["ui","achv"], ["ui","price"], ["ui","cosmshop"],
+  ["crew","visit"], ["crew","leader"],
+  ["quests","achv"], ["aquarium","achv"],
+  ["market","price"],
+  ["profile","cosmcat"], ["cosmcat","cosmshop"], ["cosmshop","season"], ["cosmshop","captain"],
+  ["tide","tidefx"], ["smoke","smokefx"],
+  ["toasts","toasthold"],
+  ["audio","audiocredits"],
+  // additions
+  ["ui","settings"], ["audiocredits","settings"],
+  ["profile","codex"], ["aquarium","codex"],
+  ["weather","weatherbond"],
+  ["meshes","boat"],
+  ["cosmcat","decor"],
+  ["visit","friends"], ["crew","friends"],
+  ["quests","welcomeback"],
+];
+
+const LANE_LABELS = ["Critical gaps", "Finish in-flight", "Next features", "Polish & juice", "Pre-launch", "Backlog / discovery"];
+
+let activeFilter = "all";
+let searchTerm = "";
+
+function layoutNodes() {
+  const root = document.getElementById('graph');
+  const rect = root.getBoundingClientRect();
+  const W = rect.width, H = Math.max(1080, rect.height);
+  const padX = 90, padY = 56;
+  const usableW = W - padX*2;
+  const usableH = H - padY*2;
+  const colStep = usableW / (LANE_LABELS.length - 1);
+  const positions = {};
+  for (const n of NODES) {
+    positions[n.id] = { x: padX + n.lane * colStep, y: padY + n.y * usableH };
+  }
+  return {positions, W, H, padX, padY};
+}
+
+function renderSummary() {
+  const sum = document.getElementById('summary');
+  const counts = {critical:0, wip:0, next:0, polish:0, launch:0, backlog:0, done:0};
+  NODES.forEach(n=>counts[n.status]++);
+  const items = [
+    ['critical','Critical gaps'], ['wip','In progress'], ['next','Next features'],
+    ['polish','Polish'], ['launch','Pre-launch'], ['backlog','Backlog'], ['done','Done']
+  ];
+  sum.innerHTML = items.map(([k,l])=>`<div class="stat ${k}"><div class="lbl">${l}</div><div class="val">${counts[k]}</div></div>`).join('');
+}
+
+function render() {
+  const root = document.getElementById('graph');
+  [...root.querySelectorAll('.node, .lane-title')].forEach(n=>n.remove());
+  const {positions, W, H, padX} = layoutNodes();
+  const colStep = (W - padX*2) / (LANE_LABELS.length - 1);
+
+  LANE_LABELS.forEach((label, i)=>{
+    const el = document.createElement('div');
+    el.className = 'lane-title';
+    el.textContent = label;
+    el.style.left = (padX + i*colStep) + 'px';
+    root.appendChild(el);
+  });
+
+  const svg = document.getElementById('edges');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = '';
+  for (const [from, to] of EDGES) {
+    const a = positions[from], b = positions[to];
+    if (!a || !b) continue;
+    const dx = b.x - a.x;
+    const c1 = `${a.x + dx*0.4},${a.y}`;
+    const c2 = `${b.x - dx*0.4},${b.y}`;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${a.x},${a.y} C ${c1} ${c2} ${b.x},${b.y}`);
+    path.setAttribute('class','edge');
+    path.setAttribute('data-from', from);
+    path.setAttribute('data-to', to);
+    svg.appendChild(path);
+  }
+
+  for (const n of NODES) {
+    const p = positions[n.id];
+    const el = document.createElement('div');
+    el.className = 'node ' + n.status;
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
+    el.tabIndex = 0;
+    el.setAttribute('data-id', n.id);
+    el.setAttribute('data-status', n.status);
+    el.innerHTML = `<div class="nm">${n.name}</div><div class="sb">${n.sub}</div><div class="pri">${n.priority}</div>`;
+    el.addEventListener('click', ()=>openNode(n.id));
+    el.addEventListener('mouseenter', ()=>highlightEdges(n.id, true));
+    el.addEventListener('mouseleave', ()=>highlightEdges(n.id, false));
+    el.addEventListener('keydown', e=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openNode(n.id); }});
+    root.appendChild(el);
+  }
+  applyFilter();
+}
+
+function highlightEdges(id, on) {
+  document.querySelectorAll('.edge').forEach(e=>{
+    const match = e.dataset.from === id || e.dataset.to === id;
+    if (on) { e.classList.toggle('active', match); e.classList.toggle('dim', !match); }
+    else { e.classList.remove('active'); e.classList.remove('dim'); }
+  });
+  document.querySelectorAll('.node').forEach(node=>{
+    const nid = node.dataset.id;
+    if (!on) { node.classList.remove('hl'); return; }
+    if (nid === id) { node.classList.add('hl'); return; }
+    const isNeighbor = EDGES.some(([f,t]) => (f===id && t===nid) || (t===id && f===nid));
+    if (!isNeighbor) node.classList.add('dim'); else node.classList.remove('dim');
+  });
+  if (!on) document.querySelectorAll('.node').forEach(n=>n.classList.remove('dim'));
+}
+
+function applyFilter() {
+  document.querySelectorAll('.node').forEach(el=>{
+    const status = el.dataset.status;
+    const id = el.dataset.id;
+    const node = NODES.find(n=>n.id===id);
+    const matchesFilter = activeFilter === 'all' || status === activeFilter;
+    const matchesSearch = !searchTerm || node.name.toLowerCase().includes(searchTerm) || node.sub.toLowerCase().includes(searchTerm) || (node.why||'').toLowerCase().includes(searchTerm);
+    el.style.display = (matchesFilter && matchesSearch) ? '' : 'none';
+  });
+  document.querySelectorAll('.edge').forEach(edge=>{
+    const fromEl = document.querySelector(`.node[data-id="${edge.dataset.from}"]`);
+    const toEl = document.querySelector(`.node[data-id="${edge.dataset.to}"]`);
+    const visible = fromEl && toEl && fromEl.style.display !== 'none' && toEl.style.display !== 'none';
+    edge.style.display = visible ? '' : 'none';
+  });
+}
+
+function openNode(id) {
+  const n = NODES.find(x=>x.id===id);
+  if (!n) return;
+  const modal = document.getElementById('modal');
+  const fullPrompt = CLAUDE_PREAMBLE + n.prompt;
+  const depHtml = (n.deps && n.deps.length)
+    ? `<div class="deps-row">${n.deps.map(d=>{
+        const dn = NODES.find(x=>x.id===d);
+        return dn ? `<span class="dep" data-jump="${d}">↳ ${dn.name}</span>` : '';
+      }).join('')}</div>` : '';
+
+  modal.innerHTML = `
+    <div class="mh">
+      <div>
+        <div class="ttl">${n.name}</div>
+        <div class="ms">${n.sub}</div>
+        <div class="pillars-row">${(n.pillars||[]).map(p=>`<span class="pchip">${p}</span>`).join('')}</div>
+      </div>
+      <span class="chip ${n.status}">${n.status === 'wip' ? 'In progress' : n.status === 'critical' ? 'Critical' : n.status === 'next' ? 'Next up' : n.status === 'polish' ? 'Polish' : n.status === 'launch' ? 'Pre-launch' : n.status === 'backlog' ? 'Backlog' : 'Done'}</span>
+      <span class="chip">${n.priority}</span>
+      <button class="close" aria-label="Close" onclick="closeNode()">×</button>
+    </div>
+    <div class="mb">
+      <h4>Why this matters</h4>
+      <p>${n.why}</p>
+      <h4>What needs doing</h4>
+      <ul>${(n.tasks||[]).map(t=>`<li>${t}</li>`).join('')}</ul>
+      ${n.deps && n.deps.length ? `<h4>Depends on</h4>${depHtml}` : ''}
+      <h4>Copy this prompt for Claude</h4>
+      <div class="prompt-box" id="promptBox">${escapeHtml(fullPrompt)}</div>
+      <div class="prompt-actions">
+        <button class="btn" onclick="copyPrompt()">Copy prompt</button>
+        <button class="btn ghost" onclick="closeNode()">Close</button>
+        <span class="copy-msg" id="copyMsg">Copied to clipboard</span>
+      </div>
+    </div>`;
+
+  modal.querySelectorAll('[data-jump]').forEach(el=>{
+    el.addEventListener('click', ()=>openNode(el.dataset.jump));
+  });
+
+  document.getElementById('scrim').classList.add('on');
+}
+
+function closeNode() {
+  document.getElementById('scrim').classList.remove('on');
+}
+
+function copyPrompt() {
+  const txt = document.getElementById('promptBox').textContent;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const msg = document.getElementById('copyMsg');
+    msg.classList.add('on');
+    setTimeout(()=>msg.classList.remove('on'), 1600);
+  }).catch(()=>{
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    const msg = document.getElementById('copyMsg');
+    msg.classList.add('on');
+    setTimeout(()=>msg.classList.remove('on'), 1600);
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('scrim').addEventListener('click', e=>{
+  if (e.target.id === 'scrim') closeNode();
+});
+document.addEventListener('keydown', e=>{
+  if (e.key === 'Escape') closeNode();
+});
+
+document.querySelectorAll('.pill[data-filter]').forEach(p=>{
+  p.addEventListener('click', ()=>{
+    document.querySelectorAll('.pill[data-filter]').forEach(x=>x.classList.remove('on'));
+    p.classList.add('on');
+    activeFilter = p.dataset.filter;
+    applyFilter();
+  });
+});
+document.getElementById('search').addEventListener('input', e=>{
+  searchTerm = e.target.value.trim().toLowerCase();
+  applyFilter();
+});
+
+renderSummary();
+render();
+window.addEventListener('resize', ()=>{ render(); });
+</script>
+</body>
+</html>

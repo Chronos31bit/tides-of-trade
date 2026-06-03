@@ -29,6 +29,7 @@ local TemplateLoader = require(script.Parent.TemplateLoader)
 local UIUtil = require(script.Parent.UIUtil)
 
 local P = UIUtil.Palette
+local T = UIUtil.Typography
 
 -- Cap the number of rendered chat rows so a long session can't grow the
 -- message list without bound. The controller keeps a matching history cap.
@@ -194,7 +195,7 @@ function SocialUI.show(opts: SocialShowOpts): SocialHandle
 		textLabel.AutomaticSize = Enum.AutomaticSize.Y
 		textLabel.TextWrapped = true
 		textLabel.TextXAlignment = Enum.TextXAlignment.Left
-		textLabel.Font = P.Font
+		textLabel.Font = T.body.font
 		textLabel.TextSize = T.body.size
 		textLabel.TextColor3 = P.Cream
 		textLabel.RichText = true

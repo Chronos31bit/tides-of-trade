@@ -310,10 +310,8 @@ function HarborService:_spawnBuildingVisual(player: Player, building: any)
 			repairPrompt.Parent = anchor
 		end
 		makePrompt("Buy Rod Upgrade", "Rod Shop")
-			-- Set Sail: deep-water access unlocks at tier 2+ dock.
-			if building.tier >= 2 then
-				makePrompt("Set Sail", "Dock")
-			end
+	elseif building.kind == "MarketStall" then
+		makePrompt("Open Market", "Market Stall")
 	elseif building.kind == "BaitShop" then
 		makePrompt("Open Bait Shop", "Bait Shop")
 	end

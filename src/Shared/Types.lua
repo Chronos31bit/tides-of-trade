@@ -122,6 +122,22 @@ export type Cosmetics = {
 }
 
 -- ====================================================================
+-- ACHIEVEMENTS
+-- ====================================================================
+
+export type AchievementEntry = {
+	id: string,
+	displayName: string,
+	description: string,
+	triggerKey: string,
+	target: number,
+	reward: {
+		xp: number?,
+		cosmeticId: string?,
+	},
+}
+
+-- ====================================================================
 -- PROFILE
 -- ====================================================================
 -- The full ProfileService data shape. Keep this in sync with
@@ -174,6 +190,11 @@ export type Profile = {
 	-- The bait the player has equipped (nil = no bait active on next cast).
 	equippedBaitId: string?,
 
+	-- Season Pass progress. seasonPassXp accumulates across the season;
+	-- seasonPassClaimedTiers tracks which free-track rewards have been claimed.
+	seasonPassXp: number,
+	seasonPassClaimedTiers: {[number]: boolean},
+
 	-- Stats (for analytics + Captain's Log gamepass)
 	stats: {
 		totalCatches: number,
@@ -181,6 +202,10 @@ export type Profile = {
 		totalCoinsEarned: number,
 		caughtSpecies: {[string]: number},
 	},
+
+	-- Lifetime achievements. Keyed by achievement id → {progress, unlockedAt?}.
+	-- Reconcile-safe: existing profiles get an empty table.
+	achievements: {[string]: {progress: number, unlockedAt: number?}},
 
 	-- Player-facing Audio/Motion preferences (Settings hub). Added via
 	-- ProfileService:Reconcile() for existing profiles — no version bump.

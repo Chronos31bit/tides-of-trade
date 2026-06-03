@@ -59,11 +59,12 @@ local function listingSearchText(listing: any): string
 	return table.concat(parts, " "):lower()
 end
 
-function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (string) -> ()): MarketHandle
+function MarketUI.show(initialListings: {any}, initialDemand: any, initialPriceHistory: {[string]: {{price: number, ts: number}}}, onBuy: (string) -> ()): MarketHandle
 	local reducedMotion = MotionUtil.reducedMotionEnabled()
 	local searchQuery = ""
 	local allListings: {any} = initialListings
 	local lastDemand: any = initialDemand
+	local priceHistory: {[string]: {{price: number, ts: number}}} = initialPriceHistory or {}
 
 	local gui = TemplateLoader.spawn("Market", { instanceName = "MarketUI" })
 	local backdrop = requireChild(gui, "Backdrop", "TextButton") :: TextButton
@@ -208,6 +209,45 @@ function MarketUI.show(initialListings: {any}, initialDemand: any, onBuy: (strin
 			end
 			hideBuyConfirm()
 		end)
+
+		-- Sparkline: render recent price history if available.
+		if listing.itemKind == "Fish" and speciesId then
+			local samples = priceHistory[speciesId:lower()]
+			if samples and #samples >= 2 then
+				local sparklineSlot = row:FindFirstChild("SparklineSlot")
+				if sparklineSlot and sparklineSlot:IsA("Frame") then
+					local sparkW = M.SparklineWidth or 72
+					local sparkH = M.SparklineHeight or 18
+					sparklineSlot.Size = UDim2.new(0, sparkW, 0, sparkH)
+					sparklineSlot.Visible = true
+
+					local maxPrice = 0
+					local minPrice = math.huge
+					for _, s in ipairs(samples) do
+						if s.price > maxPrice then maxPrice = s.price end
+						if s.price < minPrice then minPrice = s.price end
+					end
+					local range = math.max(maxPrice - minPrice, 1)
+
+					local barCount = math.min(#samples, 12)
+					local barW = math.floor(sparkW / barCount) - 1
+					for j = #samples - barCount + 1, #samples do
+						local s = samples[j]
+						local frac = math.clamp((s.price - minPrice) / range, 0.05, 1)
+						local barH = math.max(2, math.floor(frac * sparkH))
+
+						local bar = Instance.new("Frame")
+						bar.Name = "SparkBar_" .. j
+						bar.BorderSizePixel = 0
+						bar.BackgroundColor3 = P.Sunset
+						bar.AnchorPoint = Vector2.new(0, 1)
+						bar.Size = UDim2.new(0, barW, 0, barH)
+						bar.Position = UDim2.new(0, (j - (#samples - barCount + 1)) * (barW + 1), 1, 0)
+						bar.Parent = sparklineSlot
+					end
+				end
+			end
+		end
 	end
 
 	local function filterListings(listings_: {any}): {any}

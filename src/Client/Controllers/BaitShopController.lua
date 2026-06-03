@@ -44,11 +44,12 @@ end
 function BaitShopController:KnitStart()
 	self._trove = Trove.new()
 
-	-- Only wire the prompt here — no service proxy access so nothing can
-	-- block or error before this connection is established.
+	-- Match prompt ActionText directly (same pattern as ShopController).
+	-- HarborService creates "Buy Bait" on the Dock and "Open Bait Shop"
+	-- on placed BaitShop buildings.
 	self._trove:Connect(ProximityPromptService.PromptTriggered, function(prompt, _player)
-		local action = prompt:GetAttribute("TidesPromptAction")
-		if action == "BuyBait" or action == "OpenBaitShop" then
+		local action = prompt.ActionText
+		if action == "Buy Bait" or action == "Open Bait Shop" then
 			self:_open()
 		end
 	end)
@@ -64,12 +65,25 @@ function BaitShopController:_closePanel()
 		self._stashConn = nil
 	end
 	if self._handle then
-		self._handle.close()
+		local h = self._handle
 		self._handle = nil
+		h.close()
 	end
 end
 
-function BaitShopController:_open()
+function BaitShopController:Open()
+		if self._handle then
+			self:_closePanel()
+			return
+		end
+		self:_open()
+	end
+
+	function BaitShopController:Close()
+		self:_closePanel()
+	end
+
+	function BaitShopController:_open()
 	local BaitService       = Knit.GetService("BaitService")
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 
@@ -102,6 +116,10 @@ function BaitShopController:_open()
 						warn("[BaitShop] EquipBait:", res.reason)
 					end
 				end)
+			end,
+			function()
+				-- User closed via X / backdrop -- sync handle.
+				self:_closePanel()
 			end
 		)
 

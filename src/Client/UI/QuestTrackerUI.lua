@@ -422,6 +422,25 @@ function QuestTrackerUI.create()
 		task.delay(4.0, dismiss)
 	end
 
+	-- Welcome-back popup: shown when a player returns after an extended
+	-- absence. Uses a warm "Welcome back!" tone — not a streak, no FOMO.
+	local function showWelcomeBackPopup(daysAway: number, coinsGranted: number)
+		local title = ("Welcome back after %d days!"):format(daysAway)
+		local body = ("We missed you! Here's %d coins to help you get settled."):format(coinsGranted)
+		local popup, slideIn, slideOut = buildPopup(gui, title, body, false)
+		slideIn()
+		local dismissed = false
+		local function dismiss()
+			if dismissed then return end
+			dismissed = true
+			currentPopup = nil
+			slideOut()
+			task.spawn(processNext)
+		end
+		currentPopup = dismiss
+		task.delay(4.5, dismiss)
+	end
+
 	processNext = function()
 		if currentPopup then
 			return
@@ -434,6 +453,8 @@ function QuestTrackerUI.create()
 			showCompletionPopup(next_.payload.quest, next_.payload.onClaim)
 		elseif next_.kind == "streak" then
 			showStreakPopup(next_.payload.day, next_.payload.reward)
+		elseif next_.kind == "welcome_back" then
+			showWelcomeBackPopup(next_.payload.daysAway, next_.payload.coinsGranted)
 		end
 	end
 
@@ -525,6 +546,11 @@ function QuestTrackerUI.create()
 
 	function handle.queueStreak(day: number, reward: any)
 		table.insert(popupQueue, { kind = "streak", payload = { day = day, reward = reward } })
+		processNext()
+	end
+
+	function handle.queueWelcomeBack(daysAway: number, coinsGranted: number)
+		table.insert(popupQueue, { kind = "welcome_back", payload = { daysAway = daysAway, coinsGranted = coinsGranted } })
 		processNext()
 	end
 

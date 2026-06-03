@@ -53,6 +53,9 @@ local QuestService = Knit.CreateService({
 		-- Targeted toasts (no full snapshot replicate).
 		QuestCompletedToast = Knit.CreateSignal(),  -- ({ questId, renderedText })
 		StreakMilestone     = Knit.CreateSignal(),  -- ({ day })
+		-- Fired when a player returns after an extended absence with a
+		-- small coin grant. Client uses this for a "Welcome back!" toast.
+		WelcomeBack         = Knit.CreateSignal(),  -- ({ daysAway, coinsGranted })
 	},
 
 	-- Per-player debounce handles for the QuestsChanged push.
@@ -636,6 +639,15 @@ function QuestService:_handleLoginStreak(player: Player)
 	if streak.lastLoginUtcDay and TimeUtil.isConsecutiveUTCDay(streak.lastLoginUtcDay, today) then
 		streak.current += 1
 	else
+		-- Streak reset: check for welcome-back eligibility before zeroing.
+		if streak.lastLoginUtcDay then
+			local daysAway = TimeUtil.daysBetween(streak.lastLoginUtcDay, today)
+			if daysAway >= GameConfig.Quests.WelcomeBackThresholdDays then
+				local bonus = GameConfig.Quests.WelcomeBackCoins
+				PlayerDataService:AddCoins(player, bonus, "welcome_back")
+				self.Client.WelcomeBack:Fire(player, { daysAway = daysAway, coinsGranted = bonus })
+			end
+		end
 		streak.current = 1
 		streak.weekStartedAt = os.time()
 	end

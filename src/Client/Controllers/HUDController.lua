@@ -25,7 +25,7 @@ local HUDController = Knit.CreateController({
 	_rodCycleTween = nil :: any, -- looping max-tier accent shimmer
 })
 
--- Daily quests moved out of the HUD entirely — QuestTrackerUI owns them
+-- Daily quests moved out of the HUD entirely â€” QuestTrackerUI owns them
 -- now (separate ScreenGui, higher DisplayOrder, with streak + popups).
 -- HUDController only handles coins / XP / level / the action bar.
 
@@ -60,7 +60,7 @@ function HUDController:KnitStart()
 		return
 	end
 	if not self._hud or not self._hud.gui then
-		warn("[HUDController] HUD.create returned no ScreenGui — check StarterGuiAssets.HUD_Template / TemplateLoader")
+		warn("[HUDController] HUD.create returned no ScreenGui â€” check StarterGuiAssets.HUD_Template / TemplateLoader")
 		return
 	end
 	self._hud.gui.Enabled = true
@@ -95,11 +95,14 @@ function HUDController:_wireHUD(PlayerDataService: any)
 	local HarborEditController = Knit.GetController("HarborEditController")
 	local AquariumController   = Knit.GetController("AquariumController")
 	local SocialController     = Knit.GetController("SocialController")
+	local SeasonPassController = Knit.GetController("SeasonPassController")
+	local BaitShopController   = Knit.GetController("BaitShopController")
+	local CosmeticShopController = Knit.GetController("CosmeticShopController")
 
 	-- Rod button TOGGLES equip state. Casting is triggered separately by
 	-- tapping the screen / clicking the world while the rod is equipped
-	-- (that fires Tool.Activated → RodService → FishingController). This
-	-- gives players a clear way to put the rod *away* — the previous
+	-- (that fires Tool.Activated â†’ RodService â†’ FishingController). This
+	-- gives players a clear way to put the rod *away* â€” the previous
 	-- "tap to equip-and-cast" had no inverse.
 	local function refreshRodButton()
 		local char = Players.LocalPlayer.Character
@@ -137,7 +140,7 @@ function HUDController:_wireHUD(PlayerDataService: any)
 	-- Build / Social) may be open at a time. Pressing the same key or
 	-- button a second time closes the active panel; pressing a different
 	-- one closes the old panel before opening the new one.
-	-- Rod (key 1) and Home (key 7) are not exclusive panels — they are
+	-- Rod (key 1) and Home (key 7) are not exclusive panels â€” they are
 	-- kept outside this system.
 	-- ----------------------------------------------------------------
 	local activePanelKey: number? = nil
@@ -145,12 +148,12 @@ function HUDController:_wireHUD(PlayerDataService: any)
 
 	local function openExclusive(key: number, openFn: () -> (), closeFn: () -> ())
 		if activePanelKey == key then
-			-- Same key / button pressed again → close.
+			-- Same key / button pressed again â†’ close.
 			closeFn()
 			activePanelKey  = nil
 			activePanelClose = nil
 		else
-			-- Different panel → close whatever is open first, then open new one.
+			-- Different panel â†’ close whatever is open first, then open new one.
 			if activePanelClose then activePanelClose() end
 			openFn()
 			activePanelKey  = key
@@ -183,6 +186,15 @@ function HUDController:_wireHUD(PlayerDataService: any)
 			function() SocialController:Open() end,
 			function() SocialController:Close() end)
 	end)
+	self._hud.seasonPassButton.Activated:Connect(function()
+		SeasonPassController:Open()
+	end)
+	self._hud.baitShopButton.Activated:Connect(function()
+		BaitShopController:Open()
+	end)
+	self._hud.cosmeticButton.Activated:Connect(function()
+		CosmeticShopController:Open()
+	end)
 	self._hud.homeButton.Activated:Connect(function()
 		Knit.GetService("HarborService"):GoHome():andThen(function(res)
 			if not res.ok then warn("[HUD] GoHome:", res.reason) end
@@ -196,7 +208,7 @@ function HUDController:_wireHUD(PlayerDataService: any)
 		SettingsController:Toggle()
 	end)
 
-	-- Keyboard shortcuts. Number keys 1–7 map to the action bar left-to-right.
+	-- Keyboard shortcuts. Number keys 1â€“7 map to the action bar left-to-right.
 	-- Letter shortcuts preserved for existing muscle memory; they share the same
 	-- exclusive-panel keys so I and 2 both track "inventory is open."
 	local keyActions: {[Enum.KeyCode]: () -> ()} = {
@@ -226,7 +238,7 @@ function HUDController:_wireHUD(PlayerDataService: any)
 	-- ----------------------------------------------------------------
 	-- Data bindings
 	-- ----------------------------------------------------------------
-	-- Initial snapshot — covers the case where ProfileLoaded already fired
+	-- Initial snapshot â€” covers the case where ProfileLoaded already fired
 	-- before this controller's KnitStart ran.
 	PlayerDataService:GetSnapshot():andThen(function(snap)
 		if snap then self:_apply(snap) end
@@ -250,7 +262,7 @@ function HUDController:_apply(profile: any)
 	self._hud.coinsLabel.Text = tostring(profile.coins or 0)
 	self._hud.lureLabel.Text = tostring(profile.lureTokens or 0)
 	self._hud.levelLabel.Text = ("Lv %d"):format(profile.level or 1)
-	-- Initial paint (no pulse) — RodTierChanged handles later live changes.
+	-- Initial paint (no pulse) â€” RodTierChanged handles later live changes.
 	self:_applyRodTier(profile.rodTier or 1, false)
 end
 
@@ -310,7 +322,7 @@ function HUDController:_applyRodTier(tier: number, animate: boolean)
 	end
 end
 
--- Build (fresh each open — content depends on current tier) the tooltip body.
+-- Build (fresh each open â€” content depends on current tier) the tooltip body.
 function HUDController:_buildRodTooltip(content: Frame)
 	local cfg = GameConfig.UI.RodTierChip
 	local g = RodTierUtil.compute()
@@ -360,7 +372,7 @@ function HUDController:_buildRodTooltip(content: Frame)
 		local nextTier = tier + 1
 		local nextName = self._rodCatalog and self._rodCatalog[nextTier] and self._rodCatalog[nextTier].name
 		local title = nextName
-			and ("At Tier %d — %s"):format(nextTier, nextName)
+			and ("At Tier %d â€” %s"):format(nextTier, nextName)
 			or ("At Tier %d"):format(nextTier)
 		local nextHeader = UIUtil.makeLabel(title, "title", {
 			Size = UDim2.new(1, 0, 0, 22),
@@ -466,7 +478,7 @@ function HUDController:_wireRodChip()
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local ShopService = Knit.GetService("ShopService")
 
-	-- Tier names for the tooltip's "At Tier N — <name>" line. Single source
+	-- Tier names for the tooltip's "At Tier N â€” <name>" line. Single source
 	-- of truth is the shop catalog (no duplication into GameConfig).
 	ShopService:GetRodCatalog():andThen(function(catalog)
 		self._rodCatalog = catalog
@@ -474,7 +486,7 @@ function HUDController:_wireRodChip()
 
 	-- Tap / click opens the rod-rack selection panel (RodSelectController).
 	-- On PC, hover still shows the tier-info tooltip (read-only). Touch devices
-	-- use the panel exclusively — long-press tooltip is intentionally removed
+	-- use the panel exclusively â€” long-press tooltip is intentionally removed
 	-- in favour of the more useful equip panel.
 	self._hud.rodChip.Activated:Connect(function()
 		Knit.GetController("RodSelectController"):Toggle()

@@ -51,11 +51,14 @@ local PROFILE_TEMPLATE: Profile = {
 		totalCoinsEarned = 0,
 		caughtSpecies = {},
 	},
+	achievements = {},
 	-- Bait. baitStash is a map of baitId → unit count; Reconcile adds it as
 	-- an empty table for existing profiles (safe default). equippedBaitId stays
 	-- nil for existing profiles — code reads it as nil via normal table lookup.
 	baitStash = {},
 	equippedBaitId = nil,
+	seasonPassXp = 0,
+	seasonPassClaimedTiers = {},
 
 	-- Rod selection. equippedRodId is the named rod the player has chosen;
 	-- it drives castWindowBonus / catchWeightBonus in FishingService and also
@@ -111,7 +114,8 @@ local PlayerDataService = Knit.CreateService({
 		BuildingsChanged  = Knit.CreateSignal(),  -- (snapshot)
 		QuestsChanged     = Knit.CreateSignal(),  -- (snapshot)
 		CosmeticsChanged  = Knit.CreateSignal(),  -- (cosmetics: Types.Cosmetics)
-		CodexChanged      = Knit.CreateSignal(),  -- (speciesId, caughtSpecies: {[string]: number})
+		CodexChanged         = Knit.CreateSignal(),  -- (speciesId, caughtSpecies: {[string]: number})
+		AchievementUnlocked  = Knit.CreateSignal(),  -- ({id, displayName, description, reward})
 	},
 
 	-- Server-only fields:

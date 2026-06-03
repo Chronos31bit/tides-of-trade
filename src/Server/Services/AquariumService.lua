@@ -100,14 +100,6 @@ function AquariumService:PayoutFor(player: Player): number
 		end
 	end
 
-	-- Log every tick where the player has fish — easy way to verify the
-	-- tick loop is alive and what's being credited.
-	if fishCount > 0 then
-		print(("[Aquarium] %s tick: %d fish -> +%d coins / +%d xp"):format(
-			player.Name, fishCount, coins, xp
-		))
-	end
-
 	if coins > 0 then PlayerDataService:AddCoins(player, coins, "aquarium") end
 	if xp > 0 then PlayerDataService:AddXP(player, xp) end
 	-- Tell the client so it can pop a toast. Only fire when something

@@ -45,7 +45,8 @@ function BaitShopUI.show(
 	equippedBaitId: string?,
 	discountPct:    number,
 	onBuy:          (baitId: string, qty: number) -> (),
-	onEquip:        (baitId: string?) -> ()
+	onEquip:        (baitId: string?) -> (),
+	onClose:        (() -> ())?
 ): BaitHandle
 
 	local gui = TemplateLoader.spawn("BaitShop", { instanceName = "BaitShopUI" })
@@ -60,7 +61,7 @@ function BaitShopUI.show(
 	local tileTpl = req(body, "BaitTile_Template", "Frame") :: Frame
 
 	title.Text = discountPct > 0
-		and ("Bait Shop  ·  Dock %d%% off"):format(math.round(discountPct * 100))
+		and ("Bait Shop  Â·  Dock %d%% off"):format(math.round(discountPct * 100))
 		or "Bait Shop"
 
 	-- Rebuilds all rows from the current stash state.
@@ -92,7 +93,7 @@ function BaitShopUI.show(
 			local ownedBadge = req(tile, "OwnedCountBadge", "TextLabel") :: TextLabel
 
 			nameLbl.Text = bait.displayName
-			effectLbl.Text = bait.rarityBoost == 1.0 and "No boost" or ("%.1f× rares"):format(bait.rarityBoost)
+			effectLbl.Text = bait.rarityBoost == 1.0 and "No boost" or ("%.1fx increased chance to find rarer fish"):format(bait.rarityBoost)
 			priceLbl.Text = discounted .. "c"
 
 			ownedBadge.Visible = count > 0
@@ -112,7 +113,7 @@ function BaitShopUI.show(
 				onBuy(bait.id, 1)
 			end)
 
-			-- Equip is “tap the tile name area” for now: keep existing controller contract.
+			-- Equip is â€œtap the tile name areaâ€ for now: keep existing controller contract.
 			-- (Equipped highlighting is not part of the template contract; we just forward the action.)
 			if isEquipped then
 				tile.BackgroundColor3 = P.TealLight
@@ -136,6 +137,7 @@ function BaitShopUI.show(
 		if closed then return end
 		closed = true
 		if gui.Parent then gui:Destroy() end
+		if onClose then onClose() end
 	end
 
 	backdrop.Activated:Connect(destroy)

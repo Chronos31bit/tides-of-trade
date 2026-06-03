@@ -55,6 +55,9 @@ export type HUDController = {
 	aquariumButton: TextButton,
 	socialButton: TextButton,
 	homeButton: TextButton,
+	seasonPassButton: TextButton,
+	baitShopButton: TextButton,
+	cosmeticButton: TextButton,
 }
 
 local function requireChild(parent: Instance, name: string, className: string): Instance
@@ -105,6 +108,38 @@ function HUD.create(): HUDController
 	UIKit.skinActionButton(harborButton, P.SunsetDeep)
 	UIKit.skinActionButton(socialButton, P.Lure)
 	UIKit.skinActionButton(homeButton, P.Uncommon)
+
+	-- Inline buttons (not in template) — Season Pass, Bait Shop, Cosmetic Shop.
+	local function makeActionButton(name: string, text: string, color: Color3, layoutOrder: number): TextButton
+		local btn = Instance.new("TextButton")
+		btn.Name = name
+		btn.Text = text
+		btn.Size = UDim2.fromOffset(44, 44)
+		btn.AutoButtonColor = false
+		btn.BorderSizePixel = 0
+		btn.BackgroundColor3 = color
+		btn.Font = UIKit.Typography.body.font
+		btn.TextSize = math.max(UIKit.Typography.body.size, UIKit.MinFontPx)
+		btn.TextColor3 = P.Cream
+		btn.LayoutOrder = layoutOrder
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, UIKit.Radii.md)
+		corner.Parent = btn
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = color:Lerp(Color3.new(0, 0, 0), 0.3)
+		stroke.Thickness = 1.5
+		stroke.Transparency = 0.2
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = btn
+		btn.Parent = actionBar
+		UIKit.skinActionButton(btn, color)
+		return btn
+	end
+
+	-- Layout orders: Rod=1..Home=7; inline buttons start at 8.
+	local seasonPassButton = makeActionButton("SeasonPassButton", "Pass", P.Sunset, 8)
+	local baitShopButton   = makeActionButton("BaitShopButton", "Bait", P.Lure, 9)
+	local cosmeticButton   = makeActionButton("CosmeticButton", "Style", P.Rare, 10)
 
 	-- Settings gear. Built in code (not in the template) so it's one self-
 	-- contained block. It lives in its OWN ScreenGui at DisplayOrder.Settings
@@ -165,6 +200,9 @@ function HUD.create(): HUDController
 		aquariumButton = aquariumButton,
 		socialButton = socialButton,
 		homeButton = homeButton,
+		seasonPassButton = seasonPassButton,
+		baitShopButton = baitShopButton,
+		cosmeticButton = cosmeticButton,
 	}
 end
 

@@ -33,4 +33,15 @@ function TimeUtil.isConsecutiveUTCDay(lastDay: string, currentDay: string): bool
 	return diff > 18 * 3600 and diff < 30 * 3600
 end
 
+-- Returns the number of calendar days between two UTC day strings.
+-- Positive when `later` is after `earlier`. Used for welcome-back detection
+-- and streak-gap reporting.
+function TimeUtil.daysBetween(earlier: string, later_: string): number
+	local function epoch(s: string): number
+		local y, m, d = s:match("(%d+)-(%d+)-(%d+)")
+		return os.time({year = tonumber(y) :: number, month = tonumber(m) :: number, day = tonumber(d) :: number, hour = 12, min = 0, sec = 0})
+	end
+	return math.floor((epoch(later_) - epoch(earlier)) / 86400)
+end
+
 return TimeUtil

@@ -28,6 +28,8 @@ local function destroyHeld()
 end
 
 function HoldFishController:Release()
+	local SocialService = Knit.GetService("SocialService")
+	SocialService:ReleaseHeld()
 	destroyHeld()
 end
 
@@ -120,6 +122,10 @@ function HoldFishController:HoldFish(
 	})
 
 	_heldModel = clone
+
+	-- Cross-client replication: tell the server so other players can see.
+	local SocialService = Knit.GetService("SocialService")
+	SocialService:HoldFish(speciesId, modifiers, weightKg, weightMin, weightMax)
 
 	-- "Put Back" toast — small button anchored center-bottom, above the HUD bar.
 	local pg = Players.LocalPlayer:WaitForChild("PlayerGui")
