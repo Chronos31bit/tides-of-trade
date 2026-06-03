@@ -19,8 +19,9 @@ local BuildingAssetUtil    = require(ReplicatedStorage.Shared.Util.BuildingAsset
 local BuildingModelFactory = require(ReplicatedStorage.Shared.Util.BuildingModelFactory)
 local HarborEditUI = require(script.Parent.Parent.UI.HarborEditUI)
 
-local GHOST_OK_COLOR = Color3.fromRGB(120, 200, 220)
-local GHOST_BAD_COLOR = Color3.fromRGB(220, 100, 100)
+local VT = GameConfig.Harbor.VisualTuning
+local GHOST_OK_COLOR = VT.GhostOkColor
+local GHOST_BAD_COLOR = VT.GhostBadColor
 
 local COIN_CLINK_VOLUME = 0.45
 
@@ -128,7 +129,7 @@ function HarborEditController:_open()
 		local hi = Instance.new("Highlight")
 		hi.Name = "HarborEditHover"
 		hi.FillTransparency = 0.6
-		hi.OutlineColor = Color3.fromRGB(255, 255, 255)
+		hi.OutlineColor = VT.HighlightOutline
 		hi.OutlineTransparency = 0
 		hi.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 		hi.Enabled = false
@@ -270,9 +271,9 @@ function HarborEditController:_startEditLoop()
 	self._heartbeatConn = RunService.Heartbeat:Connect(function()
 		if not self._active then return end
 		if self._demolishing then
-			self:_updateHoverHighlight(Color3.fromRGB(255, 70, 70))
+			self:_updateHoverHighlight(VT.HoverHighlightBad)
 		elseif self._upgrading then
-			self:_updateHoverHighlight(Color3.fromRGB(220, 180, 88))
+			self:_updateHoverHighlight(VT.HoverHighlightGold)
 		else
 			if self._hoverHighlight and self._hoverHighlight.Adornee then
 				self._hoverHighlight.Enabled = false
@@ -425,8 +426,8 @@ function HarborEditController:_burstPlacementFX(worldPos: Vector3)
 
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 180)),
+		ColorSequenceKeypoint.new(0, VT.UpgradeBurstColor0),
+		ColorSequenceKeypoint.new(1, VT.UpgradeBurstColor1),
 	})
 	emitter.LightEmission   = 0.8
 	emitter.LightInfluence  = 0

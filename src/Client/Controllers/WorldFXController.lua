@@ -63,6 +63,8 @@ local WorldFXController = Knit.CreateController({
 	_useProceduralRain = false,
 	_loggedRainSource = false,
 	_initialApplied = false,
+	_waterSlab = nil :: BasePart?,
+	_currentTideDisplay = -1,
 })
 
 local function isRainyWeather(weather: string): boolean
@@ -534,7 +536,7 @@ function WorldFXController:_createProceduralFogEmitter(): ParticleEmitter
 		NumberSequenceKeypoint.new(0.5, 8),
 		NumberSequenceKeypoint.new(1, 12),
 	})
-	pe.Color = ColorSequence.new(Color3.fromRGB(215, 220, 228))
+	pe.Color = ColorSequence.new(GameConfig.Weather.Flash.RainColor)
 	pe.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.75),
 		NumberSequenceKeypoint.new(0.4, 0.6),
@@ -906,6 +908,46 @@ function WorldFXController:KnitStart()
 		Workspace:SetAttribute("TideOffset", level * 1.5)
 	end)
 
+	-- Visible water slab that rises/falls with the tide cycle.
+	local tv = GameConfig.Tides.Visual
+	local waterSlab = Instance.new("Part")
+	waterSlab.Name = "TideWater"
+	waterSlab.Anchored = true
+	waterSlab.CanCollide = false
+	waterSlab.CanQuery = false
+	waterSlab.CanTouch = false
+	waterSlab.Material = Enum.Material.SmoothPlastic
+	waterSlab.Color = tv.SlabColor
+	waterSlab.Transparency = tv.SlabTransparency
+	waterSlab.Size = tv.SlabSize
+	waterSlab.Position = Vector3.new(0, tv.WaterBaseY, 0)
+	waterSlab.Parent = Workspace
+	self._waterSlab = waterSlab
+	self._currentTideDisplay = -1
+
+	trove:Add(RunService.Heartbeat:Connect(function(dt)
+		local slab = self._waterSlab
+		if not slab or not slab.Parent then return end
+		local target = self._targetTideLevel
+		if target < 0 then return end
+		local current = self._currentTideDisplay
+		if current < 0 then self._currentTideDisplay = target; current = target end
+		local reduced = GuiService.ReducedMotionEnabled
+		if reduced then
+			self._currentTideDisplay = target
+		else
+			self._currentTideDisplay = current + (target - current) * math.min(dt * tv.LerpSpeed, 1)
+		end
+		slab.Position = Vector3.new(0, tv.WaterBaseY + self._currentTideDisplay * tv.WaterAmplitudeStuds, 0)
+	end))
+
+	trove:Add(function()
+		if self._waterSlab then
+			self._waterSlab:Destroy()
+			self._waterSlab = nil
+		end
+	end)
+
 	local function handleWeather(weather: string, previousWeather: string?, durationSeconds: number?)
 		if type(weather) ~= "string" or weather == "" then return end
 		self:_onWeatherChanged(weather, previousWeather, durationSeconds)
@@ -958,10 +1000,6 @@ function WorldFXController:KnitStart()
 		end
 		self:_applyLightning(self._currentWeather)
 	end))
-
-	HarborService.HarborVisualUpdate:Connect(function(uid: string, kind: string, tier: number, worldPos: Vector3)
-		print(("[WorldFX] HarborVisualUpdate uid=%s kind=%s tier=%d pos=%s"):format(uid, kind, tier, tostring(worldPos)))
-	end)
 
 	local initial = Workspace:GetAttribute(ATTR_WEATHER)
 	if type(initial) == "string" then

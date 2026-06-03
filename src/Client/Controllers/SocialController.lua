@@ -33,6 +33,7 @@ local SocialController = Knit.CreateController({
 	_activeByUserId = {} :: {[number]: EmoteState},
 	_warnedMissingAssets = false,
 	_chatLog = {} :: { {from: string, message: string} },
+	_mutedNames = {} :: {[string]: boolean},
 })
 
 local function emoteCfg(): {[string]: any}
@@ -181,6 +182,8 @@ function SocialController:_onCrewChat(fromName: string, message: string)
 	while #self._chatLog > MAX_CHAT_LOG do
 		table.remove(self._chatLog, 1)
 	end
+	-- Skip muted senders in live chat (but keep in log for panel replay).
+	if self._mutedNames[fromName] then return end
 	if self._open and self._handle then
 		self._handle.appendChat(fromName, message)
 	end
@@ -190,20 +193,44 @@ function SocialController:Open()
 	if self._open then self:_close() return end
 	self._open = true
 	local SocialService = Knit.GetService("SocialService")
-	self._handle = SocialUI.show({
-		emotes = EMOTES,
-		onPlayEmote = function(emoteId)
-			SocialService:PlayEmote(emoteId)
-		end,
-		onSendChat = function(message)
-			SocialService:SendCrewChat(message)
-		end,
-		initialChat = self._chatLog,
-		onClose = function()
-			self._open = false
-			self._handle = nil
-		end,
-	})
+
+	-- Fetch crew members first so the panel opens with a complete view.
+	-- The DataStore read may yield; we use .andThen to keep the open non-blocking.
+	local function showPanel(crewMembers: { {userId: number, displayName: string} }?, hasCrew: boolean)
+		self._handle = SocialUI.show({
+			emotes = EMOTES,
+			onPlayEmote = function(emoteId)
+				SocialService:PlayEmote(emoteId)
+			end,
+			onVisit = function(userId)
+				SocialService:VisitLocalHarbor(userId)
+			end,
+			onSendChat = hasCrew and function(message)
+				SocialService:SendCrewChat(message)
+			end or nil,
+			crewMembers = crewMembers,
+			initialChat = hasCrew and self._chatLog or {
+				{ from = "System", message = "Join a crew to chat with crewmates." }
+			},
+			onClose = function()
+				self._open = false
+				self._handle = nil
+			end,
+			onMuteSender = function(fromName: string)
+				self._mutedNames[fromName] = true
+			end,
+		})
+	end
+
+	SocialService:GetCrewMembers():andThen(function(result)
+		if result and result.members then
+			showPanel(result.members, true)
+		else
+			showPanel(nil, false)
+		end
+	end):catch(function()
+		showPanel(nil, false)
+	end)
 end
 
 function SocialController:_close()

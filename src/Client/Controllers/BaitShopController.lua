@@ -47,8 +47,8 @@ function BaitShopController:KnitStart()
 	-- Only wire the prompt here — no service proxy access so nothing can
 	-- block or error before this connection is established.
 	self._trove:Connect(ProximityPromptService.PromptTriggered, function(prompt, _player)
-		local action = prompt.ActionText
-		if action == "Buy Bait" or action == "Open Bait Shop" then
+		local action = prompt:GetAttribute("TidesPromptAction")
+		if action == "BuyBait" or action == "OpenBaitShop" then
 			self:_open()
 		end
 	end)

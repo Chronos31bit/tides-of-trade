@@ -15,7 +15,10 @@ local RodSelectUI       = require(script.Parent.Parent.UI.RodSelectUI)
 -- registered controller on the second require so startup doesn't blow up.
 do
 	local ok, existing = pcall(Knit.GetController, "RodSelectController")
-	if ok and existing then return existing end
+	if ok and existing then
+		warn("[RodSelectController] Duplicate load detected — returning cached controller")
+		return existing
+	end
 end
 
 local RodSelectController = Knit.CreateController({

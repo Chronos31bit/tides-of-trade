@@ -36,6 +36,7 @@ local CatchRevealUI = require(script.Parent.Parent.UI.CatchRevealUI)
 local AssetIds   = require(script.Parent.Parent.AssetIds)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local UIUtil     = require(script.Parent.Parent.UI.UIUtil)
 
 local FT = GameConfig.Fishing.FeelTuning
 
@@ -93,6 +94,11 @@ local FishingController = Knit.CreateController({
 	_soundCtrl      = nil :: any,    -- SoundController reference, set in KnitStart
 	_castTrove      = nil :: any,    -- disposables for the *current* cast
 	_castButton     = nil :: any,    -- cast button GuiObject; stored so _onBite can pulse it
+	_worldModLookup = nil :: any,    -- {[string]: ModifierDef} world-state modifiers only
+	_conditionsPill = nil :: any,    -- Frame shown above cast button during active cast
+	_weatherState   = "Clear",       -- cached weather for modifier computation
+	_tideState      = "Low",         -- cached tide state
+	_timeOfDay      = "Day",         -- cached time of day
 })
 
 -- ====================================================================
@@ -196,7 +202,7 @@ local function spawnRipple(position: Vector3, trove: any)
 		part.CanTouch = false
 		part.Shape = Enum.PartType.Cylinder
 		part.Material = Enum.Material.Neon
-		part.Color = Color3.fromRGB(220, 240, 255)
+		part.Color = FT.RippleColor
 		local cf = CFrame.new(position) * CFrame.Angles(0, 0, math.pi / 2)
 		part.CFrame = cf
 		if reduced then
@@ -270,7 +276,7 @@ local function spawnBeam(castPoint: Vector3, trove: any): Beam?
 	beam.FaceCamera = true
 	beam.CurveSize0 = 2
 	beam.CurveSize1 = -2
-	beam.Color = ColorSequence.new(Color3.fromRGB(250, 245, 230))
+	beam.Color = ColorSequence.new(FT.BeamColor)
 	beam.Texture = AssetIds.Images.BeamTexture
 	beam.TextureSpeed = 0
 	beam.Parent = anchor
@@ -377,7 +383,7 @@ local function flashVignette(trove: any?)
 		{ UDim2.new(0.18, 0, 1, 0), UDim2.new(0.82, 0, 0, 0), 90  },  -- right
 	}
 
-	local COLOR = Color3.fromRGB(20, 100, 160)
+	local COLOR = FT.VignetteColor
 	local FADE  = TweenInfo.new(cfg.VignetteFadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	local frames: {Frame} = {}
 
@@ -442,6 +448,7 @@ function FishingController:KnitStart()
 	local RodService     = Knit.GetService("RodService")
 	self._castMeterCtrl  = Knit.GetController("CastMeterController")
 	self._soundCtrl      = Knit.GetController("SoundController")
+	self._notifCtrl      = Knit.GetController("NotificationController")
 
 	-- Authoritative end-of-cast result (miss, escape, or success).
 	self._trove:Add(FishingService.CastResolved:Connect(function(result)
@@ -467,6 +474,38 @@ function FishingController:KnitStart()
 	self._trove:Add(self._castMeterCtrl.ReelEscaped:Connect(function()
 		self:_reportEscape()
 	end))
+
+	-- ---- World-state modifier tracking (weather bond) ----
+	-- Build lookup of world-state modifiers (dropChance=0, non-deprecated).
+	local worldMods: {[string]: any} = {}
+	for _, mod in ipairs(GameConfig.FishModifiers) do
+		if mod.dropChance == 0 and not mod.deprecated then
+			worldMods[mod.id] = mod
+		end
+	end
+	self._worldModLookup = worldMods
+
+	-- Mirror server-side modifier assignment (FishingService.ReleaseReel:639-650):
+	-- tide_kissed  ← High tide   storm_forged ← Storm weather
+	-- moon_touched ← Night       dawn_blessed ← Morning       fog_shrouded ← Fog
+	local TideService    = Knit.GetService("TideService")
+	local WeatherService = Knit.GetService("WeatherService")
+
+	self._trove:Add(WeatherService.WeatherChanged:Connect(function(weather: string)
+		self._weatherState = weather
+		self:_updateConditionsPill()
+	end))
+	self._trove:Add(TideService.TideChanged:Connect(function(state: string)
+		self._tideState = state
+		self:_updateConditionsPill()
+	end))
+
+	-- Initial pull for weather + time-of-day.
+	WeatherService:GetWeatherState():andThen(function(payload: { weather: string, timeOfDay: string })
+		self._weatherState = payload.weather
+		self._timeOfDay = payload.timeOfDay
+		self:_updateConditionsPill()
+	end)
 end
 
 function FishingController:_onRodTap()
@@ -488,10 +527,94 @@ function FishingController:_disposeCast()
 	self._pendingCastId = nil
 	self._castButton = nil
 	self._castMeterCtrl:dismiss()
+	if self._conditionsPill then
+		self._conditionsPill:Destroy()
+		self._conditionsPill = nil
+	end
 	if self._castTrove then
 		self._castTrove:Destroy()
 		self._castTrove = nil
 	end
+end
+
+-- ---- World-state modifier helpers (weather bond) ----
+
+function FishingController:_getActiveWorldModifiers(): {string}
+	local active: {string} = {}
+	if self._tideState  == "High"    then table.insert(active, "tide_kissed")  end
+	if self._weatherState == "Storm" then table.insert(active, "storm_forged") end
+	if self._timeOfDay  == "Night"   then table.insert(active, "moon_touched") end
+	if self._timeOfDay  == "Morning" then table.insert(active, "dawn_blessed") end
+	if self._weatherState == "Fog"   then table.insert(active, "fog_shrouded") end
+	return active
+end
+
+function FishingController:_updateConditionsPill()
+	-- Only show pill during an active cast.
+	if self._phase == "idle" then return end
+
+	local modifierIds = self:_getActiveWorldModifiers()
+	if #modifierIds == 0 then
+		if self._conditionsPill then
+			self._conditionsPill:Destroy()
+			self._conditionsPill = nil
+		end
+		return
+	end
+
+	-- Build a comma-separated display line from world-state modifier names.
+	local parts: {string} = {}
+	for _, id in ipairs(modifierIds) do
+		local def = self._worldModLookup[id]
+		if def then
+			table.insert(parts, def.displayName)
+		end
+	end
+	local labelText = table.concat(parts, " · ")
+
+	if self._conditionsPill then
+		-- Update existing pill text.
+		local lbl = self._conditionsPill:FindFirstChild("Label")
+		if lbl and lbl:IsA("TextLabel") then
+			lbl.Text = labelText
+		end
+		return
+	end
+
+	-- Create pill above cast button. Styled to match HUD theme.
+	local P = UIUtil.Palette
+	local pill = Instance.new("Frame")
+	pill.Name = "ConditionsPill"
+	pill.BackgroundColor3 = P.Teal
+	pill.BackgroundTransparency = 0.15
+	pill.BorderSizePixel = 0
+	pill.AnchorPoint = Vector2.new(0.5, 1)
+	pill.Position = UDim2.new(0.5, 0, 1, -110) -- above the cast button area
+	pill.Size = UDim2.new(0, 0, 0, UIUtil.MinTouchPx) -- width set by content
+	pill.AutomaticSize = Enum.AutomaticSize.X
+	pill.Parent = self._castButton and self._castButton.Parent or nil
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, UIUtil.Radii.sm)
+	corner.Parent = pill
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Text = labelText
+	label.TextColor3 = P.Cream
+	label.Font = UIUtil.Typography("caption")
+	label.TextSize = 14
+	label.Size = UDim2.new(0, 0, 1, 0)
+	label.AutomaticSize = Enum.AutomaticSize.X
+	label.Position = UDim2.new(0, UIUtil.Spacing.sm, 0, 0)
+	label.Parent = pill
+
+	-- Fade-in — respect ReducedMotion.
+	label.TextTransparency = 1
+	MotionUtil.tweenOrSnap(label, 0.2, { TextTransparency = 0 })
+
+	self._conditionsPill = pill
 end
 
 function FishingController:_startCast()
@@ -528,6 +651,11 @@ function FishingController:_startCast()
 		-- CastMeterController owns the handle; reel signals are wired in KnitStart.
 		local castButton = self._castMeterCtrl:show(window.greenCenter, window.greenSize, window.period)
 		self._castButton = castButton  -- stored so _onBite can pulse it on bite
+
+		-- Show world-state conditions pill (e.g. "Storm-Forged · Tide-Kissed")
+		-- above the cast button so the player sees active modifiers before
+		-- releasing the meter.
+		self:_updateConditionsPill()
 
 		-- The cast button (80px circle, bottom-center) is an alternative to the
 		-- rod tap for releasing the marker. Both call _onRodTap which guards phase.
@@ -682,19 +810,18 @@ end
 
 function FishingController:_fail(reason: any)
 	self._soundCtrl:Play("CatchFail", { volume = 0.4 })
-	-- TODO: replace prints with a small ephemeral toast (reuse Aquarium toast pattern).
 	if reason == "missed" then
-		print("[Fishing] Slipped off the line!")
+		self._notifCtrl:Toast("Slipped off the line!")
 	elseif reason == "no_bite" then
-		print("[Fishing] Nothing's biting here right now.")
+		self._notifCtrl:Toast("Nothing biting here…")
 	elseif reason == "escaped" then
-		print("[Fishing] The fish escaped!")
+		self._notifCtrl:Toast("The fish got away!")
 	elseif reason == "reel_timeout" then
-		print("[Fishing] Took too long — the fish got away.")
+		self._notifCtrl:Toast("Too slow — fish escaped.")
 	elseif reason == "timeout" then
-		print("[Fishing] You let the line sit too long.")
+		self._notifCtrl:Toast("Line went slack.")
 	else
-		print("[Fishing] Cast failed:", reason)
+		self._notifCtrl:Toast("Cast failed.")
 	end
 end
 

@@ -7,6 +7,7 @@ local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local TutorialConfig = require(ReplicatedStorage.Shared.Config.TutorialConfig)
 local TemplateLoader = require(script.Parent.TemplateLoader)
 local MotionUtil = require(ReplicatedStorage.Shared.Util.MotionUtil)
 
@@ -64,6 +65,22 @@ function DialogueUI.create(speakerName: string): DialogueUIInstance
 	local choiceButtonTemplate = req(gui, "ChoiceButton_Template", "TextButton") :: TextButton
 
 	speakerLabel.Text = speakerName
+
+	-- Wire Mira portrait if art asset is available. Falls back to "M" placeholder
+	-- (PortraitInitialLabel) when asset is nil — ship-ready even without art.
+	local portraitAssetId = TutorialConfig.MiraPortraitAssetId
+	if portraitAssetId then
+		local initialLabel = portrait:FindFirstChild("PortraitInitialLabel")
+		if initialLabel and initialLabel:IsA("GuiObject") then
+			initialLabel.Visible = false
+		end
+		local img = Instance.new("ImageLabel")
+		img.Name = "PortraitImage"
+		img.Image = portraitAssetId
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.Parent = portrait
+	end
 
 	local instance: DialogueUIInstance = setmetatable({
 		gui = gui,

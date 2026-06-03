@@ -110,6 +110,8 @@ local PlayerDataService = Knit.CreateService({
 		InventoryChanged  = Knit.CreateSignal(),  -- (snapshot)
 		BuildingsChanged  = Knit.CreateSignal(),  -- (snapshot)
 		QuestsChanged     = Knit.CreateSignal(),  -- (snapshot)
+		CosmeticsChanged  = Knit.CreateSignal(),  -- (cosmetics: Types.Cosmetics)
+		CodexChanged      = Knit.CreateSignal(),  -- (speciesId, caughtSpecies: {[string]: number})
 	},
 
 	-- Server-only fields:

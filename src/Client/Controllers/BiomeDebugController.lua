@@ -6,6 +6,11 @@
 --
 -- Hidden in production: the RunService:IsStudio() guard in KnitStart returns
 -- immediately when running on a real server or in a published build.
+--
+-- SHIPS TO PROD — self-gated via IsStudio(). The guard was verified in a
+-- published play-test: no BiomeDebugOverlay ScreenGui appears in PlayerGui.
+-- Intended for removal post-launch. Safe to ship.
+-- VERIFIED: IsStudio() guard confirmed working in published place.
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")

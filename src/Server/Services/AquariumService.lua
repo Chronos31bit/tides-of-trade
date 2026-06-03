@@ -9,9 +9,11 @@ local Players          = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Knit            = require(ReplicatedStorage.Packages.Knit)
+local GameConfig      = require(ReplicatedStorage.Shared.Config.GameConfig)
 local BuildingCatalog = require(ReplicatedStorage.Shared.Config.BuildingCatalog)
 local Types = require(ReplicatedStorage.Shared.Types)
 local AquariumIncome = require(ReplicatedStorage.Shared.Util.AquariumIncome)
+local RateLimiter     = require(ReplicatedStorage.Shared.Util.RateLimiter)
 
 local AquariumService = Knit.CreateService({
 	Name = "AquariumService",
@@ -21,6 +23,7 @@ local AquariumService = Knit.CreateService({
 		-- Client shows a brief toast so passive income is *visible*.
 		IncomeEarned = Knit.CreateSignal(),
 	},
+	_aqLimiter = nil :: any,
 })
 
 -- ====================================================================
@@ -43,6 +46,22 @@ local function aquariumCapacity(building: any): number
 	if not def then return 0 end
 	local tier = def.tiers[building.tier]
 	return (tier and tier.aquariumCapacity) or 0
+end
+
+-- ====================================================================
+-- LIFECYCLE
+-- ====================================================================
+
+function AquariumService:KnitInit()
+	self._aqLimiter = RateLimiter.new(
+		GameConfig.AntiExploit.MaxAquariumOpsPerMinute, 60
+	)
+end
+
+function AquariumService:KnitStart()
+	Players.PlayerRemoving:Connect(function(player)
+		self._aqLimiter:reset(player)
+	end)
 end
 
 -- ====================================================================
@@ -113,6 +132,7 @@ end
 
 function AquariumService.Client:Deposit(player: Player, aquariumUid: string, itemUid: string): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._aqLimiter:Check() then return { ok = false, reason = "rate_limited" } end
 	local building, data = findOwnedBuilding(player, aquariumUid)
 	if not building or not data then return { ok = false, reason = "not_found" } end
 	if building.kind ~= "Aquarium" then return { ok = false, reason = "not_aquarium" } end
@@ -144,6 +164,7 @@ end
 
 function AquariumService.Client:Withdraw(player: Player, aquariumUid: string, itemUid: string): {ok: boolean, reason: string?}
 	local self = self.Server
+	if not self._aqLimiter:Check() then return { ok = false, reason = "rate_limited" } end
 	local building, data = findOwnedBuilding(player, aquariumUid)
 	if not building or not data then return { ok = false, reason = "not_found" } end
 

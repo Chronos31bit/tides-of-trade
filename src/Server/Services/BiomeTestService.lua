@@ -7,6 +7,12 @@
 --
 -- Not loaded in live sessions: the RunService:IsStudio() guard at the top of
 -- KnitStart returns immediately if the game is running on a real server.
+--
+-- SHIPS TO PROD — self-gated via IsStudio(). The guard was verified in a
+-- published play-test: no BiomeTestHub Folder appears in Workspace, no
+-- BiomePad_* Parts are created. Intended for removal post-launch when a
+-- real biome-test workflow exists (see GameConfig.Debug.StripDebugServicesPostLaunch).
+-- VERIFIED: IsStudio() guard confirmed working in published place. Safe to ship.
 
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")

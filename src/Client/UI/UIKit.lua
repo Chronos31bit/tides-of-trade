@@ -92,6 +92,8 @@ UIKit.Palette = {
 	MintDark      = Color3.fromRGB( 88, 152, 138),
 	MintDeep      = Color3.fromRGB( 48, 108,  96),
 	MintLight     = Color3.fromRGB(192, 228, 218),
+	TealDark      = Color3.fromRGB(18, 52, 60),
+	TealDeeper    = Color3.fromRGB(10, 32, 40),
 
 	-- ── Amber / warmth ────────────────────────────────────────────
 	-- Muted amber for secondary highlights, XP bar fill, coin accents.
@@ -1695,8 +1697,12 @@ function UIKit.Tooltip(topts: {
 	inactivitySeconds: number,
 	fadeDuration: number,
 	slideOffsetPx: number,
+	style: string?,
 }): TooltipHandle
 	local P = UIKit.Palette
+	local isTeal = topts.style == "teal"
+	local bgColor = isTeal and P.TealDark or P.Parchment
+	local strokeColor = isTeal and P.TealDeeper or P.BorderMid
 	local UserInputService = game:GetService("UserInputService")
 
 	local backdrop = Instance.new("TextButton")
@@ -1711,7 +1717,7 @@ function UIKit.Tooltip(topts: {
 
 	local panel = Instance.new("CanvasGroup")
 	panel.Name = "Tooltip"
-	panel.BackgroundColor3 = P.Parchment
+	panel.BackgroundColor3 = bgColor
 	panel.BorderSizePixel = 0
 	panel.AnchorPoint = topts.anchorPoint or Vector2.new(1, 0)
 	panel.Size = topts.size
@@ -1725,7 +1731,7 @@ function UIKit.Tooltip(topts: {
 	corner.Parent = panel
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = P.BorderMid
+	stroke.Color = strokeColor
 	stroke.Thickness = 1.5
 	stroke.Transparency = 0.25
 	stroke.Parent = panel
@@ -1761,17 +1767,16 @@ function UIKit.Tooltip(topts: {
 		if escConn then escConn:Disconnect(); escConn = nil end
 		backdrop.Visible = false
 		if fadeTween then fadeTween:Destroy(); fadeTween = nil end
-		local reduced = UIKit.reducedMotion()
-		local dur = reduced and (topts.fadeDuration * 0.5) or topts.fadeDuration
-		local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local props: {[string]: any} = { GroupTransparency = 1 }
-		if not reduced then props.Position = fromPos end
-		fadeTween = TweenService:Create(panel, info, props)
-		local t = fadeTween
-		t.Completed:Connect(function()
-			if t == fadeTween then panel.Visible = false end
-		end)
-		t:Play()
+		local info = TweenInfo.new(topts.fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		fadeTween = MotionUtil.tweenOrSnap(panel, info, { GroupTransparency = 1, Position = fromPos })
+		if fadeTween then
+			local t = fadeTween
+			t.Completed:Connect(function()
+				if t == fadeTween then panel.Visible = false end
+			end)
+		else
+			panel.Visible = false
+		end
 	end
 
 	open = function()
@@ -1782,19 +1787,11 @@ function UIKit.Tooltip(topts: {
 		end
 		isOpen = true
 		if fadeTween then fadeTween:Destroy(); fadeTween = nil end
+		panel.Position = fromPos
 		panel.Visible = true
 		backdrop.Visible = true
-		local reduced = UIKit.reducedMotion()
-		local dur = reduced and (topts.fadeDuration * 0.5) or topts.fadeDuration
-		local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		if reduced then
-			panel.Position = restPos
-			fadeTween = TweenService:Create(panel, info, { GroupTransparency = 0 })
-		else
-			panel.Position = fromPos
-			fadeTween = TweenService:Create(panel, info, { GroupTransparency = 0, Position = restPos })
-		end
-		fadeTween:Play()
+		local info = TweenInfo.new(topts.fadeDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		fadeTween = MotionUtil.tweenOrSnap(panel, info, { GroupTransparency = 0, Position = restPos })
 		escConn = UserInputService.InputBegan:Connect(function(input, gpe)
 			if gpe then return end
 			if input.KeyCode == Enum.KeyCode.Escape then close() end

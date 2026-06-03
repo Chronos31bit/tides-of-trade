@@ -55,6 +55,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local MotionUtil = require(game:GetService("ReplicatedStorage").Shared.Util.MotionUtil)
 local GameConfig = require(game:GetService("ReplicatedStorage").Shared.Config.GameConfig)
+local UIKit = require(script.Parent.UIKit)
 
 local UIUtil = {}
 
@@ -663,132 +664,18 @@ function UIUtil.makeTooltip(opts: {
 	fadeDuration: number,
 	slideOffsetPx: number,
 }): TooltipHandle
-	local P = UIUtil.Palette
-
-	-- Full-screen invisible backdrop catches "tap outside to dismiss".
-	local backdrop = Instance.new("TextButton")
-	backdrop.Name = "TooltipBackdrop"
-	backdrop.Text = ""
-	backdrop.AutoButtonColor = false
-	backdrop.BackgroundTransparency = 1
-	backdrop.Size = UDim2.fromScale(1, 1)
-	backdrop.ZIndex = 50
-	backdrop.Visible = false
-	backdrop.Parent = opts.parent
-
-	-- CanvasGroup root so the whole panel fades as one (GroupTransparency).
-	local panel = Instance.new("CanvasGroup")
-	panel.Name = "Tooltip"
-	panel.BackgroundColor3 = P.TealDark
-	panel.BorderSizePixel = 0
-	panel.AnchorPoint = opts.anchorPoint or Vector2.new(1, 0)
-	panel.Size = opts.size
-	panel.ZIndex = 51
-	panel.Visible = false
-	panel.GroupTransparency = 1
-	local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 12); corner.Parent = panel
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = P.TealDeeper
-	stroke.Thickness = 1.5
-	stroke.Transparency = 0.25
-	stroke.Parent = panel
-	panel.Parent = opts.parent
-
-	local content = Instance.new("Frame")
-	content.Name = "Content"
-	content.BackgroundTransparency = 1
-	content.Size = UDim2.fromScale(1, 1)
-	content.Parent = panel
-	opts.build(content)
-
-	local restPos = opts.position
-	local fromPos = UDim2.new(
-		restPos.X.Scale, restPos.X.Offset,
-		restPos.Y.Scale, restPos.Y.Offset + opts.slideOffsetPx
-	)
-
-	local isOpen = false
-	local dismissThread: thread? = nil
-	local escConn: RBXScriptConnection? = nil
-	local fadeTween: Tween? = nil
-
-	local function cancelDismiss()
-		if dismissThread then
-			task.cancel(dismissThread)
-			dismissThread = nil
-		end
-	end
-
-	local close, open
-
-	close = function()
-		if not isOpen then return end
-		isOpen = false
-		cancelDismiss()
-		if escConn then escConn:Disconnect(); escConn = nil end
-		backdrop.Visible = false
-		if fadeTween then fadeTween:Destroy(); fadeTween = nil end
-		local reduced = MotionUtil.reducedMotionEnabled()
-		local dur = reduced and (opts.fadeDuration * 0.5) or opts.fadeDuration
-		local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local props: { [string]: any } = { GroupTransparency = 1 }
-		if not reduced then props.Position = fromPos end
-		fadeTween = TweenService:Create(panel, info, props)
-		local t = fadeTween
-		t.Completed:Connect(function()
-			if t == fadeTween then panel.Visible = false end
-		end)
-		t:Play()
-	end
-
-	open = function()
-		if isOpen then
-			-- Re-open resets the inactivity timer.
-			cancelDismiss()
-			dismissThread = task.delay(opts.inactivitySeconds, close)
-			return
-		end
-		isOpen = true
-		if fadeTween then fadeTween:Destroy(); fadeTween = nil end
-		panel.Visible = true
-		backdrop.Visible = true
-		local reduced = MotionUtil.reducedMotionEnabled()
-		local dur = reduced and (opts.fadeDuration * 0.5) or opts.fadeDuration
-		local info = TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		if reduced then
-			panel.Position = restPos
-			fadeTween = TweenService:Create(panel, info, { GroupTransparency = 0 })
-		else
-			panel.Position = fromPos
-			fadeTween = TweenService:Create(panel, info, { GroupTransparency = 0, Position = restPos })
-		end
-		fadeTween:Play()
-
-		escConn = UserInputService.InputBegan:Connect(function(input, gpe)
-			if gpe then return end
-			if input.KeyCode == Enum.KeyCode.Escape then close() end
-		end)
-		cancelDismiss()
-		dismissThread = task.delay(opts.inactivitySeconds, close)
-	end
-
-	backdrop.Activated:Connect(close)
-
-	return {
-		open = open,
-		close = close,
-		toggle = function()
-			if isOpen then close() else open() end
-		end,
-		isOpen = function() return isOpen end,
-		destroy = function()
-			cancelDismiss()
-			if escConn then escConn:Disconnect(); escConn = nil end
-			if fadeTween then fadeTween:Destroy(); fadeTween = nil end
-			backdrop:Destroy()
-			panel:Destroy()
-		end,
-	}
+	-- @deprecated – thin wrapper around UIKit.Tooltip with the legacy teal skin.
+	return UIKit.Tooltip({
+		parent = opts.parent,
+		size = opts.size,
+		position = opts.position,
+		anchorPoint = opts.anchorPoint,
+		build = opts.build,
+		inactivitySeconds = opts.inactivitySeconds,
+		fadeDuration = opts.fadeDuration,
+		slideOffsetPx = opts.slideOffsetPx,
+		style = "teal",
+	})
 end
 
 -- ====================================================================

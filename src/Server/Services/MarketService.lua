@@ -704,8 +704,9 @@ function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: b
 		if speciesId then
 			payout = EconomyUtil.getPreservedGoodQuickSellPayout(speciesId, item.weightKg)
 		else
-			-- Non-preserved goods catalog isn't built yet; flat rate for now.
-			payout = 30 * (item.count or 1)
+			local GoodsCatalog = require(ReplicatedStorage.Shared.Config.GoodsCatalog)
+			local def = GoodsCatalog.byId[item.goodId]
+			payout = (def and def.basePrice or GameConfig.Economy.GoodFlatFallbackPrice) * (item.count or 1)
 		end
 	end
 

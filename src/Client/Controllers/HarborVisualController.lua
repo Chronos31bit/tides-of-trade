@@ -425,8 +425,8 @@ function HarborVisualController:_particleBurst(model: Model, trove: any)
 	-- Aesthetic: soft white-gold sparkle, ~32×32 sprite, alpha falloff to
 	-- transparent edges, slight glow. Match the gold of TIER_COLORS.Mythic
 	-- from CatchRevealUI so currencies of "specialness" feel consistent.
-	pe.Texture = ""
-	pe.Color = ColorSequence.new(Color3.fromRGB(255, 240, 200))
+	pe.Texture = VT.UpgradeBurstTextureId
+	pe.Color = ColorSequence.new(VT.UpgradeBurstColor)
 	pe.LightEmission = 1
 	pe.LightInfluence = 0
 	pe.Lifetime = NumberRange.new(0.6, 1.0)
@@ -513,26 +513,26 @@ function HarborVisualController:_spawnDebris(plotOwnerId: number, building: any,
 			part = Instance.new("Part")
 			part.Size = Vector3.new(0.4, 0.3, 2.5)
 			part.Material = Enum.Material.WoodPlanks
-			part.Color = Color3.fromRGB(90, 65, 40)
+			part.Color = VT.DebrisWoodColor
 		elseif kindRoll == 2 then
 			-- weed clump
 			part = Instance.new("Part")
 			part.Size = Vector3.new(1.2, 0.5, 1.2)
 			part.Material = Enum.Material.Grass
-			part.Color = Color3.fromRGB(80, 110, 60)
+			part.Color = VT.DebrisGreenColor
 		elseif kindRoll == 3 then
 			-- driftwood (wedge for shape variety)
 			part = Instance.new("WedgePart")
 			part.Size = Vector3.new(0.8, 0.6, 1.8)
 			part.Material = Enum.Material.Wood
-			part.Color = Color3.fromRGB(110, 85, 60)
+			part.Color = VT.DebrisTanColor
 		else
 			-- rusted bucket (cylinder standing on end)
 			part = Instance.new("Part")
 			part.Shape = Enum.PartType.Cylinder
 			part.Size = Vector3.new(1.1, 0.9, 0.9)  -- after Z 90° rotation: Y becomes height
 			part.Material = Enum.Material.Metal
-			part.Color = Color3.fromRGB(120, 70, 40)
+			part.Color = VT.DebrisRustColor
 		end
 
 		part.Anchored = true
@@ -660,6 +660,89 @@ function HarborVisualController:KnitStart()
 			self:_requestWorldReplay(1)
 		end)
 	end))
+
+	-- Smokehouse chimney steam: listen to slot changes and toggle emitter.
+	local SmokehouseService = Knit.GetService("SmokehouseService")
+	local VT = GameConfig.Harbor.VisualTuning
+	local smokeEmitters: {[string]: ParticleEmitter} = {}
+
+	SmokehouseService.SmokehouseChanged:Connect(function(uid: string, slots: {[number]: any}?)
+		local emitter = smokeEmitters[uid]
+		if not emitter then return end
+		local anyOccupied = false
+		local anyReady = false
+		if slots then
+			for _, slot in pairs(slots) do
+				if slot then
+					anyOccupied = true
+					if slot.ready then anyReady = true; break end
+				end
+			end
+		end
+		emitter.Enabled = anyOccupied
+		-- Ready glow: tint the chimney tip green when goods are ready.
+		local chimney: BasePart? = emitter.Parent :: BasePart
+		if chimney then
+			chimney.Color = anyReady and VT.SmokehouseReadyColor or chimney:GetAttribute("OriginalChimneyColor") or chimney.Color
+		end
+	end)
+
+	-- Attach a chimney emitter to a smokehouse model. Called on placement.
+	local function setupSmokehouseEmitter(model: Model, uid: string)
+		local chimney: BasePart? = nil
+		for _, child in ipairs(model:GetDescendants()) do
+			if child:IsA("BasePart") and child.Name == "Chimney" then
+				chimney = child :: BasePart
+				break
+			end
+		end
+		if not chimney then return end
+		-- Fallback: find any part with "chimney" in name (case-insensitive).
+		if not chimney then
+			for _, child in ipairs(model:GetDescendants()) do
+				if child:IsA("BasePart") and string.find(string.lower(child.Name), "chimney") then
+					chimney = child :: BasePart
+					break
+				end
+			end
+		end
+		if not chimney then return end
+
+		chimney:SetAttribute("OriginalChimneyColor", chimney.Color)
+		local pe = Instance.new("ParticleEmitter")
+		pe.Name = "ChimneySmoke"
+		pe.Rate = VT.SmokehouseSmokeRate
+		pe.Lifetime = VT.SmokehouseSmokeLifetime
+		pe.Speed = VT.SmokehouseSmokeSpeed
+		pe.Size = VT.SmokehouseSmokeSize
+		pe.Transparency = VT.SmokehouseSmokeTransparency
+		pe.Color = ColorSequence.new(Color3.new(0.7, 0.7, 0.7))
+		pe.LightEmission = 0
+		pe.LightInfluence = 0
+		pe.SpreadAngle = Vector2.new(10, 20)
+		pe.Enabled = false
+		pe.Parent = chimney
+		smokeEmitters[uid] = pe
+	end
+
+	-- Wire placement to setup emitter for smokehouse buildings.
+	self._trove:Add(HarborVisualService.HarborVisualUpdate:Connect(function(payload: any)
+		if payload and payload.kind == "Smokehouse" then
+			local plotOwnerId = payload.plotOwnerId or Players.LocalPlayer.UserId
+			local state = self:_plotState(plotOwnerId)
+			local entry = state.buildings[payload.uid]
+			if entry and entry.model then
+				setupSmokehouseEmitter(entry.model :: Model, payload.uid)
+			end
+		end
+	end))
+
+	-- Sweep existing smokehouse buildings for this player.
+	for _, entry in pairs(self:_plotState(Players.LocalPlayer.UserId).buildings) do
+		if entry.building and entry.building.kind == "Smokehouse" and entry.model then
+			setupSmokehouseEmitter(entry.model :: Model, entry.building.uid)
+		end
+	end
 
 	self:_requestWorldReplay()
 end

@@ -591,6 +591,9 @@
 			perfectFraction = 0
 		end
 		perfectFraction = math.clamp(perfectFraction, 0, 1)
+		-- Capped at MaxPerfectFractionAllowed — we cannot verify actual zone
+		-- time server-side; cap limits the abuse window to a bounded multiplier.
+		perfectFraction = math.min(perfectFraction, GameConfig.AntiExploit.MaxPerfectFractionAllowed)
 
 		local reelDuration = os.clock() - (pending.reelStartedAt or pending.startedAt)
 		if reelDuration < GameConfig.AntiExploit.MinReelSeconds then
@@ -677,7 +680,12 @@
 		local data = PlayerDataService:GetProfile(player)
 		if data then
 			data.stats.totalCatches += 1
-			data.stats.caughtSpecies[fish.id] = (data.stats.caughtSpecies[fish.id] or 0) + 1
+			local prevCount = data.stats.caughtSpecies[fish.id] or 0
+			data.stats.caughtSpecies[fish.id] = prevCount + 1
+			-- Fire CodexChanged when a new species is first discovered.
+			if prevCount == 0 then
+				PlayerDataService.Client.CodexChanged:Fire(player, fish.id, data.stats.caughtSpecies)
+			end
 		end
 
 		-- Base lure token drop chance + any modifier lure bonus.

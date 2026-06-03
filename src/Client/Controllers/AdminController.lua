@@ -13,6 +13,7 @@ local Knit              = require(ReplicatedStorage.Packages.Knit)
 local GameConfig        = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Trove             = require(ReplicatedStorage.Packages.Trove)
 local UIUtil            = require(script.Parent.Parent.UI.UIUtil)
+local MotionUtil        = require(ReplicatedStorage.Shared.Util.MotionUtil)
 local AdminWeatherUI    = require(script.Parent.Parent.UI.AdminWeatherUI)
 
 local ATTR_WEATHER = GameConfig.Weather.WorkspaceAttribute
@@ -22,8 +23,9 @@ local REMOTE_FORCE_WEATHER = "ForceWeather"
 local AdminController = Knit.CreateController({
 	Name = "AdminController",
 	_flying = false,
-	_flyVelocity = nil :: BodyVelocity?,
-	_flyGyro = nil :: BodyGyro?,
+	_flyVelocity = nil :: LinearVelocity?,
+	_flyOrientation = nil :: AlignOrientation?,
+	_flyAttachment = nil :: Attachment?,
 	_flyHeartbeat = nil :: RBXScriptConnection?,
 	_flyInput = { fwd = 0, side = 0, up = 0 },
 	_announceGui = nil :: ScreenGui?,
@@ -58,22 +60,36 @@ function AdminController:_startFly()
 	self._flying = true
 	humanoid.PlatformStand = true
 
-	local bv = Instance.new("BodyVelocity")
-	bv.Name = "AdminFlyVelocity"
-	bv.MaxForce = Vector3.new(1, 1, 1) * 1e6
-	bv.Velocity = Vector3.zero
-	bv.P = 5000
-	bv.Parent = hrp
-	self._flyVelocity = bv
+	-- Attachment anchors the physics constraints to the HumanoidRootPart.
+	local att = Instance.new("Attachment")
+	att.Name = "AdminFlyAttachment"
+	att.Parent = hrp
+	self._flyAttachment = att
 
-	local bg = Instance.new("BodyGyro")
-	bg.Name = "AdminFlyGyro"
-	bg.D = 100
-	bg.P = FLY_GYRO_POWER
-	bg.MaxTorque = Vector3.new(1, 1, 1) * 1e6
-	bg.CFrame = hrp.CFrame
-	bg.Parent = hrp
-	self._flyGyro = bg
+	-- LinearVelocity replaces deprecated BodyVelocity.
+	-- RelativeTo = Attachment so velocity is in world-space via the attachment.
+	local lv = Instance.new("LinearVelocity")
+	lv.Name = "AdminFlyVelocity"
+	lv.Attachment0 = att
+	lv.MaxForce = 1e6
+	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.VectorVelocity = Vector3.zero
+	lv.Parent = att
+	self._flyVelocity = lv
+
+	-- AlignOrientation replaces deprecated BodyGyro.
+	local ao = Instance.new("AlignOrientation")
+	ao.Name = "AdminFlyOrientation"
+	ao.Attachment0 = att
+	ao.MaxTorque = 1e6
+	ao.MaxAngularVelocity = math.rad(720)
+	ao.Responsiveness = 100
+	ao.RigidityEnabled = false
+	ao.PrimaryAxisOnly = true
+	ao.CFrame = hrp.CFrame
+	ao.Parent = att
+	self._flyOrientation = ao
 
 	self._flyHeartbeat = RunService.Heartbeat:Connect(function()
 		if not self._flying or not self._flyVelocity then return end
@@ -86,8 +102,8 @@ function AdminController:_startFly()
 		local rightFlat = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z).Unit
 		local dir = (lookFlat * fwd) + (rightFlat * side) + Vector3.new(0, up, 0)
 		if dir.Magnitude > 0 then dir = dir.Unit end
-		self._flyVelocity.Velocity = dir * FLY_SPEED
-		self._flyGyro.CFrame = CFrame.new(Vector3.zero, lookFlat)
+		self._flyVelocity.VectorVelocity = dir * FLY_SPEED
+		self._flyOrientation.CFrame = CFrame.new(Vector3.zero, lookFlat)
 	end)
 end
 
@@ -96,7 +112,8 @@ function AdminController:_stopFly()
 	self._flying = false
 	if self._flyHeartbeat then self._flyHeartbeat:Disconnect(); self._flyHeartbeat = nil end
 	if self._flyVelocity then self._flyVelocity:Destroy(); self._flyVelocity = nil end
-	if self._flyGyro then self._flyGyro:Destroy(); self._flyGyro = nil end
+	if self._flyOrientation then self._flyOrientation:Destroy(); self._flyOrientation = nil end
+	if self._flyAttachment then self._flyAttachment:Destroy(); self._flyAttachment = nil end
 	local char = Players.LocalPlayer.Character
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	if humanoid then humanoid.PlatformStand = false end
@@ -134,16 +151,26 @@ function AdminController:_announce(text: string, duration: number)
 	if self._announceClearTask then
 		pcall(task.cancel, self._announceClearTask)
 	end
-	panel.Position = UDim2.new(0.5, 0, 0, -80)
-	TweenService:Create(panel, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 0, 0, 36),
-	}):Play()
-	self._announceClearTask = task.delay(duration, function()
-		TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.new(0.5, 0, 0, -80),
+
+	if MotionUtil.reducedMotionEnabled() then
+		-- Snap to visible position; no animation under ReducedMotion.
+		panel.Position = UDim2.new(0.5, 0, 0, 36)
+		self._announceClearTask = task.delay(duration, function()
+			panel.Position = UDim2.new(0.5, 0, 0, -80)
+			self._announceClearTask = nil
+		end)
+	else
+		panel.Position = UDim2.new(0.5, 0, 0, -80)
+		TweenService:Create(panel, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 0, 0, 36),
 		}):Play()
-		self._announceClearTask = nil
-	end)
+		self._announceClearTask = task.delay(duration, function()
+			TweenService:Create(panel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.new(0.5, 0, 0, -80),
+			}):Play()
+			self._announceClearTask = nil
+		end)
+	end
 end
 
 function AdminController:_updateStatusFromAttr(locked: boolean?, mismatch: boolean?)

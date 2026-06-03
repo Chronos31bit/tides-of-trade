@@ -86,6 +86,7 @@ end
 
 function AquariumController:KnitStart()
 	local AquariumService = Knit.GetService("AquariumService")
+	self._notifCtrl = Knit.GetController("NotificationController")
 
 	-- Passive income feedback — shown to the player every income tick.
 	AquariumService.IncomeEarned:Connect(function(coins, xp, fishCount)
@@ -174,7 +175,7 @@ function AquariumController:OpenFirstOwned()
 			return
 		end
 	end
-	print("[Aquarium] You don't own an aquarium yet. Build one in Build mode (B).")
+		self._notifCtrl:Toast("You don't own an aquarium yet. Build one in Build mode (B).")
 end
 
 function AquariumController:Close()

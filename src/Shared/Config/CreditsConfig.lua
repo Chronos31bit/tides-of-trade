@@ -23,6 +23,10 @@ local CreditsConfig: { CreditEntry } = {
 		license = "CC BY 4.0",
 		licenseUrl = "https://creativecommons.org/licenses/by/4.0/",
 		-- TODO: confirm the source URL for this track before launch.
+		-- BloodPixelHero publishes on Freesound, Pixabay, and other CC platforms.
+		-- The specific track page could not be located via web search (2026-06-03).
+		-- If the track page is found, paste the URL here.
+		-- If not found by launch, link to the author's profile on the primary platform.
 		sourceUrl = nil,
 	},
 }

@@ -332,6 +332,10 @@ function QuestTrackerUI.create()
 
 		if quest.completed and not quest.claimed and claimBtn and claimBtn:IsA("TextButton") then
 			claimBtn.Visible = true
+			-- 44px min touch target (design pillar: mobile-first accessibility)
+			local sizeConstraint = Instance.new("UISizeConstraint")
+			sizeConstraint.MinSize = Vector2.new(0, UIUtil.MinTouchPx)
+			sizeConstraint.Parent = claimBtn
 			claimBtn.Activated:Connect(function()
 				onClaim(quest.id)
 			end)
@@ -503,8 +507,12 @@ function QuestTrackerUI.create()
 		local secs = (lastSnapshot.refreshesAt or 0) - os.time()
 		refreshLabel.Text = "New quests in " .. formatHMS(secs)
 		if secs > 0 and secs < 300 then
-			local t = (os.clock() % 1.5) / 1.5
-			tabStroke.Transparency = 0.2 + 0.5 * math.abs(math.sin(t * math.pi))
+			if not MotionUtil.reducedMotionEnabled() then
+				local t = (os.clock() % 1.5) / 1.5
+				tabStroke.Transparency = 0.2 + 0.5 * math.abs(math.sin(t * math.pi))
+			else
+				tabStroke.Transparency = 0.2
+			end
 		else
 			tabStroke.Transparency = 0.3
 		end

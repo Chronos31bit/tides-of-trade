@@ -22,6 +22,11 @@ GameConfig.Economy = {
 	MinListingPrice = 1,
 	MaxListingPrice = 1_000_000,
 
+	-- Flat fallback price for goods not in GoodsCatalog. Replaces magic number
+	-- in MarketService QuickSell path. Defined here so economy tuning lives in
+	-- one place.
+	GoodFlatFallbackPrice = 30,
+
 	-- Listings auto-expire after this many seconds (48h). Server sweeps expired
 	-- listings on a timer in MarketService.
 	ListingTTLSeconds = 48 * 60 * 60,
@@ -66,6 +71,50 @@ GameConfig.Biomes = {
 }
 
 -- ====================================================================
+-- BOATS -- autopilot "Set Sail" menu (dock -> deep band teleport).
+-- ====================================================================
+-- ====================================================================
+-- COSMETIC SHOP — Robux purchase path (developer products).
+-- ====================================================================
+-- Maps Roblox developer-product IDs to catalog cosmetic ids. Add new rows
+-- from the Developer Dashboard; never rename or remove existing ones.
+-- Idempotent grant: re-processing the same PurchaseId is a no-op.
+GameConfig.CosmeticShop = {
+	Products = {
+		-- [developerProductId] = "cosmetic_id"
+		-- Placeholder id 0 — replace with real product id from Dashboard.
+		[0] = "cosmetic_streak_14",
+	},
+}
+
+GameConfig.Boats = {
+	-- Dock tier required to sail to each destination. Matches DockTierRequired
+	-- map in GameConfig.Biomes; Reef stays tier-1 in the catch gate but sail
+	-- menu promotes it to tier 2 so the tier-2 dock repair feels like payoff.
+	AccessByDockTier = {
+		Shoreline = 1,
+		Pier      = 1,
+		Reef      = 2,
+		DeepWater = 2,
+		Trench    = 3,
+	},
+
+	-- World-space positions where the player lands on each band.
+	-- Sourced from BiomeTest.TeleportTargets; kept flat here so BoatService
+	-- can resolve without pulling in the Studio-only test hub.
+	PadPositions = {
+		Shoreline = Vector3.new(600, 2, 550),
+		Pier      = Vector3.new(520, 2, 660),
+		Reef      = Vector3.new(600, 2, 1020),
+		DeepWater = Vector3.new(600, 2, 1160),
+		Trench    = Vector3.new(600, 2, 1400),
+	},
+
+	-- Duration of the sail fade transition (seconds). ReducedMotion halves it.
+	SailFadeDuration = 1.5,
+}
+
+-- ====================================================================
 -- TIDES — drives the 20-minute high/low cycle
 -- ====================================================================
 GameConfig.Tides = {
@@ -77,6 +126,16 @@ GameConfig.Tides = {
 	-- Fraction of cycle classified as High tide (the rest is Low).
 	-- 0.45 leaves a 5% transition margin on each side.
 	HighFraction = 0.45,
+
+	-- Visual water slab that rises/falls with the tide.
+	Visual = {
+		WaterBaseY = 0,
+		WaterAmplitudeStuds = 2.0,
+		LerpSpeed = 0.3,
+		SlabSize = Vector3.new(1024, 1, 1024),
+		SlabColor = Color3.fromRGB(35, 120, 180),
+		SlabTransparency = 0.35,
+	},
 }
 
 -- ====================================================================
@@ -240,6 +299,7 @@ GameConfig.Weather = {
 		FlashBrightnessDelta = 0.75,
 		FlashSaturationDelta = 0.15,
 		ThunderDelayRangeSeconds = NumberRange.new(0.9, 1.8),
+		RainColor = Color3.fromRGB(215, 220, 228),
 	},
 
 	-- Per-weather loop volumes used by WorldFXController._applyWeatherSounds.
@@ -316,7 +376,36 @@ GameConfig.Harbor = {
 		DebrisPerBuildingMax      = 5,
 		DebrisRadiusStuds         = 6,
 		DebrisMaxPerPlot          = 30,
+		-- Debris particle colors (material-specific, not UI palette).
+		DebrisWoodColor    = Color3.fromRGB(90, 65, 40),
+		DebrisGreenColor   = Color3.fromRGB(80, 110, 60),
+		DebrisTanColor     = Color3.fromRGB(110, 85, 60),
+		DebrisRustColor    = Color3.fromRGB(120, 70, 40),
+		-- Upgrade burst particle colors.
+		UpgradeBurstColor0 = Color3.fromRGB(255, 215, 0),
+		UpgradeBurstColor1 = Color3.fromRGB(255, 255, 180),
+		UpgradeBurstColor  = Color3.fromRGB(255, 240, 200),
+		GhostOkColor       = Color3.fromRGB(120, 200, 220),
+		GhostBadColor      = Color3.fromRGB(220, 100, 100),
+		HoverHighlightBad   = Color3.fromRGB(255, 70, 70),
+		HoverHighlightGold  = Color3.fromRGB(220, 180, 88),
+		HighlightOutline    = Color3.fromRGB(255, 255, 255),
 		ReducedMotionDurationScale = 0.5,
+		UpgradeBurstTextureId = "rbxassetid://6735840905",  -- Roblox standard sparkle
+		-- Smokehouse chimney steam.
+		SmokehouseSmokeRate = 15,
+		SmokehouseSmokeLifetime = NumberRange.new(1.5, 3),
+		SmokehouseSmokeSpeed = NumberRange.new(1, 3),
+		SmokehouseSmokeSize = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.2),
+			NumberSequenceKeypoint.new(1, 2.0),
+		}),
+		SmokehouseSmokeTransparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.3),
+			NumberSequenceKeypoint.new(1, 1.0),
+		}),
+		SmokehouseReadyColor = Color3.fromRGB(120, 255, 140),
+		SmokehouseReadyEmission = 0.5,
 		-- Per-tier Model:ScaleTo on placed visuals (tier 1 = rundown scale).
 		TierModelScale = { 1.0, 1.35, 1.7 },
 	},
@@ -463,6 +552,9 @@ GameConfig.Fishing = {
 		RippleCount               = 2,
 		HapticIntensity           = 0.4,
 		HapticDuration            = 0.08,
+		RippleColor               = Color3.fromRGB(220, 240, 255),
+		BeamColor                 = Color3.fromRGB(250, 245, 230),
+		VignetteColor             = Color3.fromRGB(20, 100, 160),
 		MeterTransitionDuration   = 0.3,
 		ReelHoldDuration          = 2.0,
 		ReelZoneSpeedBase         = 1.2,
@@ -771,9 +863,9 @@ GameConfig.Quests = {
 		[6]  = { coins = 300 },
 		-- Day 7: keep existing `rare_lure` goodId (stable IDs are forever).
 		[7]  = { items = { { id = "rare_lure", count = 1 } } },
-		[14] = { items = { { id = "cosmetic_streak_14", count = 1 } } },  -- TODO: cosmetic catalog
-		[21] = { items = { { id = "cosmetic_streak_21", count = 1 } } },  -- TODO
-		[28] = { items = { { id = "cosmetic_streak_28", count = 1 } } },  -- TODO
+		[14] = { coins = 500,  xp = 200 },  -- TODO: restore cosmetic_streak_14 via CosmeticService:GrantCosmetic when art assets ship
+		[21] = { coins = 1000, xp = 400 },  -- TODO: restore cosmetic_streak_21
+		[28] = { coins = 2000, xp = 800 },  -- TODO: restore cosmetic_streak_28
 	},
 	-- After day 28 reward this every day until streak breaks.
 	LoginStreakReward28Plus = { coins = 200 },
@@ -806,6 +898,7 @@ GameConfig.Crew = {
 -- SOCIAL — emotes, harbor board (future)
 -- ====================================================================
 GameConfig.Social = {
+	AllowedEmotes = { "wave", "dance", "fish_pose", "salute", "bow" },
 	Emotes = {
 		FadeInSeconds  = 0.15,
 		FadeOutSeconds = 0.15,
@@ -841,6 +934,10 @@ GameConfig.AntiExploit = {
 	MaxSnapshotPullsPerMinute = 30, -- coarse limiter on read-only getters
 	MaxReelClaimsPerMinute  = 60,   -- one per cast; upstream gated by StartCast
 
+	-- Sailing: at most N sail ops per minute per player. Low cap — teleport
+	-- is heavy and sail is rare in honest play.
+	MaxSailOpsPerMinute = 10,
+
 	-- If a client claims a catch outside this window after server says "fish
 	-- on the line", reject. Tight window = exploiters can't replay old hooks.
 	CatchClaimWindowSeconds = 6,
@@ -848,6 +945,12 @@ GameConfig.AntiExploit = {
 	-- Minimum elapsed seconds between bite and ReleaseReel claim.
 	-- Below this, the reel mini-game couldn't have been played honestly.
 	MinReelSeconds = 0.5,
+
+	-- Max client-reported perfectFraction the server will accept.
+	-- The server cannot verify actual zone time, so we cap the fraction
+	-- to bound the abuse window. Honest play can still reach PerfectThreshold
+	-- (0.80 by default in FeelTuning). Tune post-analytics.
+	MaxPerfectFractionAllowed = 0.80,
 
 	-- Server-side TextService:FilterStringAsync() timeout guard (crew chat).
 	-- The pcall in SocialService serves as the actual timeout; TextService
@@ -875,6 +978,16 @@ GameConfig.Rods = {
 		celestial = 33,  -- t8  months of play
 		eclipse   = 43,  -- t9  veteran flex
 		abyssal   = 56,  -- t10 apex — top of the rack
+	},
+	-- Shop catalog: tier-based rod progression. Tier 1 is the starter rod;
+	-- players upgrade sequentially. Used by ShopService:GetRodCatalog /
+	-- BuyRodTier. Costs in coins, names/descriptions for HUD rod chips.
+	ShopTiers = {
+		[1] = { name = "Driftwood Rod",  cost = 0,     description = "Starter rod. Common shoreline catches." },
+		[2] = { name = "Bamboo Rod",     cost = 500,   description = "Reaches reef-tier fish (Lantern Squid, Speckled Perch)." },
+		[3] = { name = "Hardwood Rod",   cost = 2500,  description = "Reels deep-water catches like Stormcoat Tuna." },
+		[4] = { name = "Whalebone Rod",  cost = 12000, description = "Sturdy enough for Mythic-tier strikes." },
+		[5] = { name = "Coralforged Rod",cost = 50000, description = "Legendary. Pulls anything that bites." },
 	},
 }
 
@@ -1029,6 +1142,19 @@ GameConfig.Assets = {
 }
 
 -- ====================================================================
+-- FISH CODEX -- collection screen for tracking discovered species.
+-- ====================================================================
+GameConfig.Codex = {
+	SilhouetteColor    = Color3.fromRGB(25, 35, 40),
+	SilhouetteTextColor = Color3.fromRGB(80, 100, 110),
+	CardsPerRow        = 3,
+	CardGap            = 8,
+	CardWidth          = 108,
+	CardHeight         = 130,
+	BadgeSize          = 24,
+	ProgressBarHeight  = 12,
+}
+
 -- FISH HELD — weight-to-size mapping for the in-world held-fish model.
 -- MinStuds: max-dimension target when fish is at its species weightRange min.
 -- MaxStuds: max-dimension target when fish is at its species weightRange max.
@@ -1161,6 +1287,16 @@ GameConfig.BiomeTest = {
 		Reef      = Color3.fromRGB( 70, 200, 200),
 		DeepWater = Color3.fromRGB( 20,  60, 130),
 		Trench    = Color3.fromRGB( 10,  20,  50),
+	},
+}
+
+-- Leaderboards
+GameConfig.Leaderboard = {
+	TopN = 10,
+	RefreshCooldownSec = 30,
+	DataStores = {
+		Catches  = "TidesLB_Catches_v1",
+		Species  = "TidesLB_Species_v1",
 	},
 }
 

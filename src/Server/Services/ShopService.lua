@@ -3,27 +3,18 @@
 -- Handles rod tier upgrades (sold at the dock). All transactions are
 -- server-authoritative — client just RPCs in.
 -- Bait purchases moved to BaitService (baitStash + equippedBaitId path).
+-- Rod catalog moved to GameConfig.Rods.ShopTiers (CLAUDE.md: single source of truth).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Knit = require(ReplicatedStorage.Packages.Knit)
+local Knit       = require(ReplicatedStorage.Packages.Knit)
+local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+
+local RODS = GameConfig.Rods.ShopTiers
 
 local ShopService = Knit.CreateService({
 	Name = "ShopService",
 	Client = {},
 })
-
--- ====================================================================
--- ROD CATALOG
--- Tier 1 is the starter; players spawn with it. Higher tiers cost more
--- and unlock deeper biomes via FishCatalog's rodMinTier filter.
--- ====================================================================
-local RODS = {
-	[1] = { name = "Driftwood Rod",  cost = 0,     description = "Starter rod. Common shoreline catches." },
-	[2] = { name = "Bamboo Rod",     cost = 500,   description = "Reaches reef-tier fish (Lantern Squid, Speckled Perch)." },
-	[3] = { name = "Hardwood Rod",   cost = 2500,  description = "Reels deep-water catches like Stormcoat Tuna." },
-	[4] = { name = "Whalebone Rod",  cost = 12000, description = "Sturdy enough for Mythic-tier strikes." },
-	[5] = { name = "Coralforged Rod",cost = 50000, description = "Legendary. Pulls anything that bites." },
-}
 
 -- ====================================================================
 -- CLIENT API — catalogs

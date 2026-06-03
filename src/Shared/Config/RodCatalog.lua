@@ -45,6 +45,7 @@ export type RodDef = {
 	rarityMultiplier: number,  -- multiplier on non-Common rarity weights in rollFish
 	catchWeightBonus: number,  -- additive kg
 	color: Color3,
+	assetPath: string?,        -- e.g. "Assets.Rods.driftwood" in ReplicatedStorage
 }
 
 -- Rarity ladder. Names are stable for UI/analytics; colors are cosmetic.
@@ -74,6 +75,7 @@ local RodCatalog: {
 			rarityMultiplier = 1.0,
 			catchWeightBonus = 0.0,
 			color            = Color3.fromRGB(160, 124, 88),
+			assetPath        = "Assets.Rods.driftwood",
 		},
 		{
 			id               = "bamboo",
@@ -86,6 +88,7 @@ local RodCatalog: {
 			rarityMultiplier = 1.3,
 			catchWeightBonus = 0.5,
 			color            = Color3.fromRGB(120, 200, 130),
+			assetPath        = "Assets.Rods.bamboo",
 		},
 		{
 			id               = "ironwood",
@@ -98,6 +101,7 @@ local RodCatalog: {
 			rarityMultiplier = 1.7,
 			catchWeightBonus = 1.5,
 			color            = Color3.fromRGB(160, 160, 200),
+			assetPath        = "Assets.Rods.ironwood",
 		},
 		{
 			id               = "coral",
@@ -110,6 +114,7 @@ local RodCatalog: {
 			rarityMultiplier = 2.2,
 			catchWeightBonus = 3.5,
 			color            = Color3.fromRGB(220, 130, 200),
+			assetPath        = "Assets.Rods.coral",
 		},
 		{
 			id               = "tempest",
@@ -122,6 +127,7 @@ local RodCatalog: {
 			rarityMultiplier = 2.8,
 			catchWeightBonus = 6.5,
 			color            = Color3.fromRGB(120, 170, 230),
+			assetPath        = "Assets.Rods.tempest",
 		},
 		{
 			id               = "leviathan",
@@ -134,6 +140,7 @@ local RodCatalog: {
 			rarityMultiplier = 3.5,
 			catchWeightBonus = 10.0,
 			color            = Color3.fromRGB(70, 110, 165),
+			assetPath        = "Assets.Rods.leviathan",
 		},
 		{
 			id               = "aurora",
@@ -146,6 +153,7 @@ local RodCatalog: {
 			rarityMultiplier = 4.2,
 			catchWeightBonus = 15.0,
 			color            = Color3.fromRGB(150, 235, 210),
+			assetPath        = "Assets.Rods.aurora",
 		},
 		{
 			id               = "celestial",
@@ -158,6 +166,7 @@ local RodCatalog: {
 			rarityMultiplier = 5.0,
 			catchWeightBonus = 21.0,
 			color            = Color3.fromRGB(210, 165, 250),
+			assetPath        = "Assets.Rods.celestial",
 		},
 		{
 			id               = "eclipse",
@@ -170,6 +179,7 @@ local RodCatalog: {
 			rarityMultiplier = 5.8,
 			catchWeightBonus = 30.0,
 			color            = Color3.fromRGB(120, 90, 160),
+			assetPath        = "Assets.Rods.eclipse",
 		},
 		{
 			id               = "abyssal",
@@ -182,6 +192,7 @@ local RodCatalog: {
 			rarityMultiplier = 7.0,
 			catchWeightBonus = 42.0,
 			color            = Color3.fromRGB(45, 80, 130),
+			assetPath        = "Assets.Rods.abyssal",
 		},
 	},
 	byId = {},

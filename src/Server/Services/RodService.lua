@@ -112,35 +112,28 @@ local function buildRodTool(): Tool
 	return tool
 end
 
--- Try to clone a real rod model from ReplicatedStorage.Assets.Rod. Returns
--- nil if the path doesn't exist, in which case _grantRod falls back to the
--- in-code placeholder. This lets art and code coexist — drop a Tool into
--- the Assets folder in Studio whenever you're ready, no code change needed.
-local function cloneAssetRod(): Tool?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	if not assets then
-		print("[RodService] No ReplicatedStorage.Assets folder — using placeholder.")
-		return nil
+-- Try to clone a per-tier rod model from ReplicatedStorage.Assets.Rods.<id>.
+-- Returns nil if the path doesn't exist, in which case _grantRod falls back to
+-- the in-code placeholder. The assetPath is read from RodCatalog.assetPath.
+local function cloneRodAsset(rod: any): Tool?
+	local rodFolder = ReplicatedStorage:FindFirstChild("Assets")
+	if not rodFolder then return nil end
+	rodFolder = rodFolder:FindFirstChild("Rods")
+	if not rodFolder then return nil end
+	if not rod.assetPath then return nil end
+	-- Parse "Assets.Rods.driftwood" → find "driftwood" under Assets/Rods
+	local parts = {}
+	for part in string.gmatch(rod.assetPath, "[^.]+") do
+		table.insert(parts, part)
 	end
-	local source = assets:FindFirstChild("Rod")
-	if not source then
-		print("[RodService] No ReplicatedStorage.Assets.Rod — using placeholder.")
-		return nil
+	local source: Instance? = rodFolder
+	for i = 3, #parts do -- skip "Assets" and "Rods"
+		source = source:FindFirstChild(parts[i])
+		if not source then return nil end
 	end
-	if not source:IsA("Tool") then
-		print(("[RodService] Assets.Rod is a %s, not a Tool — using placeholder."):format(source.ClassName))
-		return nil
-	end
-	if not source:FindFirstChild("Handle") then
-		warn("[RodService] Assets.Rod has no 'Handle' child — using placeholder. Children seen: " .. table.concat((function()
-			local names = {}
-			for _, c in ipairs(source:GetChildren()) do table.insert(names, c.Name .. "(" .. c.ClassName .. ")") end
-			return names
-		end)(), ", "))
-		return nil
-	end
-	print("[RodService] Cloning custom rod from ReplicatedStorage.Assets.Rod")
-	local clone = source:Clone()
+	if not source or not source:IsA("Tool") then return nil end
+	if not source:FindFirstChild("Handle") then return nil end
+	local clone = (source :: Tool):Clone()
 	clone.Name = "Fishing Rod"
 	clone.RequiresHandle = true
 	clone.CanBeDropped = false
@@ -161,12 +154,15 @@ function RodService:_grantRod(player: Player)
 		if equipped then equipped:Destroy() end
 	end
 
-	-- Prefer a custom rod model from ReplicatedStorage.Assets.Rod; fall back
-	-- to the in-code placeholder if no asset is present.
-	local tool = cloneAssetRod() or buildRodTool()
-	-- Tool.Activated fires server-side when the player taps/clicks while the
-	-- tool is equipped. We forward that to the client controller via Knit
-	-- signal so the existing FishingController flow is preserved.
+	-- Resolve the player's equipped rod. Default to driftwood if no profile.
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player)
+	local rodId = data and data.equippedRodId or "driftwood"
+	local rod = RodCatalog.byId[rodId]
+
+	-- Prefer a per-tier rod model from ReplicatedStorage.Assets.Rods.<id>;
+	-- fall back to the in-code placeholder if the asset isn't uploaded yet.
+	local tool = (rod and cloneRodAsset(rod)) or buildRodTool()
 	tool.Activated:Connect(function()
 		self.Client.RodActivated:Fire(player)
 	end)
@@ -219,6 +215,8 @@ function RodService.Client:EquipRod(player: Player, rodId: string): {ok: boolean
 	end
 
 	PlayerDataService:SetEquippedRod(player, rodId)
+	-- Re-grant so the player immediately sees the new rod visual.
+	self:_grantRod(player)
 	return { ok = true }
 end
 

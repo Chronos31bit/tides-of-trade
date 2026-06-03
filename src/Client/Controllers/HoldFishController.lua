@@ -166,7 +166,7 @@ function HoldFishController:HoldFish(
 	for i = 1, math.min(#mods, 3) do
 		local modId = mods[i]
 		local glowCfg = (GameConfig :: any).ModifierGlow and (GameConfig :: any).ModifierGlow[modId]
-		local color: Color3 = glowCfg and glowCfg.Color or Color3.fromRGB(160, 160, 160)
+		local color: Color3 = glowCfg and glowCfg.Color or P.Common
 		local pill = Instance.new("Frame")
 		pill.LayoutOrder = 1 + i
 		pill.Size = UDim2.fromOffset(0, 28)

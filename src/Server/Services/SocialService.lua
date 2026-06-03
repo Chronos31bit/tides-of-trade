@@ -42,6 +42,11 @@ function SocialService:KnitInit()
 	self._crewChatLimiter = RateLimiter.new(GameConfig.AntiExploit.MaxCrewChatsPerMinute, 60)
 	self._emoteLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxEmotesPerMinute, 60)
 	self._visitLimiter    = RateLimiter.new(GameConfig.AntiExploit.MaxVisitsPerMinute, 60)
+	-- Build emote whitelist lookup from config (single source of truth).
+	self._allowedEmotes = {}
+	for _, e in ipairs(GameConfig.Social.AllowedEmotes) do
+		self._allowedEmotes[e] = true
+	end
 end
 
 function SocialService:KnitStart()
@@ -233,13 +238,57 @@ function SocialService.Client:PlayEmote(player: Player, emoteId: string)
 	-- Generous budget keeps dance parties working.
 	if not self._emoteLimiter:check(player) then return end
 	-- Whitelist check — clients can only play emotes the catalog knows about.
-	local allowed = { wave = true, dance = true, fish_pose = true, salute = true, bow = true }
-	if typeof(emoteId) ~= "string" or not allowed[emoteId] then return end
+	if typeof(emoteId) ~= "string" or not self._allowedEmotes[emoteId] then return end
 	for _, other in ipairs(Players:GetPlayers()) do
 		self.Client.EmotePlayed:Fire(other, player.UserId, emoteId)
 	end
 	-- Server-side fan-out for quest progress (social_emote_n).
 	self.EmoteUsedServer:Fire(player, emoteId)
+end
+
+-- ====================================================================
+-- CREW MEMBERS — read-only view of the player's crew roster.
+-- Client uses this to populate the crew panel with names and a Visit
+-- button. Rate-limited under the general crew-ops cap.
+-- ====================================================================
+
+function SocialService.Client:GetCrewMembers(player: Player): {members: {{userId: number, displayName: string}}?, reason: string?}
+	local self = self.Server
+	local PlayerDataService = Knit.GetService("PlayerDataService")
+	local data = PlayerDataService:GetProfile(player)
+	if not data or not data.crewId then
+		return { reason = "not_in_crew" }
+	end
+
+	local crew: any
+	local ok = pcall(function()
+		crew = self._crewStore:GetAsync(data.crewId)
+	end)
+	if not ok or not crew or type(crew) ~= "table" then
+		return { reason = "crew_not_found" }
+	end
+
+	local members = {}
+	for _, userId in ipairs(crew.members :: {number}) do
+		local name = "[Unknown]"
+		if userId == player.UserId then
+			name = player.Name
+		else
+			local p = Players:GetPlayerByUserId(userId)
+			if p then
+				name = p.Name
+			else
+				-- Offline member: fall back to Players:GetNameFromUserIdAsync.
+				-- This yields, but crew membership is rare and the client
+				-- calls this only when opening the panel.
+				local ok2, result = pcall(Players.GetNameFromUserIdAsync, Players, userId)
+				if ok2 and result then name = result end
+			end
+		end
+		table.insert(members, { userId = userId, displayName = name })
+	end
+
+	return { members = members }
 end
 
 -- ====================================================================

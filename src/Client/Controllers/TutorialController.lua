@@ -42,6 +42,8 @@ local TutorialController = Knit.CreateController({
 	_objectiveGui = nil :: any,
 	_objectiveLabel = nil :: any,
 	_trove          = nil :: any,
+	_reducedMotion  = GuiService.ReducedMotionEnabled,
+	_bobToken       = 0,  -- incremented to cancel running bob loops
 })
 
 -- Per-beat objective text shown in the persistent pill at the top of
@@ -177,14 +179,20 @@ function TutorialController:_setWaypoint(worldPos: Vector3)
 	lbl.Parent = bb
 
 	-- Gentle bob so the arrow reads as a UI element, not world geometry.
-	-- Skip animation when ReducedMotion is on (MotionUtil snap-pattern).
-	if not GuiService.ReducedMotionEnabled then
+	-- Uses self._reducedMotion (live-updated via GuiService property listener)
+	-- so toggling the setting mid-session stops the bob within one iteration.
+	-- Cancellation token tracked so KnitStop kills orphan loop on destroy.
+	if not self._reducedMotion then
+		self._bobToken += 1
+		local token = self._bobToken
 		task.spawn(function()
-			while part.Parent do
+			while part.Parent and token == self._bobToken do
+				if self._reducedMotion then break end
 				MotionUtil.tween(part, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = worldPos + Vector3.new(0, 10, 0),
 				})
 				task.wait(0.6)
+				if self._reducedMotion or token ~= self._bobToken then break end
 				MotionUtil.tween(part, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = worldPos + Vector3.new(0, 8, 0),
 				})
@@ -448,9 +456,20 @@ end
 
 function TutorialController:KnitInit()
 	self._trove = Trove.new()
+	self._reducedMotion = GuiService.ReducedMotionEnabled
+	self._bobToken = 0
+	-- Live toggle: re-evaluate ReducedMotion when accessibility setting changes.
+	-- When enabled mid-session, snap the waypoint to neutral (bob loop self-cancels).
+	self._trove:Add(GuiService:GetPropertyChangedSignal("ReducedMotionEnabled"):Connect(function()
+		self._reducedMotion = GuiService.ReducedMotionEnabled
+		if self._reducedMotion and self._waypoint then
+			self._waypoint.Position = self._waypoint.Position  -- kill active tween
+		end
+	end))
 end
 
 function TutorialController:KnitStop()
+	self._bobToken += 1  -- cancel any running waypoint bob loops
 	if self._trove then
 		self._trove:Destroy()
 		self._trove = nil

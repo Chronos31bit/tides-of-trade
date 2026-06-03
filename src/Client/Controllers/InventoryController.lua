@@ -44,6 +44,7 @@ end
 
 function InventoryController:KnitStart()
 	self._holdFishController = Knit.GetController("HoldFishController")
+	self._notifCtrl = Knit.GetController("NotificationController")
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	PlayerDataService.InventoryChanged:Connect(function(items)
 		if self._handle then self._handle.refresh(items) end
@@ -53,11 +54,21 @@ end
 function InventoryController:Open()
 	if self._handle then self._handle.close() end
 	local PlayerDataService = Knit.GetService("PlayerDataService")
-	local snap = PlayerDataService:GetSnapshot():expect()
-	local items = snap and snap.inventory or {}
 	local MarketUI = require(script.Parent.Parent.UI.MarketUI)
 	local MarketService = Knit.GetService("MarketService")
 	local holdCtrl = self._holdFishController
+
+	-- Async snapshot — never block UI thread. Build panel with empty items,
+	-- then refresh when the real inventory arrives.
+	PlayerDataService:GetSnapshot():andThen(function(snap)
+		local items = snap and snap.inventory or {}
+		if not self._handle then return end  -- panel closed before data arrived
+		self._handle.refresh(items)
+	end):catch(function()
+		warn("[Inventory] Failed to load inventory snapshot")
+	end)
+
+	local items = {}  -- empty placeholder while snapshot loads
 	self._handle = InventoryUI.show(items,
 		-- onListRequest: open the price prompt for global market listing.
 		function(itemUid, suggested)
@@ -75,7 +86,7 @@ function InventoryController:Open()
 				if not res.ok then
 					warn("[Inventory] Quick sell failed:", res.reason)
 				else
-					print(("[Inventory] Sold for %d coins"):format(res.coinsEarned or 0))
+						self._notifCtrl:Toast(string.format("Sold for %d coins", res.coinsEarned or 0))
 				end
 			end)
 		end,

@@ -14,12 +14,16 @@
 --       emotes      : { string },
 --       onPlayEmote : (emoteId: string) -> (),
 --       onSendChat  : ((message: string) -> ())?,   -- nil disables the send row
+--       onVisit     : ((userId: number) -> ())?,    -- visit crewmate's harbor
+--       crewMembers : ({ {userId: number, displayName: string} })?,  -- populated by controller
 --       initialChat : ({ {from: string, message: string} })?,  -- replayed on open
 --       onClose     : (() -> ())?,
 --     }
 --   handle.close()
 --   handle.refresh(emotes)
 --   handle.appendChat(fromName, message)
+
+local Players = game:GetService("Players")
 
 local TemplateLoader = require(script.Parent.TemplateLoader)
 local UIUtil = require(script.Parent.UIUtil)
@@ -40,8 +44,11 @@ export type SocialShowOpts = {
 	emotes: { string },
 	onPlayEmote: (emoteId: string) -> (),
 	onSendChat: ((message: string) -> ())?,
+	onVisit: ((userId: number) -> ())?,
+	crewMembers: { {userId: number, displayName: string} }?,
 	initialChat: { ChatEntry }?,
 	onClose: (() -> ())?,
+	onMuteSender: ((fromName: string) -> ())?,
 }
 
 export type SocialHandle = {
@@ -82,6 +89,7 @@ function SocialUI.show(opts: SocialShowOpts): SocialHandle
 	local onPlayEmote = opts.onPlayEmote
 	local onSendChat = opts.onSendChat
 	local onClose = opts.onClose
+	local onMuteSender = opts.onMuteSender
 
 	local gui = TemplateLoader.spawn("Social", { instanceName = "SocialUI" })
 	local backdrop = req(gui, "Backdrop", "TextButton") :: TextButton
@@ -173,22 +181,44 @@ function SocialUI.show(opts: SocialShowOpts): SocialHandle
 			emptyLabel = nil
 		end
 
-		local row = UIUtil.makeLabel("", "body", {
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			TextWrapped = true,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			LayoutOrder = nextOrder,
-			Parent = messageScroll,
-		})
-		row.RichText = true
-		row.Text = ("<b>%s</b>  %s"):format(escapeRich(fromName), escapeRich(message))
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, 0, 0, 0)
+		row.AutomaticSize = Enum.AutomaticSize.Y
+		row.BackgroundTransparency = 1
+		row.LayoutOrder = nextOrder
+		row.Parent = messageScroll
+
+		local textLabel = Instance.new("TextLabel")
+		textLabel.BackgroundTransparency = 1
+		textLabel.Size = UDim2.new(1, -28, 0, 0)
+		textLabel.AutomaticSize = Enum.AutomaticSize.Y
+		textLabel.TextWrapped = true
+		textLabel.TextXAlignment = Enum.TextXAlignment.Left
+		textLabel.Font = P.Font
+		textLabel.TextSize = T.body.size
+		textLabel.TextColor3 = P.Cream
+		textLabel.RichText = true
+		textLabel.Text = ("<b>%s</b>  %s"):format(escapeRich(fromName), escapeRich(message))
+		textLabel.Parent = row
+
+		-- Inline mute button per message. Click to silence that sender.
+		local muteBtn = Instance.new("TextButton")
+		muteBtn.Size = UDim2.new(0, 24, 0, 24)
+		muteBtn.Position = UDim2.new(1, -24, 0, 0)
+		muteBtn.BackgroundTransparency = 1
+		muteBtn.Text = "🚫"
+		muteBtn.TextSize = 14
+		muteBtn.Font = Enum.Font.Gotham
+		muteBtn.Parent = row
+		muteBtn.Activated:Connect(function()
+			if onMuteSender then onMuteSender(fromName) end
+		end)
 		nextOrder += 1
 
-		-- Trim oldest rows past the cap (skip the destroyed empty label).
+		-- Trim oldest rows past the cap.
 		local rows = {}
 		for _, c in ipairs(messageScroll:GetChildren()) do
-			if c:IsA("TextLabel") then
+			if c:IsA("Frame") then
 				table.insert(rows, c)
 			end
 		end
@@ -298,6 +328,84 @@ function SocialUI.show(opts: SocialShowOpts): SocialHandle
 	tabCrew.Activated:Connect(showCrewTab)
 	tabChat.Activated:Connect(showChatTab)
 	tabFriends.Activated:Connect(showFriendsTab)
+
+	-- ----------------------------------------------------------------
+	-- CREW MEMBER ROWS — populated above the emote stack so players can
+	-- see their crewmates and visit their harbors.
+	-- ----------------------------------------------------------------
+	local crewMemberList = Instance.new("Frame")
+	crewMemberList.Name = "CrewMemberList"
+	crewMemberList.BackgroundTransparency = 1
+	crewMemberList.BorderSizePixel = 0
+	crewMemberList.AnchorPoint = Vector2.new(0, 0)
+	crewMemberList.Position = UDim2.new(0, 0, 0, 0)
+	crewMemberList.Size = UDim2.new(1, 0, 0, 0)
+	crewMemberList.AutomaticSize = Enum.AutomaticSize.Y
+	crewMemberList.Parent = crewPanel
+
+	local crewMemberLayout = Instance.new("UIListLayout")
+	crewMemberLayout.Padding = UDim.new(0, UIUtil.Spacing.xs)
+	crewMemberLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	crewMemberLayout.Parent = crewMemberList
+
+	-- Shift the emote stack below the member list dynamically.
+	local memberListPad = Instance.new("UIPadding")
+	memberListPad.PaddingBottom = UDim.new(0, UIUtil.Spacing.sm)
+	memberListPad.Parent = crewMemberList
+
+	if opts.crewMembers and #opts.crewMembers > 0 then
+		local onVisit = opts.onVisit
+		local localPlayer = Players.LocalPlayer
+		for i, m in ipairs(opts.crewMembers) do
+			local isSelf = m.userId == localPlayer.UserId
+			local row = Instance.new("Frame")
+			row.Name = "CrewRow_" .. tostring(m.userId)
+			row.BackgroundTransparency = 1
+			row.BorderSizePixel = 0
+			row.Size = UDim2.new(1, 0, 0, UIUtil.MinTouchPx)
+			row.LayoutOrder = i
+			row.Parent = crewMemberList
+
+			local nameLabel = UIUtil.makeLabel(m.displayName .. (if isSelf then " (you)" else ""), "body", {
+				Size = UDim2.new(1, -(if onVisit and not isSelf then 70 else 0), 1, 0),
+				TextXAlignment = Enum.TextXAlignment.Left,
+			})
+			nameLabel.Parent = row
+
+			if onVisit and not isSelf then
+				local visitBtn = UIUtil.makePrimaryButton("Visit", function()
+					onVisit(m.userId)
+				end, {
+					AnchorPoint = Vector2.new(1, 0),
+					Position = UDim2.new(1, 0, 0, 0),
+					Size = UDim2.new(0, 60, 1, 0),
+				})
+				visitBtn.Name = "VisitButton"
+				visitBtn.Parent = row
+			end
+		end
+	else
+		local emptyLabel = UIUtil.makeLabel("No crew yet — find one in the harbor.", "caption", {
+			Size = UDim2.new(1, 0, 0, UIUtil.MinTouchPx),
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			LayoutOrder = 1,
+		})
+		emptyLabel.Parent = crewMemberList
+	end
+
+	-- Push the emote stack below the member list by anchoring it.
+	emoteStack.AnchorPoint = Vector2.new(0, 0)
+	emoteStack.Position = UDim2.new(0, 0, 0, 0)
+
+	-- Rearrange: member list stays at top of CrewPanel, emote stack fills below.
+	local function layoutCrewPanel()
+		-- After the member list renders, shift emoteStack below it.
+		local listHeight = crewMemberList.AbsoluteSize.Y
+		emoteStack.Position = UDim2.new(0, 0, 0, listHeight + UIUtil.Spacing.sm)
+	end
+
+	crewMemberList:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutCrewPanel)
 
 	-- ----------------------------------------------------------------
 	-- EMOTE STACK
