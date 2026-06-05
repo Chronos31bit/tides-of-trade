@@ -303,7 +303,7 @@
           "Name": "RodChip",
           "ClassName": "TextButton",
           "Properties": {
-            "LayoutOrder": 2,
+            "LayoutOrder": 4,
             "AutoButtonColor": false,
             "Text": "",
             "BackgroundColor3": [
@@ -601,7 +601,7 @@
           "Name": "SeasonChip",
           "ClassName": "TextButton",
           "Properties": {
-            "LayoutOrder": 4,
+            "LayoutOrder": 2,
             "AutoButtonColor": false,
             "Text": "",
             "BackgroundColor3": [
