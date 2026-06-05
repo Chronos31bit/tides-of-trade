@@ -109,7 +109,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "reel-validation",
         "name": "Reel Anti-Exploit Validation",
-        "sub": "Server-side MinReelSeconds + perfectFraction trust boundary",
+        "sub": "MinReelSeconds + perfectFraction capped at MaxPerfectFractionAllowed (0.80) — abuse window closed",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -152,7 +152,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "boats",
         "name": "Boats & Deep Water Traversal",
-        "sub": "Set Sail menu — dock-tier-gated teleport to Reef/DeepWater/Trench pads",
+        "sub": "Set Sail menu shipped: BoatService, SailController, SailUI, and GameConfig.Boats all wired",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -220,7 +220,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "worldfx-debug-leak",
         "name": "WorldFXController Debug Log Removal",
-        "sub": "HTTP harness stripped; residual HarborVisualUpdate print remains",
+        "sub": "HarborVisualUpdate debug print removed; only legitimate warn() calls remain in WorldFXController",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -240,7 +240,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "tide-fx",
         "name": "Tide Visual FX",
-        "sub": "Visible water-level rise/fall from 30 studs (30-stud visibility pillar)",
+        "sub": "Water slab created and lerped each frame from TideChanged signal; GameConfig.Tides.Visual wired",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -258,8 +258,8 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Client/Controllers/WorldFXController.lua — grep for _targetTideLevel returns only lines 44 and 904; no Heartbeat loop or TweenService call reads or consumes it to move any visual",
             "P2 batch: implemented June 3, 2026"
         ],
-        "notes": "TideService broadcasts level updates every 5s. WorldFXController receives TideChanged and stores _targetTideLevel plus writes TideOffset to Workspace. However, _targetTideLevel is stored but never consumed — there is no Heartbeat loop or TweenService call in WorldFXController that moves terrain, a water proxy Part, or any visible element. GameConfig.Tides has no Visual sub-table. TideService.lua:5 says 'clients can lerp the actual water mesh locally' but that lerp does not exist. The 30-stud visibility pillar (CLAUDE.md pillar 3) is not met. Status is partial because the signal wiring is done; only the visual consumer is missing.",
-        "prompt": "Wire the existing _targetTideLevel value in WorldFXController to a visible water-level animation so the tide is observable from 30 studs.\n\nGap: WorldFXController.lua:904 stores _targetTideLevel but no code reads it to move a water proxy — the client lerp promised in TideService.lua:5 does not exist. GameConfig.Tides has no Visual sub-table.\n\nSteps:\n1. Add a sub-table to GameConfig.Tides (src/Shared/Config/GameConfig.lua ~line 80, after HighFraction): `Visual = { WaterBaseY = 0, WaterAmplitudeStuds = 1.5, LerpSpeed = 0.3 }`. These control how far the tide visibly rises.\n2. In WorldFXController.KnitStart, after the TideChanged connection at line 903, add a RunService.Heartbeat loop (inside the existing `trove`) that lerps a `_currentTideDisplay` field toward `_targetTideLevel` each frame at `GameConfig.Tides.Visual.LerpSpeed`, then sets a water-surface proxy Part's Y-position to `WaterBaseY + _currentTideDisplay * WaterAmplitudeStuds`.\n3. The proxy Part: create once in KnitStart (similar to the BiomeTint slab pattern in WorldService.lua:159-179). A large transparent SmoothPlastic slab, CanCollide/CanQuery/CanTouch false, parented to Workspace, driven by the Heartbeat loop.\n4. Respect ReducedMotionEnabled: if MotionUtil.reducedMotionEnabled(), snap directly (`_currentTideDisplay = _targetTideLevel`) instead of lerping.\n5. Initialize `_currentTideDisplay = -1` alongside `_targetTideLevel = -1` in the controller table (line 44).\n\nAcceptance: standing 30 studs from the shoreline, the water surface visibly rises and falls over the 20-minute cycle. ReducedMotion snaps without animation. All tunables live in GameConfig.Tides.Visual."
+        "notes": "Shipped. TideService broadcasts tide level via the TideChanged signal; WorldFXController creates a water slab and lerps its level each frame toward the target, with magnitude and visibility tunables in GameConfig. The visible 30-stud rise/fall is delivered.",
+        "prompt": ""
     },
     {
         "id": "weather-bond",
@@ -330,16 +330,16 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Server/Services/TutorialService.lua:432-496 — _bootstrapPlayer: branches only on t.state == 'not_started' or mid-tutorial; no _isReturningVet function exists anywhere in TutorialService.lua",
             "src/Server/Services/AdminService.lua:248-253 — /tutorialreset zeroes stats.totalCatches and stats.totalSold as workaround, confirming the vet-check is absent"
         ],
-        "notes": "PlayerDataService.lua:69 references a TutorialService:_isReturningVet function in a comment as if it exists, but it does not exist anywhere in TutorialService.lua. TutorialService:_bootstrapPlayer has no vet-detection path. At launch, any playtester or returning player whose profile has totalCatches > 0 and tutorial.state == 'not_started' (from Reconcile) will be walked through the full tutorial again. AdminService's /tutorialreset command exists to work around this but that is a dev-only tool. Upgraded from P1/next to P0/critical because launch is imminent and this will affect every returning playtester on day-1.",
-        "prompt": "Add a returning-vet auto-complete guard to TutorialService:_bootstrapPlayer so existing players with prior play are not re-onboarded after launch.\n\nGap: src/Server/Services/TutorialService.lua:277-281 — explicit NOTE says the check is absent. PlayerDataService.lua:69 documents the intended behavior ('_isReturningVet check that force-completes any profile whose stats show prior play') but the function does not exist.\n\nSteps:\n1. Add a private helper in TutorialService (after the existing helpers, before KnitStart):\n```\nfunction TutorialService:_isReturningVet(data): boolean\n    -- A profile is a vet if tutorial.state == 'not_started' (Reconcile default)\n    -- AND stats indicate real prior play. Uses two independent signals to\n    -- guard against accidental trigger (e.g. a player who completed the tutorial\n    -- but has state='not_started' due to a Reconcile bug).\n    if not data or not data.tutorial then return false end\n    if data.tutorial.state ~= 'not_started' then return false end\n    local stats = data.stats\n    return stats and (stats.totalCatches >= GameConfig.Tutorial.VetDetectMinCatches\n        or stats.totalSold >= GameConfig.Tutorial.VetDetectMinSold)\nend\n```\n2. In GameConfig.Tutorial (src/Shared/Config/GameConfig.lua after line 703), add:\n```\nVetDetectMinCatches = 3,  -- 3+ prior catches = skip tutorial\nVetDetectMinSold    = 1,  -- OR 1+ prior sale = skip tutorial\n```\n3. In TutorialService:_bootstrapPlayer (line 455, the `if t.state == 'not_started' then` branch), add before `self:_enterBeat(player, 'greet')`:\n```\nif self:_isReturningVet(data) then\n    data.tutorial.state = 'complete'\n    self:_pushState(player)\n    return\nend\n```\n4. No schema change, no RemoteEvent contract change. Additive check only.\n\nAcceptance: a profile with totalCatches >= 3 and tutorial.state == 'not_started' joins and immediately receives state='complete' without seeing any Mira dialogue; a brand-new profile (totalCatches=0) still gets the full tutorial."
+        "notes": "Shipped. TutorialService:_isReturningVet (TutorialService.lua:100-106) detects legacy players whose stats exceed the VetDetectMinCatches / VetDetectMinSold thresholds, and TutorialService.lua:462 force-completes the tutorial for them on load so returning playtesters are not re-tutorialized. The earlier note about the function only being referenced in a comment is stale.",
+        "prompt": ""
     },
     {
         "id": "mira-portrait-art",
         "name": "Mira Portrait Asset + DialogueUI Wire",
-        "sub": "TutorialConfig.MiraPortraitAssetId=nil AND DialogueUI has no code to apply it",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "code wiring done; MiraPortraitAssetId still nil — portrait shows 'M' placeholder until art asset is supplied",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             "cozy",
             "visible"
@@ -437,7 +437,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "crew-chat-cross-server",
         "name": "Crew Chat (cross-server via MessagingService)",
-        "sub": "Cross-server crew chat via MessagingService — publish/subscribe with dedup, sender-server skip, auto-cleanup",
+        "sub": "Cross-server crew chat shipped: MessagingService pub/sub with dedup, lazy per-crew subscriptions, and cleanup",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -459,7 +459,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "emotes",
         "name": "Emotes",
-        "sub": "Broadcast done; whitelist still hardcoded; animation assets still manual Studio step",
+        "sub": "Shipped: whitelist in GameConfig; emote particle stub is still a no-op (cosmetic gap only)",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -481,7 +481,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "visiting",
         "name": "Harbor Visiting (same-server)",
-        "sub": "Server teleport implemented; Visit button and GetCrewMembers endpoint still missing",
+        "sub": "Shipped: GetCrewMembers endpoint and Visit-button crew rows wired end-to-end; cross-server still deferred stub",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -497,8 +497,8 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Client/Controllers/SocialController.lua:189-207 — SocialUI.show() called with emotes/onPlayEmote/onSendChat/initialChat/onClose — no Visit button wired, no GetCrewMembers call",
             "src/Client/UI/SocialUI.lua:95-98 — crewPanel/friendsPanel/chatPanel captured; crewPanel has only EmoteStack, no player rows"
         ],
-        "notes": "No changes in this branch. The server endpoint is fully implemented and quest-wired. The missing pieces are: (1) a SocialService.Client:GetCrewMembers endpoint so the client can populate crewmate rows; (2) player rows in CrewPanel with a Visit button that calls VisitLocalHarbor. The crewPanel currently shows only emote buttons — there is no UI to select a crewmate to visit. This is the next concrete step for this node.",
-        "prompt": "Add a 'Visit Harbor' button to SocialUI that lets a player teleport to a crewmate's dock on the same server.\n\nServer side is complete: SocialService.Client:VisitLocalHarbor (src/Server/Services/SocialService.lua:232) is implemented and quest-wired. No server changes needed for same-server flow.\n\nClient work:\n1. Add SocialService.Client:GetCrewMembers(player) — server reads _crewStore for caller's crewId, returns member list as { {userId: number, displayName: string} } using Players:GetNameFromUserIdAsync. Rate-limit under _crewOpLimiter.\n2. In src/Client/UI/SocialUI.lua — add a player-list section above EmoteStack in CrewPanel. Accept onVisit(userId) callback in SocialShowOpts. Render one row per crewmate with a Visit button (UIUtil.makePrimaryButton, 44px). Show 'No crew yet' label when list is empty.\n3. In src/Client/Controllers/SocialController.lua — on Open(), after getting SocialService reference, call GetCrewMembers(), pass results + onVisit = function(userId) SocialService:VisitLocalHarbor(userId) end to SocialUI.show().\n\nGameConfig: no new tunables needed (rate limits already in GameConfig.AntiExploit).\n\nCross-server visiting remains deferred — keep the existing comment in SocialService line 244.\n\nAcceptance: crewmate rows appear in the Social panel; tapping Visit teleports the local player to the crewmate's dock; HarborVisitedServer fires and advances the social_visit_harbors quest. Plan first — wait for confirmation before patching."
+        "notes": "Shipped. The same-server harbor-visit flow is complete: SocialService:VisitLocalHarbor teleports the player to a crewmate's dock, SocialService.Client:GetCrewMembers returns crewmate rows, and SocialUI renders per-crewmate Visit buttons wired to the teleport. Cross-server visiting remains intentionally deferred.",
+        "prompt": ""
     },
     {
         "id": "leaderboards",
@@ -627,7 +627,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "crew-chat-missing-non-crew-member-ui",
         "name": "Crew Chat: No UI for non-crew members",
-        "sub": "Chat tab and send row shown to players without a crew; send silently drops",
+        "sub": "Non-crew members see a 'Join a crew' hint and no send row; fix shipped June 3 2026",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -677,7 +677,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "aquarium-rate-limiter",
         "name": "Aquarium Op Rate Limiter",
-        "sub": "MaxAquariumOpsPerMinute config exists but is unwired",
+        "sub": "MaxAquariumOpsPerMinute wired into AquariumService — Deposit/Withdraw rate-limited at 60 ops/min",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -779,7 +779,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "goods-catalog",
         "name": "Non-Preserved Goods Catalog",
-        "sub": "Catalog and QuickSell pricing for non-fish, non-preserved Good items",
+        "sub": "GoodsCatalog.lua ships rare_lure; QuickSell reads byId with GoodFlatFallbackPrice fallback",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -803,7 +803,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "shop-config-violation",
         "name": "ShopService Rod/Bait Catalog Not in GameConfig",
-        "sub": "RODS and BAITS hardcoded in ShopService, bypassing GameConfig rule",
+        "sub": "Rod costs in GameConfig.Rods.ShopTiers; bait data in BaitCatalog.lua — no inline literals remain",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -850,7 +850,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "price-history",
         "name": "24h Price History / Sparkline",
-        "sub": "Per-species 24h price history with sparkline in MarketUI — ring-buffer UpdateAsync, cached reads",
+        "sub": "_recordSale ring-buffer wired on Buy/QuickSell; MarketUI renders SparklineSlot bars when ≥2 samples",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -899,10 +899,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "cosmetics-catalog",
         "name": "Cosmetics Catalog",
-        "sub": "Shipped - stable cosmetic catalog plus server-authoritative equip and ownership",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Catalog + service wired; all assetPath nil and streak rewards still coin-only pending art upload",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             "identity",
             "dripfeed"
@@ -922,10 +922,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "cosmetic-shop",
         "name": "Cosmetic Shop (Robux)",
-        "sub": "Shipped - Robux developer-product path with idempotent ProcessReceipt",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "ProcessReceipt path coded and idempotent; no real developer-product IDs wired in GameConfig.CosmeticShop.Products",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             "identity"
         ],
@@ -1031,7 +1031,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "harbor-visual",
         "name": "Upgrade Tweens / Visual Broadcast",
-        "sub": "HarborVisualService broadcasts; HarborVisualController fade/scale/debris animations",
+        "sub": "Broadcast + fade/scale/debris pipeline shipped; sparkle texture wired via GameConfig.Harbor.VisualTuning",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1054,10 +1054,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "meshes",
         "name": "Real Building Meshes vs Procedural Fallback",
-        "sub": "ReplicatedStorage.Assets.Buildings.<Kind>.tier<N>.Visual clone path",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Code path wired; place-file assets claimed complete but not filesystem-verifiable — Studio play-test needed to confirm zero fallback warnings",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             "visible",
             "cozy"
@@ -1096,7 +1096,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "upgrade-burst-texture",
         "name": "Upgrade Burst Particle Texture",
-        "sub": "pe.Texture is empty string — upgrade sparkle emits invisible particles",
+        "sub": "UpgradeBurstTextureId wired in GameConfig; upgrade sparkle emits white-gold sparkle particles",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1143,7 +1143,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "smokefx",
         "name": "Smokehouse Steam / Ready VFX",
-        "sub": "Chimney particle smoke + 'ready' visual indicator",
+        "sub": "Chimney ParticleEmitter + ready color-glow wired in HarborVisualController via SmokehouseChanged",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1161,13 +1161,13 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Shared/Config/GameConfig.lua:353 — Buildings.Smokehouse has only PreserveTimeSec; no SteamVFX sub-table",
             "P2 batch: implemented June 3, 2026"
         ],
-        "notes": "Status unchanged from prior audit. The procedural Smokehouse still uses a static SmoothPlastic sphere as chimney smoke. No ParticleEmitter, no SteamAtt Attachment, no animated rising smoke, no 'slot ready' glow/pulse. HarborVisualController has no Smokehouse-specific post-spawn VFX hook. GameConfig has no SteamVFX tunables. Players cannot tell from 20 studs whether their smokehouse is active or done without opening the UI. Pure polish — gameplay loop works without it.",
-        "prompt": "Add chimney smoke particles and a 'slot ready' glow to the Smokehouse building visual.\n\nGoal: players can see at a glance from ~20 studs that their Smokehouse is actively smoking (rising steam) and that a slot is done (golden shimmer).\n\nRef files:\n- src/Shared/Util/BuildingModelFactory.lua:255-257 — static Smoke Part on chimney top (replace with Attachment)\n- src/Client/Controllers/HarborVisualController.lua:417-455 — _particleBurst pattern (blueprint for adding a post-spawn VFX helper)\n- src/Shared/Config/GameConfig.lua:353 — add SteamVFX sub-table to Buildings.Smokehouse\n\nSteps:\n1. In GameConfig.Buildings.Smokehouse (line 353), add a SteamVFX sub-table: { ParticleRate = 3, ParticleLiftSpeed = 2.5, ParticleLifetime = NumberRange.new(1.5, 2.5), ReadyGlowColor = Color3.fromRGB(255, 210, 80), ReadyGlowBrightness = 2 }. No literals in service files.\n2. In BuildingModelFactory.buildSmokehouse (line 255), replace the static Smoke Part with an invisible Attachment named 'SteamAtt' on the Chimney top. Remove the old mkPart call for 'Smoke'.\n3. In HarborVisualController, add a _attachSmokeVFX(model) helper called after _spawnFresh or _buildModel for kind=='Smokehouse'. It finds SteamAtt and adds a ParticleEmitter (smoke-grey, soft LightInfluence=0.5, upward VelocityInheritance=0, Rotation random) using GameConfig tunables. Store the emitter reference in a per-uid table so it can be toggled.\n4. Subscribe to SmokehouseService.SmokehouseChanged in HarborVisualController (or a new SmokehouseVFXController). When any slot is occupied, enable the emitter. When all slots empty or all are ready, disable it.\n5. Add a ReadyGlow pulse: when SmokehouseChanged fires with any slot.ready==true, find the Smokehouse model and tween a PointLight (ReadyGlowColor, ReadyGlowBrightness) via MotionUtil.tweenOrSnap. Remove the PointLight when all ready slots are claimed.\n6. ReducedMotion: skip particles entirely (emitter.Enabled = false); replace glow tween with snap.\n7. All new tunables in GameConfig.Buildings.Smokehouse.SteamVFX. No Color3/NumberRange literals in controller files.\n\nAcceptance: Smokehouse model emits visible rising smoke when any slot is occupied; chimney pulses gold when a slot completes; zero new literals outside GameConfig; ReducedMotion suppresses particles and snaps glow."
+        "notes": "Shipped. HarborVisualController.lua:664-744 (setupSmokehouseEmitter) creates a chimney ParticleEmitter driven by GameConfig.Harbor.VisualTuning (SmokehouseSmokeRate, SmokehouseSmokeLifetime, SmokehouseReadyColor, etc.), toggled by the SmokehouseChanged signal, and color-glows the chimney on the ready state. The prior 'static SmoothPlastic sphere' note predates the implementation.",
+        "prompt": ""
     },
     {
         "id": "lighthouse",
         "name": "Lighthouse Rarity Bump",
-        "sub": "Proximity-based catch-rarity upgrade applied at cast resolution",
+        "sub": "Proximity-based rarity bump fully wired; debug prints stripped",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1240,10 +1240,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "achievements",
         "name": "Achievements System",
-        "sub": "10 seed achievements with XP rewards — AchievementService evaluates triggers from Fishing/Market/Harbor/Social",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Server + toast wired; AchievementsUI browse panel missing",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1253,13 +1253,13 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Server/Services/PlayerDataService.lua:298 — comment mentions 'achievement' as a future upgrade path: 'any future upgrade path (achievement, story beat) should route through here'",
             "src/Shared/Config/QuestTemplates.lua:663 — QuestTemplates.All has no achievement-category templates"
         ],
-        "notes": "No AchievementService, no achievement templates, no profile field. Stats foundation exists in profile.stats. Not a launch blocker — drip-feed pillar means this belongs post-launch week 2+. No FOMO risk since achievements are lifetime not daily.",
-        "prompt": "Add a lightweight achievements system post-launch. Foundation exists at src/Server/Services/PlayerDataService.lua:49 (profile.stats). Steps: (1) Add profile.achievements = {} to PROFILE_TEMPLATE (additive, no version bump). (2) Create src/Shared/Config/AchievementCatalog.lua with stable string ids, trigger key, target value, and cosmetic/XP reward — no coins (pillar 2). (3) Add AchievementService (Knit) that listens to the same server signals QuestService already wires (FishCaught, Sold, etc.) and evaluates catalog. (4) Add GetAchievements client method. (5) Add achievement panel to SocialUI or a new modal. Acceptance: a player catching their 100th fish sees a one-time toast and a permanent badge in their profile panel."
+        "notes": "Server side is shipped: AchievementService.lua evaluates triggers, AchievementCatalog.lua defines 10 achievements, progress persists in profile.achievements, and unlocks fire a toast via NotificationController. The gap is the client surface - no AchievementController or AchievementsUI exists under src/Client/, so the 'permanent badge in the profile panel' acceptance criterion is unmet. Partial: server complete, browse/badge UI missing.",
+        "prompt": "Plan first - wait for confirmation before patching. Server side is shipped (AchievementService.lua, AchievementCatalog.lua with 10 entries, profile.achievements persistence, NotificationController toast on unlock). Remaining: build the client surface. Steps: (1) Create src/Client/Controllers/AchievementController.lua subscribing to the unlock signal and the profile snapshot. (2) Create src/Client/UI/AchievementsUI.lua - a browsable grid of all achievements showing locked/unlocked state plus a permanent badge in the profile panel; UIKit primitives, 44px hit targets, ReducedMotion-safe via MotionUtil. (3) No new GameConfig beyond AchievementCatalog. Acceptance: profile panel lists earned and unearned achievements and updates live when one unlocks."
     },
     {
         "id": "welcome-back",
         "name": "Welcome-Back Bonus",
-        "sub": "Return-session coin bonus for lapsed players (3+ day gap) — toast via QuestTrackerUI popup queue",
+        "sub": "Return-session coin bonus shipped — QuestService + QuestTrackerUI fully wired",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1271,14 +1271,14 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Server/Services/QuestService.lua:636 — streak resets to 1 when lastLoginUtcDay is non-consecutive; no welcome-back bonus branch",
             "src/Server/Services/PlayerDataService.lua:38 — streak.current, streak.longest, streak.lastLoginUtcDay present but no 'daysSinceLastLogin' or 'welcomeBack' field"
         ],
-        "notes": "No welcome-back bonus exists. A returning player who missed days just gets streak=1. Cozy constraint: must NOT punish absence. A welcome-back bonus (small coin grant for returning after >3 days away) is additive and friendly. Not a launch blocker.",
-        "prompt": "Add an optional welcome-back bonus in src/Server/Services/QuestService.lua:_handleLoginStreak. When streak resets (non-consecutive day), compute daysSinceLastLogin from streak.lastLoginUtcDay. If > GameConfig.Quests.WelcomeBackThresholdDays (suggest 3), grant GameConfig.Quests.WelcomeBackCoins (suggest 150) and fire a new Client.WelcomeBack signal (day, coinsGranted). Add WelcomeBackThresholdDays=3 and WelcomeBackCoins=150 to GameConfig.Quests. Client-side: QuestTrackerUI.queueStreak can show a 'Welcome back!' toast variant. Acceptance: a player absent 4+ days sees a 'Welcome back! +150 coins' toast on join; a player absent 2 days sees nothing extra."
+        "notes": "Shipped. QuestService.lua:644-648 grants WelcomeBackCoins (150) via PlayerDataService when daysAway >= GameConfig WelcomeBackThresholdDays (3) and fires the WelcomeBack RemoteSignal; QuestTrackerController.lua:71-72 connects it and QuestTrackerUI.lua renders the return-session popup. The full server-to-client flow is implemented and wired.",
+        "prompt": ""
     },
     {
         "id": "decorative-props-quests",
         "name": "Decorative Props Quest Template",
         "sub": "building_decorate_n blocked on catalog flag",
-        "status": "partial",
+        "status": "next",
         "priority": "P2",
         "lane": "next",
         "pillars": [
@@ -1335,10 +1335,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "streak-cosmetic-placeholder-items",
         "name": "Streak Cosmetic Item Placeholders",
-        "sub": "Days 14/21/28 grant nonexistent item ids",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Days 14/21/28 grant coins/xp fallback; CosmeticsCatalog stubs exist but assets and GrantCosmetic wiring are missing",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1378,10 +1378,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "quest-claim-button-touch-target",
         "name": "Quest Claim Button 44px Touch Floor",
-        "sub": "ClaimButton size delegated to template asset only",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Tracker card ClaimButton guarded (UISizeConstraint); popup Claim button still hardcoded to 38px at line 376",
+        "status": "wip",
+        "priority": "P2",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1490,7 +1490,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "ui-adoption",
         "name": "UIKit Phase-2 Token Adoption",
-        "sub": "Controller inline Color3.fromRGB literals remain",
+        "sub": "All inline Color3.fromRGB in Controllers resolved; tokens reference UIKit.Palette or GameConfig",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1515,7 +1515,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "reducedmotion-sweep",
         "name": "ReducedMotion 100% Coverage",
-        "sub": "UIUtil/UIKit tooltip TweenService:Create bypasses MotionUtil",
+        "sub": "ReducedMotion fully covered — tooltips delegate to MotionUtil, all TweenService:Create calls are guarded",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1540,7 +1540,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "toast-holdouts",
         "name": "Print-to-Toast Conversion",
-        "sub": "FishingController, AquariumController, InventoryController use print()",
+        "sub": "All three controllers converted — FishingController, AquariumController, InventoryController use Toast()",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1559,13 +1559,13 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Client/Controllers/InventoryController.lua:78 — print('[Inventory] Sold for %d coins')",
             "P2 batch: implemented June 3, 2026"
         ],
-        "notes": "Status unchanged from prior audit. Three controllers still use print() for player-visible feedback. FishingController._fail() has an explicit TODO at line 685. These are player-facing cozy messages that belong in the toast queue, not the console.",
-        "prompt": "Convert player-facing print() calls to NotificationController toasts in three controllers.\n\nFiles and lines:\n- src/Client/Controllers/FishingController.lua:685-698 — _fail() has TODO comment; 5 print() branches covering missed/no_bite/escaped/reel_timeout/timeout.\n- src/Client/Controllers/AquariumController.lua:177 — 'You don't own an aquarium yet' printed when player activates Aquarium key without owning one.\n- src/Client/Controllers/InventoryController.lua:78 — quick-sell success prints 'Sold for N coins'.\n\nSteps:\n1. In each controller's KnitStart (or wherever Knit.GetController is already called), capture `self._notifCtrl = Knit.GetController('NotificationController')` if not already present.\n2. In FishingController._fail() (line 683), replace each print() branch with `self._notifCtrl:Toast(message)` using the same player-facing strings (no '[Fishing]' prefix — cozy tone).\n3. In AquariumController, replace line 177 print with a toast.\n4. Optionally convert InventoryController line 78 quick-sell print to a toast (low priority; wallet already updates).\n5. No GameConfig changes needed.\n\nAcceptance: casting and failing produces a bottom-center toast (e.g. 'The fish escaped!'). No [Fishing] debug prefix visible to the player."
+        "notes": "Shipped. FishingController, AquariumController, and InventoryController were all converted from print() to the NotificationController toast stack for player-visible feedback; no player-facing print() feedback remains in those controllers. The 'still use print()' note is stale.",
+        "prompt": ""
     },
     {
         "id": "tooltip-dual-implementation",
         "name": "Tooltip Dual-Implementation Debt",
-        "sub": "UIUtil.makeTooltip and UIKit.Tooltip are duplicates",
+        "sub": "UIUtil.makeTooltip is a thin wrapper; single Tooltip impl in UIKit using MotionUtil",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1588,10 +1588,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "mobile-qa",
         "name": "380px Mobile Portrait QA Pass",
-        "sub": "QA pass completed — all panels audited, interactive >=44px, fonts >=12px",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Enforcement infra complete; full 23-panel visual pass at 380px not yet recorded",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             "mobile",
             "cozy"
@@ -1615,7 +1615,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "crew-chat-text-filter",
         "name": "Crew Chat TextService Content Filter",
-        "sub": "FilterStringAsync now wired in SendCrewChat — all text filtered before broadcast",
+        "sub": "FilterStringAsync wired in SendCrewChat — all crew text filtered before broadcast",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1660,7 +1660,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "admin-debug-production-gating",
         "name": "Admin / Debug Code Production Gating Audit",
-        "sub": "BiomeTestService, BiomeDebugController have IsStudio() guards; AdminService ships STUDIO_FIRST_PLAYER_IS_ADMIN=true with comment claiming it is ignored in prod — verify and document",
+        "sub": "Deprecated BodyVelocity/BodyGyro replaced; IsStudio() guards verified in published place across all 3 files",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1683,7 +1683,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "hold-fish-cross-client",
         "name": "HoldFishController Cross-Client Replication",
-        "sub": "Held fish visible to all players on server — server validates speciesId, broadcasts to other clients",
+        "sub": "Cross-client held-fish replication fully wired via SocialService BroadcastHeldFish/ClearHeldFish signals",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -1703,10 +1703,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "rod-asset-placeholder",
         "name": "Fishing Rod Tool — Procedural Placeholder in Production",
-        "sub": "RodService ships a procedurally-built Handle+Tip+Reel tool when no ReplicatedStorage.Assets.Rod exists",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Per-tier asset lookup wired in code; actual Rod tool assets not yet uploaded to ReplicatedStorage",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1726,10 +1726,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "player-report-mute",
         "name": "Player Report / Mute",
-        "sub": "No in-game report or mute mechanism — required for crew chat social feature",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Mute button per message implemented and wired; Roblox Players:ReportAbuse shortcut not yet added",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1743,16 +1743,16 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "SocialUI.lua:183 — messages rendered with RichText but no contextual actions (report/mute) available",
             "P2 batch: implemented June 3, 2026"
         ],
-        "notes": "The crew chat system (SocialService, SocialUI) allows players to send text to one another. No report or mute path exists anywhere in the codebase — no ReportAbuse call, no PlayerService:GetPlayerByUserId-based mute list, no GameConfig entry, no UI button. Roblox provides Players:ReportAbuse() which must be surfaced when user-generated content is displayed. A cozy game with crew chat needs at minimum a mute toggle per crewmate and access to the Roblox report flow. This is P2 because the crew feature is WIP (same-server only) and reporting is available via the Roblox menu, but the in-panel shortcut is missing. [coverage: Roblox recommends surfacing ReportAbuse when user-generated chat is displayed. The crew chat panel has no mute or report path. A persistent spammer can ruin a cozy session with no in-panel recourse.]",
-        "prompt": "Add a per-message mute button and Roblox report shortcut to the crew chat panel.\n\nGap: SocialUI chat rows have no actions. Players cannot mute a spammy crewmate or access Roblox's report flow from within the chat panel.\n\nSteps:\n1. In SocialUI.lua:appendChat — add a small 'Mute' icon button (24px, UIUtil.Palette.InkFaint) alongside each message row. Tapping it adds the sender's userId to a client-side _mutedIds Set.\n2. In SocialController._onCrewChat — before calling appendChat, check if fromName's userId is in _mutedIds; if so, skip.\n3. Add SocialService.Client:GetCrewMemberUserIds to look up the current crew member userIds so the mute can be resolved to a userId (name alone is not enough for a stable mute key).\n4. Add a 'Report' button (Players:ReportAbuse accepts a Player and a reason string) accessible from a long-press or context menu on a chat row.\n5. No server-side mute state needed for v1 — client-side mute is session-local and Roblox's own reporting handles moderation.\n6. Add GameConfig.Social.MuteButtonSize = 24 as a tunable.\n\nAcceptance: tapping Mute on a chat row suppresses all future messages from that sender for the session; tapping Report opens Roblox's built-in report flow for that player; muting is session-local (not persisted across rejoins)."
+        "notes": "The mute path is shipped: SocialUI.lua:205-216 adds a per-message mute button and SocialController._mutedNames filters muted senders. The gap is the Roblox report shortcut - Players:ReportAbuse is absent from src/ entirely, so the native abuse-report flow expected for crew-chat safety is missing. Partial: mute done, report missing.",
+        "prompt": "Plan first - wait for confirmation before patching. Mute is shipped (SocialUI.lua:205-216 per-message mute button; SocialController._mutedNames filters senders). Remaining: add the Roblox report shortcut. Steps: (1) In src/Client/UI/SocialUI.lua add a Report action beside each chat row's mute button (44px target). (2) On tap call Players:PromptReportAbuse / ReportAbuse for the sender. (3) No server change needed for native reporting. Acceptance: each chat row exposes Mute and Report; Report opens the Roblox abuse-report flow."
     },
     {
         "id": "biome-test-debug-nodes",
         "name": "BiomeTestService + BiomeDebugController — Roadmap Coverage",
-        "sub": "Two Studio-only debug tools ship with the game binary but have no roadmap nodes; no pre-launch verification task exists",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "IsStudio() guards verified; CLAUDE.md docs and GameConfig.Debug.StripDebugServicesPostLaunch flag not yet added",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1795,10 +1795,10 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "rod-select-baits-controllers-coverage",
         "name": "RodSelectController + BaitShopController + HoldFishController — Roadmap Coverage",
-        "sub": "Three fully-implemented controllers have no roadmap nodes; gaps and mobile QA status are untracked",
-        "status": "done",
-        "priority": "DONE",
-        "lane": "shipped",
+        "sub": "Warn guard done; ActionText dispatch fragility and HoldFish rate-limit still unaddressed",
+        "status": "wip",
+        "priority": "P1",
+        "lane": "wip",
         "pillars": [
             null
         ],
@@ -1814,6 +1814,239 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
         ],
         "notes": "RodSelectController.lua (136 lines) is fully wired: opens RodSelectUI, does optimistic equip with server rollback on rejection, subscribes to XPChanged/EquippedRodChanged. BaitShopController.lua (121 lines) is fully wired: ProximityPrompt triggers, calls BaitService:BuyBait/EquipBait, live-refreshes on BaitStashChanged. HoldFishController.lua (226 lines) is fully wired: welds cosmetic fish to hand, scale by weight, modifier pills, Put Back button. None of these has a roadmap node. Known gaps: (1) RodSelectController has an unusual guard at lines 16-19 that returns a pre-existing controller if Rojo creates a duplicate — this guard itself logs nothing and could silently hide a double-load bug. (2) BaitShopController uses ProximityPrompt.ActionText string matching ('Buy Bait' / 'Open Bait Shop') to identify prompts — fragile, no tag-based dispatch. (3) HoldFishController:HoldFish has no rate-limit on how often a player can switch held fish; rapid switching could spam visual changes to the future cross-client replication system. [coverage: Three fully-shipped controllers have no roadmap nodes. Their known fragility (ActionText string dispatch), silent failure modes (duplicate-load guard), and future-proofing gaps (no hold-fish rate-limit) are invisible to the roadmap.]",
         "prompt": "Create roadmap coverage for RodSelectController, BaitShopController, and HoldFishController, and fix the fragile prompt dispatch.\n\nGap (correctness): BaitShopController.lua:49-54 and ShopController.lua:34-46 both match ProximityPrompt by ActionText string. If any Studio asset renames a ProximityPrompt's ActionText, the dispatch silently breaks. Replace string matching with an Attribute tag: set a 'TidesPromptAction' = 'BuyBait' | 'BuyRodUpgrade' | 'RepairDock' attribute on each ProximityPrompt in HarborService or BuildingModelFactory, and dispatch on that attribute instead.\n\nGap (polish): RodSelectController.lua:16-19 — the duplicate-load guard should warn('[RodSelectController] Duplicate load detected — returning existing instance') so it is visible in the Output if Rojo double-syncs.\n\nGap (future-proofing): HoldFishController:HoldFish has no rate-limit. Add GameConfig.AntiExploit.MaxHoldFishSwitchesPerMinute = 10 and a local throttle so rapid switching doesn't spam the future replication system.\n\nAcceptance: ProximityPrompt dispatch is attribute-based in all controllers; duplicate-load guard logs a warning; HoldFish switches are rate-limited to the configured ceiling."
+    },
+    {
+        "id": "catch-records",
+        "name": "Personal Catch Records",
+        "sub": "Track heaviest/first/rarest catch per species and celebrate new personal bests at reveal.",
+        "status": "next",
+        "priority": "P1",
+        "lane": "next",
+        "pillars": [
+            "visible",
+            "dripfeed"
+        ],
+        "deps": [
+            "fish-codex",
+            "fishing-core",
+            "inventory-catchreveal-coverage"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "profile.stats.caughtSpecies exists in PlayerDataService.lua:52 but no personalBests map; CatchRevealUI.lua is the reveal surface"
+        ],
+        "notes": "Adds a per-species personalBests map (heaviest weight, first-caught timestamp, first-modifier) so the 50th Legendary feels different from the 1st. Directly serves Pillar 3 (visible transformation) by surfacing a 'New personal best!' banner on the existing CatchRevealUI rarity card. Builds on profile.stats.caughtSpecies and the FishingService grant path, both already present; field is additive so no schema version bump.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: track and celebrate personal-best catches per species. Steps: (1) Add a personalBests map to PROFILE_TEMPLATE.stats in src/Server/Services/PlayerDataService.lua keyed by fish.id, each value { heaviestKg, firstCaughtAt, firstModifierId } — additive, no version bump (reconcile handles it). (2) In src/Server/Services/FishingService.lua grant path, after a catch resolves, compare resolved weight/modifier against personalBests and mutate via the existing UpdateProfile pattern; emit which best(s) were newly set in the CastResolved RemoteSignal payload. (3) Add tunables (e.g. celebrate thresholds, whether first-of-species counts) to a GameConfig.CatchRecords sub-table. (4) In src/Client/UI/CatchRevealUI.lua, render a 'New personal best!' badge driven only by server-supplied flags (client never decides). (5) Optionally feed FishCodexUI a bests column. Mobile/ReducedMotion: badge appears via fade when ReducedMotionEnabled (no slide/particle burst), 44px tap target if interactive, font >=12px. Use Trove for any new tweens/connections. Acceptance: catching a heavier-than-recorded fish persists across rejoin and shows the badge once; subsequent lighter catches of that species do not."
+    },
+    {
+        "id": "harbor-cosmetics",
+        "name": "Harbor Cosmetics & Nameplate",
+        "sub": "Cosmetic building skins, dock flags, and a 30-stud nameplate that expresses harbor identity.",
+        "status": "backlog",
+        "priority": "P2",
+        "lane": "backlog",
+        "pillars": [
+            "identity",
+            "visible",
+            "social"
+        ],
+        "deps": [
+            "cosmetics-catalog",
+            "cosmetic-shop",
+            "harbor-visual",
+            "visiting"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "CosmeticsCatalog.lua slots are only hat/coat/boots (line 7,11); HarborVisualService resolves per-building tier models and could read a skin override first"
+        ],
+        "notes": "Adds a harbor-layer cosmetic slot (building skins, dock flags) plus a billboard nameplate/color-flag visible from 30 studs when another player visits via SocialService. Serves Pillar 3 (spending must be obvious from 30 studs) and Pillar 2 (sell identity, never progress) — a free and paying player fish identically. Builds on the existing CosmeticShopService ProcessReceipt path and HarborVisualService replication; all purchases are known-quantity (no gacha).",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: a purely cosmetic harbor-visual layer plus an identity nameplate. Steps: (1) Create src/Shared/Config/HarborCosmeticsCatalog.lua defining slot types building_skin, dock_flag, harbor_banner with stable forever-IDs (mirror CosmeticsCatalog conventions). (2) Add a harborCosmetics map + harborName + flagColorId to PROFILE_TEMPLATE in PlayerDataService.lua (additive, no version bump). (3) Create src/Server/Services/HarborCosmeticsService.lua (Knit, Trove-held) that validates equips and grants via the existing CosmeticShopService ProcessReceipt path; server-authoritative — client only requests. (4) In src/Server/Services/HarborVisualService.lua, read the skin override before the default tier asset; add a Billboard nameplate (harborName + flag color) replicated to visitors. (5) Put all costs/limits in a GameConfig.HarborCosmetics sub-table. Mobile/ReducedMotion: equip UI uses 44px targets, font >=12px; nameplate text-only, no strobe; flag swap via TweenService fade (skip on ReducedMotion). Acceptance: equipping a building skin changes the model for the owner and visitors and persists across rejoin; nameplate is legible at 30 studs; no purchase grants any gameplay stat."
+    },
+    {
+        "id": "rod-cosmetic-skins",
+        "name": "Rod Cosmetic Skins",
+        "sub": "Purely visual skin slot for the held rod so players sell identity without touching catch power.",
+        "status": "backlog",
+        "priority": "P2",
+        "lane": "backlog",
+        "pillars": [
+            "identity",
+            "visible"
+        ],
+        "deps": [
+            "cosmetics-catalog",
+            "cosmetic-shop",
+            "rod-asset-placeholder"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "RodCatalog.lua exposes gameplay rarityMultiplier/catchWeightBonus (lines 45-46); CosmeticsCatalog has no rod slot (slots hat/coat/boots only)"
+        ],
+        "notes": "Adds a rod skin slot that overrides only the displayed asset, never RodService's stat lookup, so the most-held tool in every session becomes an identity surface. Strictly satisfies Pillar 2 (sell identity, not progress) with zero pay-to-win vector, and Pillar 3 since the rod is on-screen constantly. Builds on the CosmeticService grant path and the CosmeticShopService ProcessReceipt handler already present.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: a visual-only rod skin layer that never affects catch power. Steps: (1) Add a 'rod' slot + rod skin entries (stable forever-IDs) to src/Shared/Config/CosmeticsCatalog.lua. (2) Add an equippedRodSkin field to the profile (additive). (3) Create src/Server/Services/RodSkinService.lua (Knit, Trove) that validates equips/grants through the existing CosmeticService + CosmeticShopService ProcessReceipt path; it must NOT touch RodService stat resolution. (4) On the client, resolve the displayed rod tool asset from equippedRodSkin while RodService keeps using RodCatalog for rarityMultiplier/catchWeightBonus. (5) Costs in a GameConfig.RodSkins sub-table. Mobile/ReducedMotion: skin picker uses 44px targets, font >=12px, no flashing; any equip flourish via TweenService and skipped on ReducedMotion. Acceptance: equipping a skin changes the held rod model for self and other clients, persists across rejoin, and a diff of FishingService/RodService roll math shows zero change."
+    },
+    {
+        "id": "season-pass-premium-track",
+        "name": "Season Pass Premium Track",
+        "sub": "One-time-per-season Robux unlock that reveals a cosmetic-only parallel reward column.",
+        "status": "next",
+        "priority": "P1",
+        "lane": "next",
+        "pillars": [
+            "identity",
+            "dripfeed"
+        ],
+        "deps": [
+            "season-pass",
+            "cosmetic-shop",
+            "cosmetics-catalog"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "SeasonPassService.lua:7 'No paid track at launch'; GameConfig.SeasonPass.PremiumComingSoon=true + PremiumRewards table exist (GameConfig.lua:1356-1357); buildState() already returns premiumRewards"
+        ],
+        "notes": "Implements the explicitly-stubbed premium track as a one-time season unlock (not a subscription, not gacha) that reveals cosmetic rewards for tiers the player already earned through free play. Satisfies Pillar 2 because free players advance at the same rate and hit identical gameplay milestones — they only see more cosmetic variants. Builds directly on the PremiumComingSoon flag, PremiumRewards table, and buildState() helper already shipped.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: ship the premium season-pass track the code already stubs. Steps: (1) Add a seasonPremiumOwned[seasonId] field to the profile (additive). (2) In src/Server/Services/SeasonPassService.lua, add a one-time Robux unlock via MarketplaceService ProcessReceipt (reuse CosmeticShopService patterns) that flips PremiumComingSoon handling for that player and lets them claim PremiumRewards for tiers already earned — claims stay server-authoritative. (3) Flip GameConfig.SeasonPass.PremiumComingSoon handling to a per-player owned check; keep the price/productId in GameConfig.SeasonPass. (4) Update buildState() to mark premium tiers claimable/owned. (5) In src/Client/UI/SeasonPassUI.lua, un-gray the premium column for owners and show an Unlock CTA for non-owners. Mobile/ReducedMotion: CTA is 44px, font >=12px; unlock celebration via fade on ReducedMotion, no strobe. Acceptance: free progression speed is unchanged; buying the unlock retroactively grants cosmetics for earned tiers and persists; rewards are all cosmetic (verified against CosmeticsCatalog)."
+    },
+    {
+        "id": "world-event-windows",
+        "name": "World-Event Fishing Windows",
+        "sub": "Server-broadcast rare-catch windows on weather/tide transitions; an invitation, no FOMO or decay.",
+        "status": "next",
+        "priority": "P1",
+        "lane": "next",
+        "pillars": [
+            "world",
+            "social"
+        ],
+        "deps": [
+            "weather-bond",
+            "tide-fx",
+            "notifications"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "GameConfig.FishModifiers storm_forged/fog_shrouded/tide_kissed have dropChance=0 i.e. world-state assigned (GameConfig.lua:1034-1038); WeatherService/TideService never announce windows; NotificationUI toast stack exists"
+        ],
+        "notes": "Announces when a Storm/Fog/HighTide window opens so players can choose to participate in the world's heartbeat rather than only observe it (Pillar 5). No timers that punish missing it and no progress loss if you log off mid-window — purely an invitation, honoring Pillars 1 and 6. Builds on WeatherService, TideService, MessagingService, and the existing NotificationController toast stack with no schema changes.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: announce open rare-catch windows tied to existing world state, with zero pressure. Steps: (1) Create src/Server/Services/EventWindowService.lua (Knit, Trove) that observes WeatherService/TideService transitions and, when entering Storm/Fog/HighTide, fires a MessagingService cross-server broadcast plus a NotificationController toast ('A squall is rolling in — Storm-Forged fish for the next N minutes'). (2) No new persistence; the modifier assignment already lives in FishingService via dropChance=0 modifiers — this node only surfaces the window. (3) Window copy, durations, and which transitions announce go in a GameConfig.EventWindows sub-table. (4) Ensure logging off mid-window costs nothing and re-entering shows remaining-time only as info. Mobile/ReducedMotion: reuse the existing toast (already mobile-sized); on ReducedMotion use fade not slide, no particle accent, no >3Hz changes. Acceptance: entering Storm fires exactly one toast per transition, no toast on leaving, and no field is ever written to the profile."
+    },
+    {
+        "id": "seasonal-world-theme",
+        "name": "Seasonal World Theme",
+        "sub": "Per-season ambient palette and read-only decorative props that swap on season roll-over.",
+        "status": "backlog",
+        "priority": "P2",
+        "lane": "backlog",
+        "pillars": [
+            "world",
+            "visible"
+        ],
+        "deps": [
+            "season-pass",
+            "harbor-visual",
+            "weather-bond"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "SeasonPassService tracks season XP/tiers but world visuals never change between seasons; HarborVisualService broadcast pattern can swap world dressing"
+        ],
+        "notes": "Swaps a Lighting preset and a set of read-only ambient props on the world island each season so returning players get a 'the world has changed' moment (Pillars 3 and 5). Props are world dressing, not player-owned, so there is zero DataStore impact. Builds on SeasonPassService season timing and the existing HarborVisualService broadcast/replication patterns; cosmetics from the season pass layer identity on top (Pillar 2).",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: visible seasonal world dressing with no player-data impact. Steps: (1) Create src/Shared/Config/SeasonThemeCatalog.lua (season id, start/end timestamps, Lighting preset overrides, list of ambient prop model ids and scatter anchors). (2) Create or extend WorldService to apply the active theme on season roll-over: set the Lighting preset and scatter/clear read-only ambient props using the HarborVisualService replication path — props are server-spawned world dressing, never owned, never persisted. (3) Tunables (transition duration, scatter density caps) in a GameConfig.SeasonTheme sub-table; respect the existing FX rate budgets so low-end phones aren't overloaded. Mobile/ReducedMotion: Lighting/prop transitions via TweenService and instant (no animated transition) on ReducedMotion; no strobe; keep prop count within mobile budget. Acceptance: rolling the season changes Lighting and the visible prop set for all players on the server, nothing is written to any profile, and frame budget on a low-tier device stays within the existing rate-budget ceilings."
+    },
+    {
+        "id": "player-gifting",
+        "name": "Player Gifting",
+        "sub": "Send one earned cosmetic or good to a friend/crew member, with a rate-limited 7-day inbox.",
+        "status": "backlog",
+        "priority": "P2",
+        "lane": "backlog",
+        "pillars": [
+            "social",
+            "identity"
+        ],
+        "deps": [
+            "crew",
+            "visiting",
+            "goods-catalog",
+            "cosmetics-catalog"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "SocialService has crew + visit + MessagingService wiring (SocialService.lua:10); PlayerDataService exposes inventory mutation patterns; MarketService cross-server delivery backbone exists"
+        ],
+        "notes": "Lets players transfer only earned cosmetics and GoodsCatalog items (never coins, never catch-value fish) to friends or crew, a primary cozy social ritual. The inventory-only constraint plus daily cap means zero pay-to-gift surface and no coins for sale, fully honoring Pillar 2's hard rules. Builds on SocialService's crew/visit graph, the MarketService cross-server MessagingService delivery backbone, and PlayerDataService item mutation; a 7-day inbox prevents loss on disconnect (Pillar 1).",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: server-authoritative gifting of earned items only, exploit-safe. Steps: (1) Create src/Server/Services/GiftService.lua (Knit, Trove) with a daily/per-window RateLimiter (reuse src/Shared/Util/RateLimiter.lua). (2) Allow sending only CosmeticsCatalog items and GoodsCatalog items — explicitly reject coins, fish with catch value, and any Robux-purchased flag. (3) Debit sender via PlayerDataService RemoveItemByUid and credit recipient via AddItem in a server-authoritative order; if recipient is offline, queue into a 7-day inbox field on their profile (additive) delivered on next login, using MarketService's cross-server MessagingService pattern for online delivery. (4) Caps, inbox size, and TTL in a GameConfig.Gifting sub-table. (5) Client controller/UI to pick a recipient (friend/crew) and an eligible item. Mobile/ReducedMotion: pickers use 44px targets, font >=12px; gift-received toast via fade on ReducedMotion. Acceptance: gifting debits exactly once before crediting (no dupe under repeat clicks), over-limit requests silent-drop, offline gifts arrive within 7 days, and coins/fish can never be selected."
+    },
+    {
+        "id": "crew-weekly-challenge",
+        "name": "Crew Weekly Challenge",
+        "sub": "Shared collective goal for 8-player crews with a cosmetic crew-banner reward for all members.",
+        "status": "backlog",
+        "priority": "P2",
+        "lane": "backlog",
+        "pillars": [
+            "social",
+            "dripfeed"
+        ],
+        "deps": [
+            "crew",
+            "crew-chat-cross-server",
+            "quests-daily-streak",
+            "cosmetics-catalog"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "SocialService implements crew CRUD + chat; QuestService already taps SoldServer/CastResolved signals for per-player progress that can be summed per crew"
+        ],
+        "notes": "Adds a crew-as-unit weekly objective (e.g. catch 500 fish combined) resolved server-side by summing per-member progress deltas, giving crews a mechanical reason to coordinate beyond chat (Pillar 5) and drip-feeding a new engagement loop (Pillar 4). Rewards are cosmetic crew-banner trim only (Pillar 2), and the weekly cadence means missing a session never kills the contribution (Pillar 1). Builds on SocialService crew storage and the QuestService signal taps already present.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: a cosmetic-rewarded weekly collective crew goal. Steps: (1) Add a weeklyChallenge block (challengeId, weekKey, combinedProgress, claimedBy map) to the crew DataStore object managed by SocialService — crew-level, not per-player profile. (2) In src/Server/Services/QuestService.lua or a new CrewChallengeService (Knit, Trove), sum per-member deltas from the existing SoldServer/CastResolved signals into combinedProgress server-authoritatively; reset on week roll-over. (3) On completion, grant a cosmetic crew-banner-trim ID (CosmeticsCatalog) to every member via the CosmeticService grant path — never coins, never gameplay. (4) Challenge definitions, weekly targets, and cadence in a GameConfig.CrewChallenges sub-table. (5) Client UI chip on the crew panel showing combined progress. Mobile/ReducedMotion: progress chip 44px, font >=12px, fill animates via TweenService and snaps on ReducedMotion. Acceptance: two crew members' catches both advance the shared bar, week roll-over resets it without data loss, and completion grants the cosmetic to all members exactly once."
+    },
+    {
+        "id": "policy-service-gate",
+        "name": "PolicyService Age-Safety Gate",
+        "sub": "Guard market, cosmetic shop, and bait shop entry with Roblox PolicyService for under-13 compliance.",
+        "status": "launch",
+        "priority": "P1",
+        "lane": "launch",
+        "pillars": [
+            "mobile"
+        ],
+        "deps": [
+            "market",
+            "cosmetic-shop",
+            "shopservice-dead-bait-catalog"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "No call to PolicyService:GetPolicyInfoForPlayerAsync anywhere in src/; economy surfaces are CosmeticShopService, MarketService, BaitService"
+        ],
+        "notes": "Adds the PolicyService gate Roblox's Terms require before exposing economy UI to under-13 players, which the all-ages target audience makes mandatory at launch. Purely additive — a cached per-player policy wrapper exposing CanUseEconomy(player), consumed by the three economy surfaces before any purchase or listing request, with no schema change and no data-loss risk. Builds on the existing KnitStart lifecycle and the service-wrapped DataStore conventions.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: a compliant economy gate, additive and launch-blocking. Steps: (1) Create src/Server/Services/PolicyService.lua (Knit, Trove) wrapping PolicyService:GetPolicyInfoForPlayerAsync, caching per-player flags fetched on join (KnitStart/PlayerAdded), with a safe default (deny economy) on API failure. (2) Expose CanUseEconomy(player) and have CosmeticShopService, MarketService, and BaitService call it server-side before processing any purchase or market-listing request — server-authoritative, client only requests. (3) Put cache TTL and fail-safe default in a GameConfig.Policy sub-table. (4) When denied, the client should hide/disable economy entry points (server still enforces). Mobile/ReducedMotion: disabled-state CTA stays 44px with a clear text-only explanation, font >=12px, no flashing. Acceptance: a simulated under-13 policy flag blocks shop/market/bait purchases server-side even if the client sends the request, an API failure denies rather than allows, and no profile field is added or changed."
+    },
+    {
+        "id": "adaptive-graphics-tier",
+        "name": "Adaptive Graphics Quality Tier",
+        "sub": "Classify device tier at join and scale particle/emitter density for stable mobile framerate.",
+        "status": "backlog",
+        "priority": "P2",
+        "lane": "backlog",
+        "pillars": [
+            "mobile",
+            "world"
+        ],
+        "deps": [
+            "worldfx-debug-leak",
+            "tide-fx",
+            "weather-bond"
+        ],
+        "evidence": [
+            "No implementation in src/ as of 2026-06 audit",
+            "WorldFXController._computeRainRateBudget/_computeFogRateBudget already take a 'reduced' boolean (WorldFXController.lua:270,514) and are structurally ready for a second scalar"
+        ],
+        "notes": "Detects low-end mobile (the largest slice of Roblox's install base) and scales rain/fog emitter budgets so Storm weather doesn't drop frames, directly serving the non-negotiable mobile-first Pillar 7. Client-side and presentational only — no gameplay change, honoring server-authoritative rules. Builds on WorldFXController's existing reduced-aware budget functions, which already accept a flag and only need a second scalar multiplier.",
+        "prompt": "Plan first — wait for confirmation before patching. Goal: scale only decoration density by device tier; never touch gameplay. Steps: (1) Create src/Client/Util/DeviceTierUtil.lua that reads UserGameSettings.SavedQualityLevel (and reasonable heuristics) and classifies low/mid/high, returning a density multiplier. (2) Thread that multiplier into WorldFXController._computeRainRateBudget and _computeFogRateBudget as a second scalar alongside the existing 'reduced' boolean; clamp to the GameConfig rate-budget ceilings. (3) Put per-tier multipliers in a GameConfig.GraphicsTier sub-table. (4) Re-evaluate tier if SavedQualityLevel changes. This is client-presentational only — no server calls, no profile fields. Mobile/ReducedMotion: ReducedMotion still wins (further reduces/zeroes spread) independently of tier; no strobe; respect the no->3Hz rule. Acceptance: on a forced low tier the Storm rain emitter count drops measurably vs high tier while gameplay (cast/catch) is identical, ReducedMotion behavior is unchanged, and there are zero new server interactions."
     }
 ]</script>
 <script>
