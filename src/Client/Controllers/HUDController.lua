@@ -256,6 +256,74 @@ function HUDController:_wireHUD(PlayerDataService: any)
 		self._hud.xpFill.Size = UDim2.new(progress, 0, 1, 0)
 	end)
 	self:_wireRodChip()
+	self:_wireConditionsAndSeason()
+end
+
+-- ====================================================================
+-- CONDITIONS PILL + SEASON-PASS MINI-BAR (always-on StatusColumn chips)
+-- ====================================================================
+
+-- Weather · tide pill and a season-pass progress bar that live on the HUD.
+-- The conditions pill reuses the same signals FishingController taps for its
+-- cast-time pill (WeatherChanged / TideChanged); both subscribe independently.
+function HUDController:_wireConditionsAndSeason()
+	local hud = self._hud
+
+	-- ---- Conditions pill ----
+	local WeatherService = Knit.GetService("WeatherService")
+	local TideService    = Knit.GetService("TideService")
+
+	self._weatherState = self._weatherState or "Clear"
+	self._tideState    = self._tideState or "Low"
+
+	local TIDE_TEXT = { High = "High Tide", Low = "Low Tide", Transitioning = "Tide Turning" }
+	local function paintConditions()
+		hud.conditionsLabel.Text = ("%s · %s"):format(
+			self._weatherState,
+			TIDE_TEXT[self._tideState] or "Low Tide"
+		)
+	end
+
+	WeatherService.WeatherChanged:Connect(function(weather: string)
+		self._weatherState = weather
+		paintConditions()
+	end)
+	TideService.TideChanged:Connect(function(state: string)
+		self._tideState = state
+		paintConditions()
+	end)
+	-- Tide has no client getter — its first TideChanged (≤5s) seeds the label.
+	WeatherService:GetWeatherState():andThen(function(payload)
+		if payload and payload.weather then self._weatherState = payload.weather end
+		paintConditions()
+	end)
+	paintConditions()
+
+	-- ---- Season-pass mini-bar ----
+	local SeasonPassService    = Knit.GetService("SeasonPassService")
+	local SeasonPassController = Knit.GetController("SeasonPassController")
+
+	local function paintSeason(state: any)
+		if not state then return end
+		local tier      = state.tier or 1
+		local xpPerTier  = state.xpPerTier or 100
+		local xpInTier  = (state.xp or 0) - (tier - 1) * xpPerTier
+		local frac      = math.clamp(xpInTier / math.max(xpPerTier, 1), 0, 1)
+		hud.seasonLabel.Text = ("Pass · Lv %d"):format(tier)
+		MotionUtil.tweenOrSnap(
+			hud.seasonBarFill,
+			TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = UDim2.new(frac, 0, 1, 0) }
+		)
+	end
+
+	SeasonPassService.SeasonPassUpdated:Connect(paintSeason)
+	SeasonPassService:GetSeasonPass():andThen(paintSeason)
+
+	-- Tapping the chip opens the full pass (same as the PASS action button).
+	hud.seasonChip.Activated:Connect(function()
+		SeasonPassController:Open()
+	end)
 end
 
 function HUDController:_apply(profile: any)

@@ -71,4 +71,29 @@ register({
 	assetPath = nil, -- TODO: upload model to ReplicatedStorage.Assets.Cosmetics.TideWornBoots
 })
 
+-- ====================================================================
+-- SEASON-PASS REWARDS (free track, Season 1)
+-- ====================================================================
+-- Granted by SeasonPassService:ClaimTier at milestone tiers (see
+-- GameConfig.SeasonPass.FreeRewards: tier 10 hat, tier 20 coat). Earned by
+-- everyday play — no purchase, no FOMO (rewards repeat across seasons).
+
+register({
+	id = "cosmetic_season1_hat",
+	slot = "hat",
+	displayName = "Coral Crown",
+	description = "A coral-tipped cap awarded at Season 1, Tier 10.",
+	source = "event",
+	assetPath = nil, -- TODO: upload model to ReplicatedStorage.Assets.Cosmetics.CoralCrown
+})
+
+register({
+	id = "cosmetic_season1_coat",
+	slot = "coat",
+	displayName = "Captain's Coat",
+	description = "A weathered captain's coat awarded at Season 1, Tier 20.",
+	source = "event",
+	assetPath = nil, -- TODO: upload model to ReplicatedStorage.Assets.Cosmetics.CaptainsCoat
+})
+
 return CosmeticsCatalog

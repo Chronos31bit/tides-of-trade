@@ -944,7 +944,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "season-pass",
         "name": "Season Pass (cosmetic-only 28/30-day track)",
-        "sub": "20-tier cosmetic-only track with free rewards (XP, Lure Tokens) — hooks into Fishing/Market/Harbor/Social events",
+        "sub": "20-tier free track (currency + cosmetics at 10/20) plus a visual locked Premium row; XP from Fishing/Market/Harbor/Social events",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -961,7 +961,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Shared/Config/GameConfig.lua:794-797 Ã¢â‚¬â€ Crew.BaseCrewSlotsCost comment: 'extra slots via game pass' (future monetization hook, not implemented)",
             "src/Client/UI/UIKit.lua:1608-1610 Ã¢â‚¬â€ UIKit.Placeholder comment explicitly lists Season Pass as a post-launch stub screen"
         ],
-        "notes": "No SeasonPass service, controller, UI, or GameConfig sub-table exists anywhere in the codebase. UIKit.lua:1608 confirms it is explicitly documented as a post-launch stub. The login streak in QuestService already awards days 1-28 and uses placeholder cosmetic IDs Ã¢â‚¬â€ these will resolve once the cosmetic catalog lands. A season pass is design-dependent: the cosmetic catalog must be stable first. No code stub to build from Ã¢â‚¬â€ full greenfield. Status unchanged from prior audit.",
+        "notes": "Shipped (P2 batch + HUD sync). SeasonPassService runs a free 20-tier track earning XP from catch/sell/build/visit/emote; SeasonPassController opens it from the Dock prompt and the HUD PASS button. SeasonPassUI is now a Fortnite-style horizontal two-row track: the Free row is claimable, the Premium row is visual-only and locked 'Coming Soon' (cosmetic-only per pillar 2, no Robux wiring). GameConfig.SeasonPass fills all 20 tiers with currency plus cosmetics at tiers 10/20 (granted via CosmeticService:GrantCosmetic). An always-on season-pass mini-bar now lives in the HUD StatusColumn.",
         "prompt": "Plan first Ã¢â‚¬â€ wait for confirmation before patching.\n\nGoal: design and scaffold a cosmetic-only 28-day season pass track.\n\nPrerequisites visible in the code:\n- `src/Shared/Config/GameConfig.lua:768-770` has placeholder item IDs (`cosmetic_streak_14/21/28`) with TODO comments indicating the cosmetic catalog doesn't exist yet. The catalog must be designed and its stable IDs locked before the pass can award meaningful items.\n- UIKit.lua:1608-1610 has a placeholder stub already planned for the Season Pass screen.\n\nScoping steps (plan only, do not write code until confirmed):\n1. Define `GameConfig.SeasonPass` sub-table: track length (days), tier count, free vs. paid tier reward tables, start/end UTC timestamps.\n2. Design `CosmeticsCatalog.lua` schema first (see cosmetics-catalog node).\n3. Add additive profile fields: `profile.seasonPassTier`, `profile.seasonPassProgress`, `profile.ownedCosmetics = {}`.\n4. Create `SeasonPassService` (server) to tick progress and award rewards; wire to existing `PlayerDataService:AddItem`.\n5. Create `SeasonPassUI` (client) showing the horizontal tier track, using the UIKit.Placeholder slot at UIKit.lua:1609.\n6. No paid tier at launch if cosmetic monetization design is not finalized.\n\nAcceptance criteria: free track awards the correct cosmetic item at tier milestones; items appear in an inventory cosmetics tab; no pay-to-progress (CLAUDE.md pillar 2)."
     },
     {

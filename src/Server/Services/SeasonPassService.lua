@@ -33,6 +33,23 @@ local function currentTier(xp: number): number
 	return math.min(math.floor(xp / cfg.XPPerTier) + 1, cfg.TierCount)
 end
 
+-- Full client-facing state payload. Single source so GetSeasonPass,
+-- _grantEventXP, and ClaimTier never diverge — the UI's refresh path needs the
+-- reward tables (free + premium), not just progress numbers.
+local function buildState(xp: number, claimedTiers: {[number]: boolean})
+	local cfg = GameConfig.SeasonPass
+	return {
+		xp = xp,
+		tier = currentTier(xp),
+		tierCount = cfg.TierCount,
+		xpPerTier = cfg.XPPerTier,
+		claimedTiers = claimedTiers,
+		freeRewards = cfg.FreeRewards,
+		premiumRewards = cfg.PremiumRewards,
+		premiumComingSoon = cfg.PremiumComingSoon,
+	}
+end
+
 function SeasonPassService:_grantEventXP(player: Player, eventKey: string)
 	local cfg = GameConfig.SeasonPass
 	local eventXP = cfg.EventXP and cfg.EventXP[eventKey] or 0
@@ -48,36 +65,21 @@ function SeasonPassService:_grantEventXP(player: Player, eventKey: string)
 
 	data.seasonPassXp += eventXP
 
-	local tier = currentTier(data.seasonPassXp)
-	self.Client.SeasonPassUpdated:Fire(player, {
-		xp = data.seasonPassXp,
-		tier = tier,
-		tierCount = cfg.TierCount,
-		xpPerTier = cfg.XPPerTier,
-		claimedTiers = data.seasonPassClaimedTiers,
-	})
+	self.Client.SeasonPassUpdated:Fire(player, buildState(data.seasonPassXp, data.seasonPassClaimedTiers))
 end
 
 -- ====================================================================
 -- CLIENT METHODS
 -- ====================================================================
 
-function SeasonPassService.Client:GetSeasonPass(_player: Player): {xp: number, tier: number, tierCount: number, xpPerTier: number, claimedTiers: {[number]: boolean}, freeRewards: any}
+function SeasonPassService.Client:GetSeasonPass(_player: Player): {xp: number, tier: number, tierCount: number, xpPerTier: number, claimedTiers: {[number]: boolean}, freeRewards: any, premiumRewards: any, premiumComingSoon: boolean}
 	local PlayerDataService = Knit.GetService("PlayerDataService")
 	local data = PlayerDataService:GetProfile(_player)
-	local cfg = GameConfig.SeasonPass
 
 	local xp = (data and data.seasonPassXp) or 0
 	local claimedTiers: {[number]: boolean} = (data and data.seasonPassClaimedTiers) or {}
 
-	return {
-		xp = xp,
-		tier = currentTier(xp),
-		tierCount = cfg.TierCount,
-		xpPerTier = cfg.XPPerTier,
-		claimedTiers = claimedTiers,
-		freeRewards = cfg.FreeRewards,
-	}
+	return buildState(xp, claimedTiers)
 end
 
 function SeasonPassService.Client:ClaimTier(player: Player, tier_: number): {ok: boolean, reason: string?}
@@ -85,7 +87,7 @@ function SeasonPassService.Client:ClaimTier(player: Player, tier_: number): {ok:
 	if typeof(tier_) ~= "number" or tier_ < 1 or tier_ > GameConfig.SeasonPass.TierCount then
 		return { ok = false, reason = "bad_tier" }
 	end
-	-- Rate-limit claims to 20/min (generous — only 5 milestones in current config).
+	-- Rate-limit claims to 20/min (generous — at most TierCount claims per season).
 	if not self._claimLimiter:check(player) then return { ok = false, reason = "rate_limit" } end
 
 	local PlayerDataService = Knit.GetService("PlayerDataService")
@@ -104,22 +106,25 @@ function SeasonPassService.Client:ClaimTier(player: Player, tier_: number): {ok:
 	-- Mark claimed.
 	data.seasonPassClaimedTiers[tier_] = true
 
-	-- Grant reward.
+	-- Grant reward (currency + cosmetic only — never speed-ups; pillars 2 & 6).
 	if reward.xp and reward.xp > 0 then
 		PlayerDataService:AddXP(player, reward.xp)
+	end
+	if reward.coins and reward.coins > 0 then
+		PlayerDataService:AddCoins(player, reward.coins, "season_pass")
 	end
 	if reward.lureTokens and reward.lureTokens > 0 then
 		PlayerDataService:AddLureTokens(player, reward.lureTokens)
 	end
+	if reward.cosmeticId then
+		-- Server-to-server grant, mirrors CosmeticShopService. Idempotent; the
+		-- service auto-equips the cosmetic on first grant.
+		local CosmeticService = Knit.GetService("CosmeticService")
+		CosmeticService.Client:GrantCosmetic(player, reward.cosmeticId)
+	end
 
-	-- Push updated state to client.
-	self.Client.SeasonPassUpdated:Fire(player, {
-		xp = data.seasonPassXp or 0,
-		tier = currentTier_,
-		tierCount = GameConfig.SeasonPass.TierCount,
-		xpPerTier = GameConfig.SeasonPass.XPPerTier,
-		claimedTiers = data.seasonPassClaimedTiers,
-	})
+	-- Push updated state to client (full payload via buildState).
+	self.Client.SeasonPassUpdated:Fire(player, buildState(data.seasonPassXp or 0, data.seasonPassClaimedTiers))
 
 	return { ok = true }
 end

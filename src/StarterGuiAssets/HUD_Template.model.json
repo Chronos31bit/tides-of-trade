@@ -516,6 +516,257 @@
               }
             }
           ]
+        },
+        {
+          "Name": "ConditionsChip",
+          "ClassName": "Frame",
+          "Properties": {
+            "LayoutOrder": 3,
+            "BackgroundColor3": [
+              0.070588,
+              0.203922,
+              0.235294
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  260
+                ],
+                [
+                  0,
+                  36
+                ]
+              ]
+            }
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    10
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "ConditionsLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Font": "GothamMedium",
+                "TextSize": 14,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "Text": "Clear · Low Tide",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      0,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      1,
+                      0
+                    ]
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "Name": "SeasonChip",
+          "ClassName": "TextButton",
+          "Properties": {
+            "LayoutOrder": 4,
+            "AutoButtonColor": false,
+            "Text": "",
+            "BackgroundColor3": [
+              0.070588,
+              0.203922,
+              0.235294
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  260
+                ],
+                [
+                  0,
+                  52
+                ]
+              ]
+            },
+            "Selectable": true
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    10
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "SeasonLabel",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Font": "GothamBold",
+                "TextSize": 14,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "TextXAlignment": "Left",
+                "TextYAlignment": "Center",
+                "Text": "Pass · Lv 1",
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      0,
+                      6
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      0,
+                      20
+                    ]
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "SeasonBarBg",
+              "ClassName": "Frame",
+              "Properties": {
+                "BackgroundColor3": [
+                  0.039216,
+                  0.12549,
+                  0.156863
+                ],
+                "BorderSizePixel": 0,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      12
+                    ],
+                    [
+                      0,
+                      34
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      -24
+                    ],
+                    [
+                      0,
+                      10
+                    ]
+                  ]
+                }
+              },
+              "Children": [
+                {
+                  "Name": "UICorner",
+                  "ClassName": "UICorner",
+                  "Properties": {
+                    "CornerRadius": {
+                      "UDim": [
+                        0,
+                        5
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Name": "SeasonBarFill",
+                  "ClassName": "Frame",
+                  "Properties": {
+                    "BackgroundColor3": [
+                      0.909804,
+                      0.541176,
+                      0.337255
+                    ],
+                    "BorderSizePixel": 0,
+                    "Size": {
+                      "UDim2": [
+                        [
+                          0,
+                          0
+                        ],
+                        [
+                          1,
+                          0
+                        ]
+                      ]
+                    }
+                  },
+                  "Children": [
+                    {
+                      "Name": "UICorner",
+                      "ClassName": "UICorner",
+                      "Properties": {
+                        "CornerRadius": {
+                          "UDim": [
+                            0,
+                            5
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -1873,6 +2124,411 @@
                   0.509804
                 ],
                 "Text": "7"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "SeasonPassButton",
+          "ClassName": "TextButton",
+          "Properties": {
+            "LayoutOrder": 8,
+            "AutoButtonColor": false,
+            "BackgroundColor3": [
+              0.909804,
+              0.541176,
+              0.337255
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  68
+                ],
+                [
+                  0,
+                  68
+                ]
+              ]
+            },
+            "Text": "",
+            "Selectable": true
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    12
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "UIStroke",
+              "ClassName": "UIStroke",
+              "Properties": {
+                "Color": [
+                  0.039216,
+                  0.12549,
+                  0.156863
+                ],
+                "Thickness": 1.5,
+                "Transparency": 0.4,
+                "ApplyStrokeMode": "Border"
+              }
+            },
+            {
+              "Name": "Glyph",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      6
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0.55,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBlack",
+                "TextSize": 24,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "Text": "✦"
+              }
+            },
+            {
+              "Name": "Label",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0.6,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0.35,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBold",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "TextXAlignment": "Center",
+                "Text": "PASS"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "BaitShopButton",
+          "ClassName": "TextButton",
+          "Properties": {
+            "LayoutOrder": 9,
+            "AutoButtonColor": false,
+            "BackgroundColor3": [
+              0.784314,
+              0.486275,
+              0.862745
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  68
+                ],
+                [
+                  0,
+                  68
+                ]
+              ]
+            },
+            "Text": "",
+            "Selectable": true
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    12
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "UIStroke",
+              "ClassName": "UIStroke",
+              "Properties": {
+                "Color": [
+                  0.039216,
+                  0.12549,
+                  0.156863
+                ],
+                "Thickness": 1.5,
+                "Transparency": 0.4,
+                "ApplyStrokeMode": "Border"
+              }
+            },
+            {
+              "Name": "Glyph",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      6
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0.55,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBlack",
+                "TextSize": 24,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "Text": "✿"
+              }
+            },
+            {
+              "Name": "Label",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0.6,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0.35,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBold",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "TextXAlignment": "Center",
+                "Text": "BAIT"
+              }
+            }
+          ]
+        },
+        {
+          "Name": "CosmeticButton",
+          "ClassName": "TextButton",
+          "Properties": {
+            "LayoutOrder": 10,
+            "AutoButtonColor": false,
+            "BackgroundColor3": [
+              0.372549,
+              0.647059,
+              0.941176
+            ],
+            "BorderSizePixel": 0,
+            "Size": {
+              "UDim2": [
+                [
+                  0,
+                  68
+                ],
+                [
+                  0,
+                  68
+                ]
+              ]
+            },
+            "Text": "",
+            "Selectable": true
+          },
+          "Children": [
+            {
+              "Name": "UICorner",
+              "ClassName": "UICorner",
+              "Properties": {
+                "CornerRadius": {
+                  "UDim": [
+                    0,
+                    12
+                  ]
+                }
+              }
+            },
+            {
+              "Name": "UIStroke",
+              "ClassName": "UIStroke",
+              "Properties": {
+                "Color": [
+                  0.039216,
+                  0.12549,
+                  0.156863
+                ],
+                "Thickness": 1.5,
+                "Transparency": 0.4,
+                "ApplyStrokeMode": "Border"
+              }
+            },
+            {
+              "Name": "Glyph",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0,
+                      6
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0.55,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBlack",
+                "TextSize": 24,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "Text": "✶"
+              }
+            },
+            {
+              "Name": "Label",
+              "ClassName": "TextLabel",
+              "Properties": {
+                "BackgroundTransparency": 1,
+                "Position": {
+                  "UDim2": [
+                    [
+                      0,
+                      0
+                    ],
+                    [
+                      0.6,
+                      0
+                    ]
+                  ]
+                },
+                "Size": {
+                  "UDim2": [
+                    [
+                      1,
+                      0
+                    ],
+                    [
+                      0.35,
+                      0
+                    ]
+                  ]
+                },
+                "Font": "GothamBold",
+                "TextSize": 12,
+                "TextColor3": [
+                  0.956863,
+                  0.901961,
+                  0.784314
+                ],
+                "TextXAlignment": "Center",
+                "Text": "STYLE"
               }
             }
           ]

@@ -1321,13 +1321,60 @@ GameConfig.SeasonPass = {
 	TierCount = 20,
 	-- XP needed to advance one tier. Tier = floor(xp / XPPerTier) + 1.
 	XPPerTier = 100,
-	-- Free-track milestone rewards by tier number (1-indexed).
+	-- Free-track rewards by tier (1-indexed). Every tier grants something
+	-- (Fortnite-style dense track). Reward shape: { coins?, xp?, lureTokens?,
+	-- cosmeticId? } — SeasonPassService:ClaimTier knows how to grant each field.
+	-- Milestone tiers (5/10/15/20) pay bigger; tiers 10 & 20 grant cosmetics.
+	-- Rewards are currency/cosmetic only — never speed-ups (pillars 2 & 6).
 	FreeRewards = {
-		[1]  = { xp = 50 },
+		[1]  = { coins = 50 },
+		[2]  = { coins = 60 },
+		[3]  = { xp = 40 },
+		[4]  = { coins = 75 },
 		[5]  = { lureTokens = 5 },
-		[10] = { xp = 100 },
-		[15] = { lureTokens = 10 },
-		[20] = { xp = 200 },
+		[6]  = { coins = 90 },
+		[7]  = { xp = 60 },
+		[8]  = { coins = 110 },
+		[9]  = { coins = 125 },
+		[10] = { lureTokens = 8, cosmeticId = "cosmetic_season1_hat" },
+		[11] = { coins = 150 },
+		[12] = { xp = 100 },
+		[13] = { coins = 175 },
+		[14] = { coins = 200 },
+		[15] = { lureTokens = 12 },
+		[16] = { coins = 225 },
+		[17] = { xp = 150 },
+		[18] = { coins = 260 },
+		[19] = { coins = 300 },
+		[20] = { coins = 500, lureTokens = 20, cosmeticId = "cosmetic_season1_coat" },
+	},
+	-- Premium track — VISUAL ONLY at launch. Rendered as a locked "Coming Soon"
+	-- row in the pass UI; never granted (no Robux wiring). Each entry is a
+	-- display stub: { label, kind = "cosmetic"|"emote"|"coins"|"lure" }. When a
+	-- paid track is designed it must stay cosmetic-only (pillar 2, no
+	-- pay-to-progress). Do NOT add a claim path that reads this table.
+	PremiumComingSoon = true,
+	PremiumRewards = {
+		[1]  = { label = "Coral Cap",      kind = "cosmetic" },
+		[2]  = { label = "Wave Emote",     kind = "emote" },
+		[3]  = { label = "+150 Coins",     kind = "coins" },
+		[4]  = { label = "Driftwood Trim", kind = "cosmetic" },
+		[5]  = { label = "Tide Emote",     kind = "emote" },
+		[6]  = { label = "+5 Lure",        kind = "lure" },
+		[7]  = { label = "Anchor Pin",     kind = "cosmetic" },
+		[8]  = { label = "+200 Coins",     kind = "coins" },
+		[9]  = { label = "Gull Emote",     kind = "emote" },
+		[10] = { label = "Captain's Coat", kind = "cosmetic" },
+		[11] = { label = "+250 Coins",     kind = "coins" },
+		[12] = { label = "Lantern Pin",    kind = "cosmetic" },
+		[13] = { label = "Salute Emote",   kind = "emote" },
+		[14] = { label = "+8 Lure",        kind = "lure" },
+		[15] = { label = "Seafarer Hat",   kind = "cosmetic" },
+		[16] = { label = "+300 Coins",     kind = "coins" },
+		[17] = { label = "Bow Emote",      kind = "emote" },
+		[18] = { label = "Pearl Trim",     kind = "cosmetic" },
+		[19] = { label = "+400 Coins",     kind = "coins" },
+		[20] = { label = "Harbormaster Set", kind = "cosmetic" },
 	},
 	-- How much season-pass XP each gameplay event grants. Small drip —
 	-- a diligent player hits tier 20 in ~2-3 weeks of daily play.
