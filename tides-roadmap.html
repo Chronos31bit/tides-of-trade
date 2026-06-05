@@ -503,7 +503,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "leaderboards",
         "name": "Leaderboards",
-        "sub": "No implementation exists anywhere in the codebase",
+        "sub": "Shipped - cross-server OrderedDataStore leaderboard with Catches and Species axes",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -517,13 +517,13 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Shared/Config/GameConfig.lua:794-796 Ã¢â‚¬â€ GameConfig.Crew block exists but no Leaderboard sub-table",
             "P2 batch: implemented June 3, 2026"
         ],
-        "notes": "No changes in this branch. No leaderboard service, controller, or UI exists. Backing data (totalCatches, caughtSpecies count) is populated. Fully greenfield.",
-        "prompt": "Greenfield: implement a cozy identity leaderboard (most species discovered, total catches Ã¢â‚¬â€ never coin totals).\n\nData already exists: src/Server/Services/PlayerDataService.lua:49-54 populates stats.totalCatches and stats.caughtSpecies (a {[string]:number} map) per player.\n\nSteps:\n1. New src/Server/Services/LeaderboardService.lua Ã¢â‚¬â€ Knit Service. On each player session-end, write totalCatches and caughtSpecies count to two OrderedDataStores (TidesLB_Catches_v1, TidesLB_Species_v1). Expose Client:GetTopN(axis, n) returning a list of {rank, displayName, value}. Rate-limit fetches. Add GameConfig.Leaderboard sub-table: RefreshCooldownSec, TopN (default 10).\n2. New src/Client/Controllers/LeaderboardController.lua Ã¢â‚¬â€ fetches on panel open, passes data to LeaderboardUI.\n3. New src/Client/UI/LeaderboardUI.lua Ã¢â‚¬â€ two-tab panel (Catches / Species); no red/green arrows per cozy pillar; display rank badge not a number ladder.\n\nProfile schema: no changes needed (stats.caughtSpecies already additive at src/Server/Services/PlayerDataService.lua:53).\n\nAcceptance: top-10 lists render for both axes; opening the panel never blocks for more than 1 second (use cached data after first fetch within RefreshCooldownSec). Plan first Ã¢â‚¬â€ wait for confirmation before patching."
+        "notes": "Shipped. LeaderboardService writes each player's totalCatches and unique-species count to two OrderedDataStores (TidesLB_Catches_v1 / TidesLB_Species_v1) on PlayerRemoving, plus TidesLB_Names_v1 for name resolution. Client:GetTopN(axis) is rate-limited by GameConfig.Leaderboard.RefreshCooldownSec (30s) and returns the top TopN (10) as {rank, displayName, score}. LeaderboardController:Open() drives a two-tab LeaderboardUI modal (Catches / Species) with gold #N rank badges and no red/green arrows (cozy pillar).",
+        "prompt": "Shipped. Files: src/Server/Services/LeaderboardService.lua, src/Client/Controllers/LeaderboardController.lua, src/Client/UI/LeaderboardUI.lua. No open follow-ups."
     },
     {
         "id": "fish-codex",
         "name": "Fish Codex (collection screen)",
-        "sub": "caughtSpecies profile field exists and is populated; no UI or controller built",
+        "sub": "Shipped - collection grid driven by the populated stats.caughtSpecies profile field",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -538,8 +538,8 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Server/Services/FishingService.lua:666 Ã¢â‚¬â€ data.stats.caughtSpecies[fish.id] = (data.stats.caughtSpecies[fish.id] or 0) + 1 on each catch",
             "src/Shared/Config/FishCatalog.json:17 Ã¢â‚¬â€ fish array with id, displayName, rarity, modelPath fields ready for codex display"
         ],
-        "notes": "No changes in this branch. Data pipeline is complete. No codex controller, no codex UI, no client signal to push caughtSpecies to client exists. P1 retention lever.",
-        "prompt": "Build the Fish Codex: a collection screen driven by the already-populated stats.caughtSpecies profile field.\n\nData is ready: src/Server/Services/FishingService.lua:666 writes caughtSpecies on every catch. src/Shared/Config/FishCatalog.json has all display fields. src/Server/Services/PlayerDataService.lua:53 seeds the map.\n\nSteps:\n1. Add Client.CodexChanged = Knit.CreateSignal() to PlayerDataService client surface. Fire it with a snapshot of stats.caughtSpecies whenever a new species is added (check inside FishingService after the caughtSpecies write at line 666).\n2. New src/Client/Controllers/FishCodexController.lua Ã¢â‚¬â€ subscribes to CodexChanged and PlayerDataService.Client.ProfileLoaded; calls FishCodexUI.refresh(caughtMap, catalog) on update.\n3. New src/Client/UI/FishCodexUI.lua Ã¢â‚¬â€ grid of fish cards. Caught = full colour + catch count badge. Not-yet-caught = silhouette + '???' name (mystery drives return visits). Tap a card for details (name, rarity, habitat, best weight caught). Uses UIKit card primitives, 44px min touch target per row, no red/green.\n4. Add GameConfig.Codex sub-table: SilhouetteColor (Color3), BadgeFontSize (default 12).\n\nNo profile schema changes needed (caughtSpecies already additive).\n\nAcceptance: catching a new species triggers a codex toast and updates the grid; undiscovered fish show silhouettes; grid scrolls smoothly on 380px portrait. Plan first Ã¢â‚¬â€ wait for confirmation before patching."
+        "notes": "Shipped. FishCodexController subscribes to PlayerDataService.CodexChanged and pulls an initial GetSnapshot, toasting new discoveries via NotificationController. FishCodexUI renders a programmatic scrollable grid of fish cards: discovered species show full colour with a rarity badge and catch count, undiscovered show a silhouette and '???'. Tuned by GameConfig.Codex and respects ReducedMotion via MotionUtil.",
+        "prompt": "Shipped. Files: src/Client/Controllers/FishCodexController.lua, src/Client/UI/FishCodexUI.lua. No open follow-ups."
     },
     {
         "id": "friend-visits",
@@ -899,7 +899,7 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
     {
         "id": "cosmetics-catalog",
         "name": "Cosmetics Catalog",
-        "sub": "CosmeticsCatalog.lua with stable IDs for hat/coat/boots items",
+        "sub": "Shipped - stable cosmetic catalog plus server-authoritative equip and ownership",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -916,13 +916,13 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Server/Services/PlayerDataService.lua:36 Ã¢â‚¬â€ cosmetics = {} in PROFILE_TEMPLATE",
             "src/Shared/Config/GameConfig.lua:754-756 Ã¢â‚¬â€ comment: 'cosmetic catalog doesn't exist yet, so QuestService grants them as Good items with placeholder ids until cosmetics ship'"
         ],
-        "notes": "No CosmeticsCatalog.lua exists anywhere in src/. The type shape (Types.Cosmetics), profile field (cosmetics = {}), and LoginReward placeholder IDs all exist but the catalog does not. Streak-reward grants on days 14, 21, and 28 still emit Good items with stub IDs per GameConfig.lua:768-770. No cosmetic equip/unequip service logic exists. Blocks both the day-14/21/28 login reward being meaningful and the cosmetic monetization path. Status is unchanged from prior audit.",
-        "prompt": "Create src/Shared/Config/CosmeticsCatalog.lua with the minimal schema needed to back the day-14/21/28 streak rewards and future cosmetic shop.\n\nGaps referenced:\n- src/Shared/Config/GameConfig.lua:768-770: streak IDs 'cosmetic_streak_14', 'cosmetic_streak_21', 'cosmetic_streak_28' are placeholder Good items with TODO comments.\n- src/Shared/Types.lua:118-122: Cosmetics type exists (hat/coat/boots string?) but no catalog backs it.\n- src/Server/Services/PlayerDataService.lua:36: profile.cosmetics = {} schema field exists but is never written.\n\nSteps:\n1. Create src/Shared/Config/CosmeticsCatalog.lua exporting `{ byId: {[string]: CosmeticDef}, cosmetics: {CosmeticDef} }`. CosmeticDef fields: id (stable string), slot (\"hat\"|\"coat\"|\"boots\"), displayName, description, source (\"streak\"|\"shop\"|\"event\").\n2. Add the three streak cosmetics (id = 'cosmetic_streak_14', '_21', '_28') with slot, displayName, description populated.\n3. No new profile fields required Ã¢â‚¬â€ profile.cosmetics already uses {hat, coat, boots} string? slots. Add a EquipCosmetic / UnequipCosmetic server API in a new CosmeticService (or PlayerDataService helper) that validates id exists in catalog before writing.\n4. No GameConfig sub-table needed for v1 (catalog IS the config); a `GameConfig.Cosmetics` sub-table can be added later for unlock-level or event-date gates.\n5. Acceptance: QuestService can grant cosmetic_streak_14 as a proper cosmetic (not a Good item); EquipCosmetic writes profile.cosmetics.hat/coat/boots and fires a CosmeticsChanged signal; unequip restores nil.\n\nPlan first Ã¢â‚¬â€ wait for confirmation before patching."
+        "notes": "Shipped. CosmeticsCatalog.lua exports byId and a cosmetics array of CosmeticDef {id, slot (hat/coat/boots), displayName, description, source, assetPath?}, shipping the three streak cosmetics (cosmetic_streak_14/21/28) plus two Season-1 cosmetics. CosmeticService is server-authoritative: profile-backed cosmetics (equipped slots) and ownedCosmetics (owned set), with GrantCosmetic / EquipCosmetic / UnequipCosmetic (catalog- and ownership-validated) and a CosmeticsChanged signal. Follow-up: every assetPath is still nil, so equip is data-only with no visible mesh until models are uploaded.",
+        "prompt": "Shipped. Files: src/Shared/Config/CosmeticsCatalog.lua, src/Server/Services/CosmeticService.lua. Remaining: upload cosmetic models to ReplicatedStorage.Assets.Cosmetics (all assetPath = nil today)."
     },
     {
         "id": "cosmetic-shop",
         "name": "Cosmetic Shop (Robux)",
-        "sub": "MarketplaceService developer products for cosmetic purchases",
+        "sub": "Shipped - Robux developer-product path with idempotent ProcessReceipt",
         "status": "done",
         "priority": "DONE",
         "lane": "shipped",
@@ -938,8 +938,8 @@ details.lane[open]>summary .chev{transform:rotate(90deg)}
             "src/Shared/Types.lua:118-122 Ã¢â‚¬â€ Cosmetics type exists as the receive end",
             "Grep for 'MarketplaceService|PromptProduct|ProcessReceipt|Robux' across src/ Ã¢â‚¬â€ zero matches confirmed"
         ],
-        "notes": "No Robux purchase path exists anywhere in the codebase Ã¢â‚¬â€ grep for MarketplaceService, PromptProductPurchase, ProcessReceipt all return zero hits. UIKit.lua:1608-1610 explicitly names 'Cosmetic Shop' as a post-launch placeholder/stub screen. ShopService.lua handles only coin-based rod upgrades and bait Ã¢â‚¬â€ no Robux path. This is the primary monetization requirement per CLAUDE.md pillar 2 ('Sell identity, not progress'). Blocked by cosmetics-catalog not existing yet. Status unchanged from prior audit.",
-        "prompt": "Scaffold a Robux cosmetic purchase path using MarketplaceService developer products.\n\nPre-requisite: cosmetics-catalog node must be done first (CosmeticsCatalog.lua with stable IDs).\n\nGaps:\n- No MarketplaceService calls exist in src/ (confirmed by grep Ã¢â‚¬â€ zero matches).\n- UIKit.lua:1608-1610 explicitly names 'Cosmetic Shop' as a placeholder/post-launch stub.\n- src/Server/Services/ShopService.lua handles coin purchases only; no Robux path.\n\nSteps:\n1. Add `GameConfig.CosmeticShop = { Products = { [productId] = cosmeticId, ... } }` mapping Roblox developer product IDs to cosmetic catalog IDs.\n2. In ShopService (or a new CosmeticShopService), wire `MarketplaceService.ProcessReceipt` Ã¢â‚¬â€ server-authoritative: on receipt, look up cosmeticId from GameConfig.CosmeticShop.Products, call EquipCosmetic (or grant to owned list), mark receipt handled. Follow Roblox idempotency pattern (store receiptId in profile or a DataStore to prevent double-grant).\n3. Client: add a CosmeticShopUI that calls MarketplaceService:PromptProductPurchase Ã¢â‚¬â€ no coin logic, no price shown in Lua, Roblox surfaces the price.\n4. No new profile schema fields needed if cosmetics-catalog adds an `owned: {[id]: true}` map, otherwise add `ownedCosmetics: {[string]: boolean}` as an additive Reconcile field.\n5. Acceptance: purchasing a developer product grants the mapped cosmetic; re-purchasing is a no-op (idempotent); ProcessReceipt always returns Enum.ProductPurchaseDecision.PurchaseGranted.\n\nPlan first Ã¢â‚¬â€ wait for confirmation before patching."
+        "notes": "Shipped. CosmeticShopService sets MarketplaceService.ProcessReceipt in KnitStart, maps productId to cosmeticId via GameConfig.CosmeticShop.Products, and is idempotent via the TidesCosmeticPurchases_v1 DataStore (keyed by PurchaseId), granting through CosmeticService:GrantCosmetic. CosmeticShopController opens from the Dock 'Cosmetic Shop' ProximityPrompt; CosmeticShopUI lists cosmetics, marks owned items, and prompts the native Roblox purchase (price shown Roblox-side only). Follow-up: GameConfig.CosmeticShop.Products still holds only the placeholder [0], so no real product is purchasable in-game yet.",
+        "prompt": "Shipped. Files: src/Server/Services/CosmeticShopService.lua, src/Client/Controllers/CosmeticShopController.lua, src/Client/UI/CosmeticShopUI.lua. Remaining: wire real Roblox developer-product IDs into GameConfig.CosmeticShop.Products (only placeholder [0] today)."
     },
     {
         "id": "season-pass",
