@@ -37,25 +37,25 @@ TutorialConfig.Lines = {
 	},
 
 	cast_intro = {
-		"Hold to cast, release when the marker hits the green.",
+		"Tap to cast, then tap again when the marker hits the green — then hold to reel it in.",
 	},
 	-- Repeat-on-stuck nudges (Beat2StuckRepeatSeconds). Cycles through these.
 	cast_intro_stuck = {
 		"The rod's in your inventory — tap it and aim at the water.",
-		"Hold the cast button, let the marker swing into the green band, then release.",
+		"Tap the cast button, then tap again as the marker swings into the green band.",
 	},
 
 	-- Two lines. Player presses Continue once after the catch reveal
 	-- modal (catch reveal is z-index 10+, dialogue is z-index 5, so the
 	-- modal sits on top; once the player dismisses it the dialogue is
-	-- visible). The second line nudges toward the stall.
+	-- visible). The second line nudges toward selling from the Bag.
 	first_catch = {
 		"That's dinner! Or, if you're smart, that's coin.",
-		"Bring it to my stall.",
+		"Open your Bag and sell it straight to me — tap Bag, then Sell.",
 	},
 
 	first_sale = {
-		"See that big board over there? That's every other dockmaster on the coast. You can sell to them too, when you're ready. For now, save your coin.",
+		"Sell a fish from your Bag and the coin's yours. That big board over there? Every other dockmaster on the coast — you can list catches for them too, when you're ready.",
 	},
 
 	first_repair = {
@@ -100,7 +100,7 @@ TutorialConfig.Lines = {
 --                   "quest_tracker", or nil)
 --   showFollowupAfter: optional dialogueKey to show *after* a gameplay
 --                      success but before transitioning to the next beat
---                      (used for first_catch's "Bring it to my stall.")
+--                      (reserved; first_catch now hands off on dialogue_end)
 TutorialConfig.Beats = {
 	greet = {
 		dialogueKey = "greet",
@@ -114,13 +114,16 @@ TutorialConfig.Beats = {
 	},
 	first_catch = {
 		dialogueKey = "first_catch",
-		advanceOn   = "gameplay",
-		highlight   = "market_stall",
+		-- Re-pointed: no physical stall building exists. The catch is sold
+		-- from the Bag (QuickSell), so this beat is now dialogue-only and
+		-- hands off to first_sale on Continue. Bag flash fires on enter.
+		advanceOn   = "dialogue_end",
+		highlight   = nil,
 	},
 	first_sale = {
 		dialogueKey = "first_sale",
 		advanceOn   = "gameplay",
-		highlight   = "global_market_flash",
+		highlight   = nil,
 	},
 	first_repair = {
 		dialogueKey = "first_repair",

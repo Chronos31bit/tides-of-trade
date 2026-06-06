@@ -130,7 +130,7 @@ hint.Font = Enum.Font.GothamBold
 hint.TextSize = 14
 hint.TextColor3 = P.Cream
 hint.TextXAlignment = Enum.TextXAlignment.Center
-hint.Text = "Release to cast"
+hint.Text = "Tap on the green to cast"
 hint.Parent = track
 
 gui.Parent = assets

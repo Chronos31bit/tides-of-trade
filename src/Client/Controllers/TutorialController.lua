@@ -53,8 +53,8 @@ local TutorialController = Knit.CreateController({
 local OBJECTIVE_TEXT: {[string]: string} = {
 	greet            = "Talk to Captain Mira",
 	cast_intro       = "Catch your first fish",
-	first_catch      = "Bring the fish to Mira's stall",
-	first_sale       = "Sell the fish at the stall",
+	first_catch      = "Open your Bag and sell your catch",
+	first_sale       = "Sell a fish from your Bag",
 	first_repair     = "Repair the dock (40 coins)",
 	daily_quest_hook = "Accept your first daily quest",
 }
@@ -224,7 +224,7 @@ function TutorialController:_showObjective(text: string?)
 		})
 		pill.Parent = gui
 
-		local arrow = UIUtil.makeLabel("▸", "title", {
+		local arrow = UIUtil.makeLabel("»", "title", {
 			Position = UDim2.new(0, 12, 0, 0),
 			Size = UDim2.fromOffset(20, 44),
 			TextColor3 = UIUtil.Palette.Sunset,
@@ -529,18 +529,22 @@ function TutorialController:KnitStart()
 		-- those buttons so we reach into PlayerGui by ScreenGui name to
 		-- find them. Failure to find = silent no-op (tutorial spec says
 		-- the flash is decoration, not load-bearing).
-		if key == "market_button" then
-			local pg = LP:FindFirstChildOfClass("PlayerGui")
-			local hud = pg and pg:FindFirstChild("HUD")
-			local btn = hud and hud:FindFirstChild("MarketButton", true)
-			if btn and btn:IsA("GuiObject") then
-				local original = btn.BackgroundColor3
-				local tween = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 2, true)
-				MotionUtil.tween(btn, tween, { BackgroundColor3 = UIUtil.Palette.Sunset })
-				task.delay(2.5, function()
-					btn.BackgroundColor3 = original
-				end)
-			end
+		local BUTTON_BY_KEY = {
+			market_button = "MarketButton",
+			bag_button    = "InventoryButton",
+		}
+		local btnName = BUTTON_BY_KEY[key]
+		if not btnName then return end
+		local pg = LP:FindFirstChildOfClass("PlayerGui")
+		local hud = pg and pg:FindFirstChild("HUD")
+		local btn = hud and hud:FindFirstChild(btnName, true)
+		if btn and btn:IsA("GuiObject") then
+			local original = btn.BackgroundColor3
+			local tween = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 2, true)
+			MotionUtil.tween(btn, tween, { BackgroundColor3 = UIUtil.Palette.Sunset })
+			task.delay(2.5, function()
+				btn.BackgroundColor3 = original
+			end)
 		end
 	end))
 end

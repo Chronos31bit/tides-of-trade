@@ -301,7 +301,7 @@
             ],
             "BorderSizePixel": 0,
             "Font": "GothamBold",
-            "Text": "Continue \u25b8",
+            "Text": "Continue \u00bb",
             "TextColor3": [
               0.9568627450980393,
               0.9019607843137255,

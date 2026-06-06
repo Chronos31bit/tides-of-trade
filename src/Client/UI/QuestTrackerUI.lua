@@ -28,7 +28,7 @@ local CATEGORY_ICON = {
 	fishing = "🎣",
 	market = "🪙",
 	social = "👋",
-	building = "🛠",
+	building = "🔨",
 	exploration = "🧭",
 }
 
