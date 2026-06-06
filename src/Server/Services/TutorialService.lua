@@ -171,31 +171,18 @@ function TutorialService:_onBeatEnter(player: Player, beatName: string)
 			analyticsFired = false,
 		}
 	elseif beatName == "first_catch" then
-		-- Waypoint to stall fires only if player doesn't approach in
-		-- Beat3WaypointDelaySeconds. Cancel any previous waypoint timer.
-		if self._waypointTimers[player] then
-			task.cancel(self._waypointTimers[player])
-		end
-		local token = task.delay(TUNE.Beat3WaypointDelaySeconds, function()
-			local data = Knit.GetService("PlayerDataService"):GetProfile(player)
-			if not data or not data.tutorial then return end
-			if data.tutorial.state ~= "first_catch" then return end
-			-- Compute stall position from plot origin + a stub offset.
-			-- For v1 the stall lives at the dock building. Pointing at
-			-- the player's dock is good enough until a dedicated stall
-			-- building exists.
-			local origin = Knit.GetService("HarborService"):GetPlotOrigin(player)
-			if origin then
-				local dock = GridUtil.gridToLocal(8, 0)
-				local stallPos = (origin * CFrame.new(dock.X + 2, 2, dock.Z + 2)).Position
-				self.Client.WaypointSet:Fire(player, stallPos)
-			end
-		end)
-		self._waypointTimers[player] = token
+		-- Re-pointed from a physical "stall" (which never existed as a
+		-- building) to the Bag → Sell (QuickSell) flow. Flash the Bag
+		-- button so the player knows where their catch goes; the beat
+		-- advances on dialogue_end (Continue), then first_sale waits for
+		-- the actual sale.
+		self.Client.FlashElement:Fire(player, "bag_button")
 	elseif beatName == "first_sale" then
-		-- Mid-beat decoration: flash the global market button once so
-		-- the player notices it without being forced to engage.
-		self.Client.FlashElement:Fire(player, "market_button")
+		-- Selling happens from the Bag (QuickSell). Flash the Bag button
+		-- so the player opens it and sells. The dialogue still mentions
+		-- the global market board as a "you can list there later" aside,
+		-- so we keep recording that they've seen that hint.
+		self.Client.FlashElement:Fire(player, "bag_button")
 		local data = Knit.GetService("PlayerDataService"):GetProfile(player)
 		if data and data.tutorial then
 			data.tutorial.flags.seenGlobalMarketHint = true
@@ -407,26 +394,9 @@ function TutorialService:_tick()
 			end
 		end
 
-		-- Beat 3 stall proximity.
-		if t.state == "first_catch" then
-			local char = player.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
-			local origin = HarborService:GetPlotOrigin(player)
-			if hrp and origin then
-				local dock = GridUtil.gridToLocal(8, 0)
-				local stallPos = (origin * CFrame.new(dock.X + 2, 2, dock.Z + 2)).Position
-				local hasFish = false
-				for _, item in ipairs(data.inventory) do
-					if item.kind == "Fish" then hasFish = true; break end
-				end
-				if hasFish and (hrp.Position - stallPos).Magnitude < TUNE.Beat3StallProximityStuds then
-					self:_advanceBeat(player)
-					-- Clear the waypoint when the player arrives so it
-					-- doesn't keep pointing after success.
-					self.Client.WaypointSet:Fire(player, nil)
-				end
-			end
-		end
+		-- Beat 3 (first_catch) now advances on dialogue_end — the catch is
+		-- sold from the Bag (QuickSell), not by walking to a physical
+		-- stall, so there is no proximity check here.
 
 		-- Wander recall — disabled by default. The previous behavior
 		-- respawned Mira next to the player every tick once they
