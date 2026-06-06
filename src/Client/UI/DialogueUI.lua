@@ -74,10 +74,12 @@ function DialogueUI.create(speakerName: string): DialogueUIInstance
 		if initialLabel and initialLabel:IsA("GuiObject") then
 			initialLabel.Visible = false
 		end
+		portrait.ClipsDescendants = true
 		local img = Instance.new("ImageLabel")
 		img.Name = "PortraitImage"
 		img.Image = portraitAssetId
 		img.BackgroundTransparency = 1
+		img.ScaleType = Enum.ScaleType.Fit
 		img.Size = UDim2.fromScale(1, 1)
 		img.Parent = portrait
 	end
