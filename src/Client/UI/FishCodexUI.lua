@@ -35,6 +35,7 @@ export type CodexFishDef = {
 export type CodexShowOpts = {
 	fishCatalog:   { CodexFishDef },
 	caughtSpecies: {[string]: number},
+	personalBests: {[string]: { heaviestKg: number }}?,
 	discovered:    number,
 	totalSpecies:  number,
 	onClose:       (() -> ())?,
@@ -54,6 +55,7 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 	local cfg = GameConfig.Codex
 	local fishCatalog = opts.fishCatalog
 	local caughtSpecies = opts.caughtSpecies
+	local personalBests = opts.personalBests or {}
 	local onClose = opts.onClose
 	local discovered = opts.discovered
 	local totalSpecies = opts.totalSpecies
@@ -112,12 +114,15 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 		Parent = header,
 	})
 
-	local closeBtn = UIUtil.makeLabel("×", "title", {
+	-- Close button: canonical factory builds a real TextButton with Activated
+	-- wired and an ASCII "X" glyph (Gotham can't render Unicode "×"). `destroy`
+	-- lives in the CLOSE LOGIC section below, so forward-declare it and defer.
+	local destroy
+	local closeBtn = UIUtil.makeCloseButton(function() destroy() end, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -UIUtil.Spacing.sm, 0, 0),
 		Size = UDim2.new(0, UIUtil.MinTouchPx, 0, UIUtil.MinTouchPx),
 	})
-	closeBtn.Name = "Close"
 	closeBtn.Parent = header
 
 	-- ---- PROGRESS BAR ----
@@ -236,10 +241,14 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 		)
 		nameLabel.Parent = card
 
-		-- Rarity label + count (bottom of card, if discovered)
+		-- Rarity label + count + heaviest-kg best (bottom of card, if discovered)
 		if isDiscovered then
+			local best = personalBests[fish.id]
+			local infoText = if best and best.heaviestKg
+				then ("%s  ·  %d caught  ·  %.1f kg best"):format(fish.rarity, count, best.heaviestKg)
+				else ("%s  ·  %d caught"):format(fish.rarity, count)
 			local infoLabel = UIUtil.makeLabel(
-				("%s  ·  %d caught"):format(fish.rarity, count),
+				infoText,
 				"caption", {
 					AnchorPoint = Vector2.new(0, 1),
 					Position = UDim2.new(0, UIUtil.Spacing.xs, 1, -UIUtil.Spacing.xs),
@@ -283,7 +292,7 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 
 	-- ---- CLOSE LOGIC ----
 	local closed = false
-	local function destroy()
+	function destroy()
 		if closed then return end
 		closed = true
 		if gui.Parent then
@@ -295,7 +304,6 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 	end
 
 	backdrop.Activated:Connect(destroy)
-	closeBtn.Activated:Connect(destroy)
 
 	-- ---- HANDLE ----
 	return {

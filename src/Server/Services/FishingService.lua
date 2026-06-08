@@ -678,6 +678,7 @@
 		PlayerDataService:AddXP(player, xpAward)
 
 		local data = PlayerDataService:GetProfile(player)
+		local newBest = false
 		if data then
 			data.stats.totalCatches += 1
 			local prevCount = data.stats.caughtSpecies[fish.id] or 0
@@ -685,6 +686,24 @@
 			-- Fire CodexChanged when a new species is first discovered.
 			if prevCount == 0 then
 				PlayerDataService.Client.CodexChanged:Fire(player, fish.id, data.stats.caughtSpecies)
+			end
+
+			-- Personal-best tracking. `weight` is fully resolved here (perfect-cast,
+			-- rod bonus, modifier effects already applied). Server-authoritative:
+			-- the client only renders the resulting flag, never decides it.
+			local CR = GameConfig.CatchRecords
+			local pb = data.stats.personalBests[fish.id]
+			local firstMod = (#modifiers > 0) and modifiers[1] or nil
+			if pb == nil then
+				data.stats.personalBests[fish.id] = {
+					heaviestKg = weight,
+					firstCaughtAt = os.time(),
+					firstModifierId = firstMod,
+				}
+				newBest = CR.CelebrateFirstOfSpecies
+			elseif weight > (pb.heaviestKg + CR.MinImprovementKg) then
+				pb.heaviestKg = weight
+				newBest = true
 			end
 		end
 
@@ -707,6 +726,7 @@
 			perfect      = perfect,
 			castPerfect  = castPerfect,
 			modifiers    = #modifiers > 0 and modifiers or nil,
+			newPersonalBest = newBest or nil,
 		}
 		self.Client.CastResolved:Fire(player, result)
 		return { success = true, perfect = perfect }
