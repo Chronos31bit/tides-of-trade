@@ -28,6 +28,7 @@ local FishCodexController = Knit.CreateController({
 	Name = "FishCodexController",
 	_handle        = nil :: any,  -- FishCodexUI.Handle while open
 	_caughtSpecies = {} :: {[string]: number},  -- [fishId] = count
+	_personalBests = {} :: {[string]: any},     -- [fishId] = { heaviestKg, ... }
 	_totalSpecies  = 0,
 })
 
@@ -38,6 +39,7 @@ function FishCodexController:KnitStart()
 	pds:GetSnapshot():andThen(function(snap)
 		if snap and snap.stats and snap.stats.caughtSpecies then
 			self._caughtSpecies = snap.stats.caughtSpecies
+			self._personalBests = snap.stats.personalBests or {}
 			self:_countDiscovered()
 		end
 	end)
@@ -90,6 +92,7 @@ function FishCodexController:Open()
 	self._handle = FishCodexUI.show({
 		fishCatalog   = FishCatalog.fish,
 		caughtSpecies = self._caughtSpecies,
+		personalBests = self._personalBests,
 		discovered    = self._discovered or 0,
 		totalSpecies  = self._totalSpecies,
 		onClose       = function()

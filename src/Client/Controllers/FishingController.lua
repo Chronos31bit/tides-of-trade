@@ -805,6 +805,7 @@ function FishingController:_celebrate(result: any)
 		perfect = result.perfect == true,
 		castPerfect = result.castPerfect == true,
 		modifiers = result.modifiers,
+		newPersonalBest = result.newPersonalBest == true,
 	})
 end
 

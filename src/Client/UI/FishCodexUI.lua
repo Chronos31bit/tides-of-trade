@@ -35,6 +35,7 @@ export type CodexFishDef = {
 export type CodexShowOpts = {
 	fishCatalog:   { CodexFishDef },
 	caughtSpecies: {[string]: number},
+	personalBests: {[string]: { heaviestKg: number }}?,
 	discovered:    number,
 	totalSpecies:  number,
 	onClose:       (() -> ())?,
@@ -54,6 +55,7 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 	local cfg = GameConfig.Codex
 	local fishCatalog = opts.fishCatalog
 	local caughtSpecies = opts.caughtSpecies
+	local personalBests = opts.personalBests or {}
 	local onClose = opts.onClose
 	local discovered = opts.discovered
 	local totalSpecies = opts.totalSpecies
@@ -236,10 +238,14 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 		)
 		nameLabel.Parent = card
 
-		-- Rarity label + count (bottom of card, if discovered)
+		-- Rarity label + count + heaviest-kg best (bottom of card, if discovered)
 		if isDiscovered then
+			local best = personalBests[fish.id]
+			local infoText = if best and best.heaviestKg
+				then ("%s  ·  %d caught  ·  %.1f kg best"):format(fish.rarity, count, best.heaviestKg)
+				else ("%s  ·  %d caught"):format(fish.rarity, count)
 			local infoLabel = UIUtil.makeLabel(
-				("%s  ·  %d caught"):format(fish.rarity, count),
+				infoText,
 				"caption", {
 					AnchorPoint = Vector2.new(0, 1),
 					Position = UDim2.new(0, UIUtil.Spacing.xs, 1, -UIUtil.Spacing.xs),
