@@ -114,12 +114,15 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 		Parent = header,
 	})
 
-	local closeBtn = UIUtil.makeLabel("×", "title", {
+	-- Close button: canonical factory builds a real TextButton with Activated
+	-- wired and an ASCII "X" glyph (Gotham can't render Unicode "×"). `destroy`
+	-- lives in the CLOSE LOGIC section below, so forward-declare it and defer.
+	local destroy
+	local closeBtn = UIUtil.makeCloseButton(function() destroy() end, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -UIUtil.Spacing.sm, 0, 0),
 		Size = UDim2.new(0, UIUtil.MinTouchPx, 0, UIUtil.MinTouchPx),
 	})
-	closeBtn.Name = "Close"
 	closeBtn.Parent = header
 
 	-- ---- PROGRESS BAR ----
@@ -289,7 +292,7 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 
 	-- ---- CLOSE LOGIC ----
 	local closed = false
-	local function destroy()
+	function destroy()
 		if closed then return end
 		closed = true
 		if gui.Parent then
@@ -301,7 +304,6 @@ function FishCodexUI.show(opts: CodexShowOpts): CodexHandle
 	end
 
 	backdrop.Activated:Connect(destroy)
-	closeBtn.Activated:Connect(destroy)
 
 	-- ---- HANDLE ----
 	return {
