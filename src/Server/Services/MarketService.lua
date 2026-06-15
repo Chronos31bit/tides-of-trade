@@ -770,6 +770,16 @@ function MarketService.Client:QuickSell(player: Player, itemUid: string): {ok: b
 		-- Dock NPC pays 60% of fair value — incentive to use the global market
 		-- when you've got time to wait for buyers.
 		payout = math.floor(f.basePrice * mul * 0.6)
+		-- Apply per-modifier sell-price multipliers (same logic as Buy path).
+		-- A Rainbow fish quick-sold should still pay 2× base; without this the
+		-- modifier badge misleads the player about the fish's sell value.
+		if item.modifiers then
+			local modMul = 1.0
+			for _, modId in ipairs(item.modifiers) do
+				if _modSellMul[modId] then modMul = modMul * _modSellMul[modId] end
+			end
+			payout = math.floor(payout * modMul)
+		end
 	elseif item.kind == "Good" then
 		local speciesId = EconomyUtil.parsePreservedSpeciesId(item.goodId)
 		if speciesId then
