@@ -109,6 +109,7 @@ export type CatchPayload = {
 	perfect: boolean?,
 	castPerfect: boolean?,
 	modifiers: {string}?,
+	newPersonalBest: boolean?,
 }
 
 export type RevealHandle = {
@@ -147,6 +148,19 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 
 	local mods = payload.modifiers or {}
 	local cardExtraH = #mods > 0 and 24 or 0
+
+	-- Celebratory badges stacked above the name: the perfect/cast line and the
+	-- "new personal best" line. Each is a 16px row from y=8 down; the name sits
+	-- below the stack. The 132px baseline fits one top row (the original perfect
+	-- label); each extra row grows the card by 16px so the name/pills clear.
+	local reelPerfect = payload.perfect == true
+	local castPerfect = payload.castPerfect == true
+	local showPerfect = reelPerfect or castPerfect
+	local showPB = payload.newPersonalBest == true
+	local topRows = (showPerfect and 1 or 0) + (showPB and 1 or 0)
+	if topRows > 1 then
+		cardExtraH += 16 * (topRows - 1)
+	end
 	local cardH = 132 + cardExtraH
 
 	local restTopPx = _walletTopOffsetPx()
@@ -159,26 +173,40 @@ function CatchRevealUI.show(payload: CatchPayload): RevealHandle
 	stroke.Color = tierColor
 
 	local nameTopY = 12
-	local reelPerfect = payload.perfect == true
-	local castPerfect = payload.castPerfect == true
-	if reelPerfect or castPerfect then
-		local perfectLbl = Instance.new("TextLabel")
-		perfectLbl.BackgroundTransparency = 1
-		perfectLbl.Position = UDim2.new(0, 108, 0, 8)
-		perfectLbl.Size = UDim2.new(1, -120, 0, 14)
-		perfectLbl.Font = Enum.Font.GothamBlack
-		perfectLbl.TextSize = 12
-		perfectLbl.TextColor3 = perfectColor
-		perfectLbl.TextXAlignment = Enum.TextXAlignment.Left
-		if reelPerfect and castPerfect then
-			perfectLbl.Text = "PERFECT CATCH"
-		elseif reelPerfect then
-			perfectLbl.Text = "PERFECT REEL"
-		else
-			perfectLbl.Text = "PRECISION CAST"
+	if topRows > 0 then
+		local topY = 8
+		-- One stacked top-strip badge. `fadeIn` only animates when motion is on;
+		-- under ReducedMotion the label appears at full opacity immediately (no
+		-- slide, no particle burst). Single fade stays well under 3Hz.
+		local function addTopBadge(text: string, color: Color3, fadeIn: boolean)
+			local lbl = Instance.new("TextLabel")
+			lbl.BackgroundTransparency = 1
+			lbl.Position = UDim2.new(0, 108, 0, topY)
+			lbl.Size = UDim2.new(1, -120, 0, 14)
+			lbl.Font = Enum.Font.GothamBlack
+			lbl.TextSize = 12
+			lbl.TextColor3 = color
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.Text = text
+			lbl.Parent = card
+			if fadeIn and not MotionUtil.reducedMotionEnabled() then
+				lbl.TextTransparency = 1
+				MotionUtil.tween(lbl, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					TextTransparency = 0,
+				})
+			end
+			topY += 16
 		end
-		perfectLbl.Parent = card
-		nameTopY = 24
+
+		if showPerfect then
+			local perfectText = (reelPerfect and castPerfect) and "PERFECT CATCH"
+				or (reelPerfect and "PERFECT REEL" or "PRECISION CAST")
+			addTopBadge(perfectText, perfectColor, false)
+		end
+		if showPB then
+			addTopBadge("NEW PERSONAL BEST!", P.Legendary, true)
+		end
+		nameTopY = 8 + topRows * 16
 	end
 
 	nameLbl.Position = UDim2.new(0, 108, 0, nameTopY)

@@ -600,6 +600,23 @@ GameConfig.Fishing = {
 }
 
 -- ====================================================================
+-- CATCH RECORDS — per-species personal-best tracking.
+--
+-- The server records the heaviest catch per species on profile.stats.
+-- personalBests and flags newly-beaten records in the CastResolved payload
+-- so CatchRevealUI can show a "New personal best!" badge. Purely additive;
+-- no DataStore version bump (Reconcile backfills the empty map).
+-- ====================================================================
+GameConfig.CatchRecords = {
+	-- Minimum kg a new catch must EXCEED the recorded best by to count as a
+	-- personal best (guards against celebrating a +0.0kg rounding tie).
+	MinImprovementKg = 0.0,
+	-- When true, the first-ever catch of a species also fires the PB badge.
+	-- Default false: first catch is a "Discovery" (codex toast), not a "best".
+	CelebrateFirstOfSpecies = false,
+}
+
+-- ====================================================================
 -- UI — client-only presentation tunables (no gameplay effect)
 --
 -- Design tokens here are the single source of truth for spacing, radii,

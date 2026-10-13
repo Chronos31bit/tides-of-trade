@@ -50,6 +50,10 @@ local PROFILE_TEMPLATE: Profile = {
 		totalSold = 0,
 		totalCoinsEarned = 0,
 		caughtSpecies = {},
+		-- Heaviest catch per species. Reconcile adds this as an empty table for
+		-- existing profiles (safe default). [fishId] = { heaviestKg, firstCaughtAt,
+		-- firstModifierId }. Server-authoritative; drives the "personal best" badge.
+		personalBests = {},
 	},
 	achievements = {},
 	-- Bait. baitStash is a map of baitId → unit count; Reconcile adds it as
