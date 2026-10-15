@@ -541,6 +541,10 @@ function MarketService.Client:Buy(player: Player, listingId: string): {ok: boole
 	local expiredItems
 	local ok, err = pcall(function()
 		self._marketStore:UpdateAsync(MARKET_INDEX_KEY, function(old)
+			-- Reset on every invocation: DataStore retries the callback on write
+			-- conflicts, so a stale value from an earlier (rejected) call must not
+			-- leak out and be treated as a successful buy.
+			boughtListing = nil
 			old = old or {}
 			local kept, expired = pruneAndQueueReturns(old :: {Types.MarketListing})
 			expiredItems = expired
@@ -700,6 +704,10 @@ function MarketService.Client:Cancel(player: Player, listingId: string): {ok: bo
 	local cancelledListing
 	local ok = pcall(function()
 		self._marketStore:UpdateAsync(MARKET_INDEX_KEY, function(old)
+			-- Reset on every invocation: DataStore retries the callback on write
+			-- conflicts, so a stale value from an earlier (rejected) call must not
+			-- leak out and be treated as a successful cancel.
+			cancelledListing = nil
 			old = old or {}
 			for i, l in ipairs(old) do
 				if l.listingId == listingId and l.sellerId == player.UserId then
